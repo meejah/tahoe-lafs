@@ -291,7 +291,7 @@ class Root(rend.Page):
         ctx.fillSlots("last_received_data_abs_time", last_received_data_abs_time)
         ctx.fillSlots("last_received_data_rel_time", last_received_data_rel_time)
 
-        status = ("no", "yes")
+        status = ("No", "Yes")
         ctx.fillSlots("connected-bool", "%s" % (connected))
         ctx.fillSlots("connected", "%s" % (status[int(connected)]))
         ctx.fillSlots("since", "%s" % (time.strftime(TIME_FORMAT,
