@@ -39,8 +39,13 @@ class StorageServer(service.MultiService):
     LeaseCheckerClass = LeaseCheckingCrawler
 
     def __init__(self, storedir, nodeid, reserved_space=0,
-                 discard_storage=False, readonly_storage=False,
-                 stats_provider=None):
+                 readonly_storage=False,
+                 stats_provider=None,
+                 expiration_enabled=False,
+                 expiration_mode="age",
+                 expiration_override_lease_duration=None,
+                 expiration_cutoff_date=None,
+                 expiration_sharetypes=("mutable", "immutable")):
         service.MultiService.__init__(self)
         assert isinstance(nodeid, str)
         assert len(nodeid) == 20
@@ -53,7 +58,6 @@ class StorageServer(service.MultiService):
         self.corruption_advisory_dir = os.path.join(storedir,
                                                     "corruption-advisories")
         self.reserved_space = int(reserved_space)
-        self.no_storage = discard_storage
         self.readonly_storage = readonly_storage
         self.stats_provider = stats_provider
         if self.stats_provider:
@@ -274,9 +278,7 @@ class StorageServer(service.MultiService):
             elif (not limited) or (remaining_space >= max_space_per_bucket):
                 # ok! we need to create the new share file.
                 bw = BucketWriter(self, account, incominghome, finalhome,
-                                  max_space_per_bucket, canary)
-                if self.no_storage:
-                    bw.throw_out_all_data = True
+                                  max_space_per_bucket, lease_info, canary)
                 bucketwriters[shnum] = bw
                 self._active_writers[bw] = 1
                 if limited:
