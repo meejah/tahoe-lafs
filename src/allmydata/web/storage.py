@@ -141,7 +141,7 @@ class StorageStatus(MultiFormatPage):
             if d is None:
                 return "?"
             return "%d" % d
-        return "%s shares, %s buckets (%s mutable / %s immutable), %s (%s / %s)" % \
+        return "%s shares, %s sharesets (%s mutable / %s immutable), %s (%s / %s)" % \
                (maybe(sr["%s-shares" % a]),
                 maybe(sr["%s-buckets" % a]),
                 maybe(sr["%s-buckets-mutable" % a]),
@@ -177,7 +177,7 @@ class StorageStatus(MultiFormatPage):
             if d is None:
                 return "?"
             return "%d" % d
-        add("So far, this cycle has examined %d shares in %d buckets"
+        add("So far, this cycle has examined %d shares in %d sharesets"
             % (sr["examined-shares"], sr["examined-buckets"]),
             " (%d mutable / %d immutable)"
             % (sr["examined-buckets-mutable"], sr["examined-buckets-immutable"]),
@@ -188,7 +188,7 @@ class StorageStatus(MultiFormatPage):
         if so_far["expiration-enabled"]:
             add("The remainder of this cycle is expected to recover: ",
                 self.format_recovered(esr, "actual"))
-            add("The whole cycle is expected to examine %s shares in %s buckets"
+            add("The whole cycle is expected to examine %s shares in %s sharesets"
                 % (maybe(ecr["examined-shares"]), maybe(ecr["examined-buckets"])))
             add("and to recover: ", self.format_recovered(ecr, "actual"))
         else:
