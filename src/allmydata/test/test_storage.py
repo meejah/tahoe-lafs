@@ -10,8 +10,8 @@ import itertools
 from allmydata import interfaces
 from allmydata.util import fileutil, hashutil, base32, pollmixin, time_format
 from allmydata.storage.server import StorageServer
-from allmydata.storage.mutable import MutableShareFile
-from allmydata.storage.immutable import BucketWriter, BucketReader
+from allmydata.storage.backends.disk.mutable import MutableShareFile
+from allmydata.storage.backends.disk.immutable import BucketWriter, BucketReader, ShareFile
 from allmydata.storage.common import DataTooLargeError, storage_index_to_dir, \
      UnknownMutableContainerVersionError, UnknownImmutableContainerVersionError
 from allmydata.storage.lease import LeaseInfo
