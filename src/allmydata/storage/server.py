@@ -14,7 +14,8 @@ from allmydata.storage.lease import LeaseInfo
 from allmydata.storage.backends.disk.mutable import MutableShareFile, EmptyShare, \
      create_mutable_sharefile
 from allmydata.mutable.layout import MAX_MUTABLE_SHARE_SIZE
-from allmydata.storage.backends.disk.immutable import ShareFile, BucketWriter, BucketReader
+from allmydata.storage.backends.disk.immutable import ShareFile
+from allmydata.storage.bucket import BucketWriter, BucketReader
 from allmydata.storage.crawler import BucketCountingCrawler
 from allmydata.storage.expirer import LeaseCheckingCrawler
 
