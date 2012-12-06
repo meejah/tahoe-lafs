@@ -29,6 +29,25 @@ def get_db(dbfile, stderr=sys.stderr,
 
     schema, target_version = create_version
     c = db.cursor()
+
+    # Enabling foreign keys allows stricter integrity checking.
+    # The default is unspecified according to <http://www.sqlite.org/foreignkeys.html#fk_enable>.
+    c.execute("PRAGMA foreign_keys = ON;")
+
+    if journal_mode is not None:
+        c.execute("PRAGMA journal_mode = %s;" % (journal_mode,))
+
+    if synchronous is not None:
+        c.execute("PRAGMA synchronous = %s;" % (synchronous,))
+
+    # This is necessary to pass tests for the time being, since using
+    # synchronous = NORMAL causes failures that are apparently due to a
+    # file descriptor leak, and the default synchronous = FULL causes the
+    # tests to time out. For discussion see
+    # https://tahoe-lafs.org/pipermail/tahoe-dev/2012-December/007877.html
+    #c.execute("PRAGMA journal_mode = WAL;")
+    c.execute("PRAGMA synchronous = OFF;")
+
     if must_create:
         c.executescript(schema)
         c.execute("INSERT INTO version (version) VALUES (?)", (target_version,))
