@@ -11,7 +11,7 @@ import allmydata # for __full_version__
 from allmydata import uri, monitor, client
 from allmydata.immutable import upload, encode
 from allmydata.interfaces import FileTooLargeError, UploadUnhappinessError
-from allmydata.util import log, base32
+from allmydata.util import log, base32, fileutil
 from allmydata.util.assertutil import precondition
 from allmydata.util.deferredutil import DeferredListShouldSucceed
 from allmydata.test.no_network import GridTestMixin
@@ -431,7 +431,7 @@ class ServerErrors(unittest.TestCase, ShouldFailMixin, SetDEPMixin):
                             "server selection failed",
                             upload_data, self.u, DATA)
         def _check((f,)):
-            self.failUnlessIn("placed 10 shares out of 100 total", str(f.value))
+            self.failUnlessIn("placed 0 shares out of 100 total", str(f.value))
             # there should also be a 'last failure was' message
             self.failUnlessIn("ServerError", str(f.value))
         d.addCallback(_check)
@@ -495,7 +495,7 @@ class ServerSelection(unittest.TestCase):
             for s in self.node.last_servers:
                 allocated = s.allocated
                 self.failUnlessEqual(len(allocated), 1)
-                self.failUnlessEqual(s.queries, 1)
+                self.failUnlessEqual(s.queries, 2)
         d.addCallback(_check)
         return d
 
@@ -535,7 +535,7 @@ class ServerSelection(unittest.TestCase):
                 allocated = s.allocated
                 self.failUnless(len(allocated) in (1,2), len(allocated))
                 if len(allocated) == 1:
-                    self.failUnlessEqual(s.queries, 1)
+                    self.failUnlessEqual(s.queries, 2)
                     got_one.append(s)
                 else:
                     self.failUnlessEqual(s.queries, 2)
@@ -1591,7 +1591,7 @@ class EncodingParameters(GridTestMixin, unittest.TestCase, SetDEPMixin,
         d.addCallback(_setup)
         d.addCallback(lambda c:
             self.shouldFail(UploadUnhappinessError, "test_query_counting",
-                            "10 queries placed some shares",
+                            "0 queries placed some shares",
                             c.upload, upload.Data("data" * 10000,
                                                   convergence="")))
         # Now try with some readonly servers. We want to make sure that
@@ -1644,7 +1644,7 @@ class EncodingParameters(GridTestMixin, unittest.TestCase, SetDEPMixin,
         d.addCallback(_next)
         d.addCallback(lambda c:
             self.shouldFail(UploadUnhappinessError, "test_query_counting",
-                            "1 queries placed some shares",
+                            "0 queries placed some shares",
                             c.upload, upload.Data("data" * 10000,
                                                   convergence="")))
         return d
@@ -1881,7 +1881,11 @@ class EncodingParameters(GridTestMixin, unittest.TestCase, SetDEPMixin,
             # Copy shares
             self._copy_share_to_server(3, 1)
             #Remove shares from server 0
-            self.delete_all_shares(self.get_serverdir(0))
+            # XXX from conflict; double-ckec: self.delete_all_shares(self.get_serverdir(0))
+            sharedir = os.path.join(self.get_serverdir(0), "shares")
+            for prefixdir in os.listdir(sharedir):
+                if prefixdir != 'incoming':
+                    fileutil.rm_dir(os.path.join(sharedir, prefixdir))
             client = self.g.clients[0]
             client.encoding_params['happy'] = 4
             return client
