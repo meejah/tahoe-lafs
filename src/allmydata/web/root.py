@@ -265,6 +265,7 @@ class Root(rend.Page):
                     display_furl = "%s/[censored]" % (prefix,)
                 i = furls.index(furl)
                 ic = self.client.introducer_clients[i]
+                since = self.client.introducer_clients[i].get_since()
                 s.append((display_furl, bool(connection_statuses[i]), ic))
         s.sort()
         return s
@@ -289,6 +290,12 @@ class Root(rend.Page):
         ctx.fillSlots("service_connection_status_rel_time", service_connection_status_rel_time)
         ctx.fillSlots("last_received_data_abs_time", last_received_data_abs_time)
         ctx.fillSlots("last_received_data_rel_time", last_received_data_rel_time)
+
+        status = ("no", "yes")
+        ctx.fillSlots("connected-bool", "%s" % (connected))
+        ctx.fillSlots("connected", "%s" % (status[int(connected)]))
+        ctx.fillSlots("since", "%s" % (time.strftime(TIME_FORMAT,
+                                             time.localtime(since))))
         return ctx.tag
 
     def data_helper_furl_prefix(self, ctx, data):
