@@ -7,7 +7,7 @@ from allmydata.web.common import (
     MultiFormatPage,
 )
 from allmydata.util.abbreviate import abbreviate_space
-from allmydata.util import time_format, idlib
+from allmydata.util import idlib
 
 def remove_prefix(s, prefix):
     if not s.startswith(prefix):
@@ -25,17 +25,19 @@ class StorageStatus(MultiFormatPage):
 
     def render_JSON(self, req):
         req.setHeader("content-type", "text/plain")
+        accounting_crawler = self.storage.get_accounting_crawler()
+        bucket_counter = self.storage.get_bucket_counter()
         d = {"stats": self.storage.get_stats(),
-             "bucket-counter": self.storage.bucket_counter.get_state(),
-             "lease-checker": self.storage.lease_checker.get_state(),
-             "lease-checker-progress": self.storage.lease_checker.get_progress(),
+             "bucket-counter": bucket_counter.get_state(),
+             "lease-checker": accounting_crawler.get_state(),
+             "lease-checker-progress": accounting_crawler.get_progress(),
              }
         return json.dumps(d, indent=1) + "\n"
 
     def data_nickname(self, ctx, storage):
         return self.nickname
     def data_nodeid(self, ctx, storage):
-        return idlib.nodeid_b2a(self.storage.my_nodeid)
+        return idlib.nodeid_b2a(self.storage.get_nodeid())
 
     def render_storage_running(self, ctx, storage):
         if storage:
@@ -90,14 +92,14 @@ class StorageStatus(MultiFormatPage):
         return d
 
     def data_last_complete_bucket_count(self, ctx, data):
-        s = self.storage.bucket_counter.get_state()
+        s = self.storage.get_bucket_counter().get_state()
         count = s.get("last-complete-bucket-count")
         if count is None:
             return "Not computed yet"
         return count
 
     def render_count_crawler_status(self, ctx, storage):
-        p = self.storage.bucket_counter.get_progress()
+        p = self.storage.get_bucket_counter().get_progress()
         return ctx.tag[self.format_crawler_progress(p)]
 
     def format_crawler_progress(self, p):
@@ -126,28 +128,12 @@ class StorageStatus(MultiFormatPage):
                     cycletime_s]
 
     def render_lease_expiration_enabled(self, ctx, data):
-        lc = self.storage.lease_checker
-        if lc.expiration_enabled:
-            return ctx.tag["Enabled: expired leases will be removed"]
-        else:
-            return ctx.tag["Disabled: scan-only mode, no leases will be removed"]
+        ep = self.storage.get_expiration_policy()
+        return ctx.tag[ep.describe_enabled()]
 
     def render_lease_expiration_mode(self, ctx, data):
-        lc = self.storage.lease_checker
-        if lc.mode == "age":
-            if lc.override_lease_duration is None:
-                ctx.tag["Leases will expire naturally, probably 31 days after "
-                        "creation or renewal."]
-            else:
-                ctx.tag["Leases created or last renewed more than %s ago "
-                        "will be considered expired."
-                        % abbreviate_time(lc.override_lease_duration)]
-        else:
-            assert lc.mode == "cutoff-date"
-            localizedutcdate = time.strftime("%d-%b-%Y", time.gmtime(lc.cutoff_date))
-            isoutcdate = time_format.iso_utc_date(lc.cutoff_date)
-            ctx.tag["Leases created or last renewed before %s (%s) UTC "
-                    "will be considered expired." % (isoutcdate, localizedutcdate, )]
+        ep = self.storage.get_expiration_policy()
+        ctx.tag[ep.describe_expiration()]
         return ctx.tag
 
     def format_recovered(self, sr, a):
@@ -166,16 +152,16 @@ class StorageStatus(MultiFormatPage):
                 )
 
     def render_lease_current_cycle_progress(self, ctx, data):
-        lc = self.storage.lease_checker
-        p = lc.get_progress()
+        ac = self.storage.get_accounting_crawler()
+        p = ac.get_progress()
         return ctx.tag[self.format_crawler_progress(p)]
 
     def render_lease_current_cycle_results(self, ctx, data):
-        lc = self.storage.lease_checker
-        p = lc.get_progress()
+        ac = self.storage.get_accounting_crawler()
+        p = ac.get_progress()
         if not p["cycle-in-progress"]:
             return ""
-        s = lc.get_state()
+        s = ac.get_state()
         so_far = s["cycle-to-date"]
         sr = so_far["space-recovered"]
         er = s["estimated-remaining-cycle"]
@@ -217,8 +203,8 @@ class StorageStatus(MultiFormatPage):
         return ctx.tag["Current cycle:", p]
 
     def render_lease_last_cycle_results(self, ctx, data):
-        lc = self.storage.lease_checker
-        h = lc.get_state()["history"]
+        ac = self.storage.get_accounting_crawler()
+        h = ac.get_state()["history"]
         if not h:
             return ""
         last = h[max(h.keys())]
