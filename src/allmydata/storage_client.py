@@ -100,10 +100,13 @@ class StorageFarmBroker:
     I'm also responsible for subscribing to the IntroducerClient to find out
     about new servers as they are announced by the Introducer.
     """
-    def __init__(self, tub, permute_peers, preferred_peers=()):
+    def __init__(self, tub, permute_peers, connected_threshold, connected_d,
+                 preferred_peers=()):
         self.tub = tub
         assert permute_peers # False not implemented yet
         self.permute_peers = permute_peers
+        self.connected_threshold = connected_threshold
+        self.connected_d = connected_d
         self.preferred_peers = preferred_peers
         # self.servers maps serverid -> IServer, and keeps track of all the
         # storage servers that we've heard about. Each descriptor manages its
@@ -118,7 +121,7 @@ class StorageFarmBroker:
 
     # these two are used in unit tests
     def test_add_rref(self, serverid, rref, ann):
-        s = NativeStorageServer(serverid, ann.copy())
+        s = NativeStorageServer(serverid, ann.copy(), self)
         s.rref = rref
         s._is_connected = True
         self.servers[serverid] = s
@@ -238,9 +241,10 @@ class NativeStorageServer:
         "application-version": "unknown: no get_version()",
         }
 
-    def __init__(self, key_s, ann):
+    def __init__(self, key_s, ann, broker):
         self.key_s = key_s
         self.announcement = ann
+        self.broker = broker
 
         assert "anonymous-storage-FURL" in ann, ann
         furl = str(ann["anonymous-storage-FURL"])
