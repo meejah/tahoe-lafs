@@ -134,6 +134,7 @@ class Client(node.Node, pollmixin.PollMixin):
         # All tub.registerReference must happen *after* we upcall, since
         # that's what does tub.setLocation()
         self.upload_ready_d = defer.Deferred()
+        self.connected_enough_d = defer.Deferred()
         self.started_timestamp = time.time()
         self.logSource="Client"
         self.encoding_params = self.DEFAULT_ENCODING_PARAMETERS.copy()
@@ -365,7 +366,7 @@ class Client(node.Node, pollmixin.PollMixin):
                                    self.encoding_params["happy"] + 1)
 
         sb = storage_client.StorageFarmBroker(self.tub, True, connection_threshold,
-                                              self.upload_ready_d, preferred_peers=preferred_peers)
+                                              self.connected_enough_d, preferred_peers=preferred_peers)
         self.storage_broker = sb
 
         connection_threshold = min(self.encoding_params["k"],
@@ -516,7 +517,7 @@ class Client(node.Node, pollmixin.PollMixin):
                 s.startService()
 
                 # start processing the upload queue when we've connected to enough servers
-                self.upload_ready_d.addCallback(s.upload_ready)
+                self.connected_enough_d.addCallback(s.ready)
             except Exception, e:
                 self.log("couldn't start drop-uploader: %r", args=(e,))
 
