@@ -12,43 +12,29 @@ Tahoe-LAFS Magic Folder Frontend
 Introduction
 ============
 
-The Magic Folder frontend synchronizes local directories on two or more
-clients, using a Tahoe-LAFS grid for storage. Whenever a file is created
-or changed under the local directory of one of the clients, the change is
-propagated to the grid and then to the other clients.
+The Magic Folder frontend allows an upload to a Tahoe-LAFS grid to be triggered
+automatically whenever a file is created or changed in a specific local
+directory. It currently works on Linux and Windows.
 
-The implementation of the "drop-upload" frontend, on which Magic Folder is
-based, was written as a prototype at the First International Tahoe-LAFS
-Summit in June 2011. In 2015, with the support of a grant from the
-`Open Technology Fund`_, it was redesigned and extended to support
-synchronization between clients. It currently works on Linux and Windows.
-
-Magic Folder is not currently in as mature a state as the other frontends
-(web, CLI, SFTP and FTP). This means that you probably should not rely on
-all changes to files in the local directory to result in successful uploads.
-There might be (and have been) incompatible changes to how the feature is
-configured.
+The implementation was written as a prototype at the First International
+Tahoe-LAFS Summit in June 2011, and is not currently in as mature a state as
+the other frontends (web, CLI, SFTP and FTP). This means that you probably
+should not rely on all changes to files in the local directory to result in
+successful uploads. There might be (and have been) incompatible changes to
+how the feature is configured.
 
 We are very interested in feedback on how well this feature works for you, and
 suggestions to improve its usability, functionality, and reliability.
-
-.. _`Open Technology Fund`: https://www.opentech.fund/
 
 
 Configuration
 =============
 
 The Magic Folder frontend runs as part of a gateway node. To set it up, you
-must use the tahoe magic-folder CLI. For detailed information see our
-`Magic-Folder CLI design documentation`_. For a given Magic-Folder collective
-directory you need to run the ``tahoe magic-folder create`` command. After
-that the ``tahoe magic-folder invite`` command must used to generate an
-*invite code* for each member of the magic-folder collective. A confidential,
-authenticated communications channel should be used to transmit the invite code
-to each member, who will be joining using the ``tahoe magic-folder join``
-command.
+need to choose the local directory to monitor for file changes, and a mutable
+directory on the grid to which files will be uploaded.
 
-These settings are persisted in the ``[magic_folder]`` section of the
+These settings are configured in the ``[magic_folder]`` section of the
 gateway's ``tahoe.cfg`` file.
 
 ``[magic_folder]``
@@ -65,14 +51,18 @@ gateway's ``tahoe.cfg`` file.
     in UTF-8 regardless of the system's filesystem encoding. Relative paths
     will be interpreted starting from the node's base directory.
 
-You should not normally need to set these fields manually because they are
-set by the ``tahoe magic-folder create`` and/or ``tahoe magic-folder join``
-commands. Use the ``--help`` option to these commands for more information.
+In addition:
+ * the file ``private/magic_folder_dircap`` must contain a writecap pointing
+   to an existing mutable directory to be used as the target of uploads.
+   It will start with ``URI:DIR2:``, and cannot include an alias or path.
+ * the file ``private/collective_dircap`` must contain a readcap
 
-After setting up a Magic Folder collective and starting or restarting each
-gateway, you can confirm that the feature is working by copying a file into
-any local directory, and checking that it appears on other clients.
-Large files may take some time to appear.
+After setting the above fields and starting or restarting the gateway,
+you can confirm that the feature is working by copying a file into the
+local directory. Then, use the WUI or CLI to check that it has appeared
+in the upload directory with the same filename. A large file may take some
+time to appear, since it is only linked into the directory after the upload
+has completed.
 
 The 'Operational Statistics' page linked from the Welcome page shows
 counts of the number of files uploaded, the number of change events currently
@@ -85,8 +75,18 @@ page and the node log_ may be helpful to determine the cause of any failures.
 Known Issues and Limitations
 ============================
 
-This feature only works on Linux and Windows. There is a ticket to add
+This frontend only works on Linux and Windows. There is a ticket to add
 support for Mac OS X and BSD-based systems (`#1432`_).
+
+Subdirectories of the local directory are not monitored. If a subdirectory
+is created, it will be ignored. (`#1433`_)
+
+If files are created or changed in the local directory just after the gateway
+has started, it might not have connected to a sufficient number of servers
+when the upload is attempted, causing the upload to fail. (`#1449`_)
+
+Files that were created or changed in the local directory while the gateway
+was not running, will not be uploaded. (`#1458`_)
 
 The only way to determine whether uploads have failed is to look at the
 'Operational Statistics' page linked from the Welcome page. This only shows
@@ -116,14 +116,28 @@ So, it is recommended for the local directory to be on a directly attached
 disk-based filesystem, not a network filesystem or one provided by a virtual
 machine.
 
+Attempts to read the mutable directory at about the same time as an uploaded
+file is being linked into it, might fail, even if they are done through the
+same gateway. (`#1105`_)
+
+When a local file is changed and closed several times in quick succession,
+it may be uploaded more times than necessary to keep the remote copy
+up-to-date. (`#1440`_)
+
+Files deleted from the local directory will not be unlinked from the upload
+directory. (`#1710`_)
+
 The ``private/magic_folder_dircap`` and ``private/collective_dircap`` files
 cannot use an alias or path to specify the upload directory. (`#1711`_)
 
+Files are always uploaded as immutable. If there is an existing mutable file
+of the same name in the upload directory, it will be unlinked and replaced
+with an immutable file. (`#1712`_)
+
 If a file in the upload directory is changed (actually relinked to a new
-file), then the old file is still present on the grid, and any other caps
-to it will remain valid. Eventually it will be possible to use
-`garbage collection`_ to reclaim the space used by these files; however
-currently they are retained indefinitely. (`#2440`_)
+file), then the old file is still present on the grid, and any other caps to
+it will remain valid. See `docs/garbage-collection.rst`_ for how to reclaim
+the space used by files that are no longer needed.
 
 Unicode filenames are supported on both Linux and Windows, but on Linux, the
 local name of a file must be encoded correctly in order for it to be uploaded.
@@ -136,14 +150,20 @@ On Windows, local directories with non-ASCII names are not currently working.
 On Windows, when a node has Magic Folder enabled, it is unresponsive to Ctrl-C
 (it can only be killed using Task Manager or similar). (`#2218`_)
 
+.. _`#1105`: https://tahoe-lafs.org/trac/tahoe-lafs/ticket/1105
 .. _`#1430`: https://tahoe-lafs.org/trac/tahoe-lafs/ticket/1430
 .. _`#1431`: https://tahoe-lafs.org/trac/tahoe-lafs/ticket/1431
 .. _`#1432`: https://tahoe-lafs.org/trac/tahoe-lafs/ticket/1432
+.. _`#1433`: https://tahoe-lafs.org/trac/tahoe-lafs/ticket/1433
+.. _`#1440`: https://tahoe-lafs.org/trac/tahoe-lafs/ticket/1440
+.. _`#1449`: https://tahoe-lafs.org/trac/tahoe-lafs/ticket/1449
+.. _`#1458`: https://tahoe-lafs.org/trac/tahoe-lafs/ticket/1458
 .. _`#1459`: https://tahoe-lafs.org/trac/tahoe-lafs/ticket/1459
+.. _`#1710`: https://tahoe-lafs.org/trac/tahoe-lafs/ticket/1710
 .. _`#1711`: https://tahoe-lafs.org/trac/tahoe-lafs/ticket/1711
+.. _`#1712`: https://tahoe-lafs.org/trac/tahoe-lafs/ticket/1712
 .. _`#2218`: https://tahoe-lafs.org/trac/tahoe-lafs/ticket/2218
 .. _`#2219`: https://tahoe-lafs.org/trac/tahoe-lafs/ticket/2219
-.. _`#2440`: https://tahoe-lafs.org/trac/tahoe-lafs/ticket/2440
 
-.. _`garbage collection`: ../garbage-collection.rst
-.. _`Magic-Folder CLI design documentation`: ../proposed/magic-folder/user-interface-design.rst
+.. _docs/garbage-collection.rst: ../garbage-collection.rst
+
