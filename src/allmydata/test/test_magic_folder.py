@@ -336,7 +336,7 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
 
         def Bob_wait_for_download(result):
             print "Bob waits for a download\n"
-            clock.advance(2)
+            clock.advance(4)
             d2 = self.bob_magicfolder.downloader.set_hook('processed')
             return d2
 
