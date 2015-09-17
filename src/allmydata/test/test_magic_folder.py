@@ -350,7 +350,6 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
             print "Alice deletes the file!\n"
             os.unlink(self.file_path)
             self.notify(to_filepath(self.file_path), self.inotify.IN_DELETE)
-            clock.advance(4)
             return None
 
         d.addCallback(Alice_delete_file)
@@ -386,7 +385,8 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
         def cleanup_Alice_and_Bob(result):
             d = defer.succeed(None)
             d.addCallback(lambda ign: self.alice_magicfolder.finish())
-            d.addCallback(lambda ign: self.bob_magicfolder.finish())
+            d2 = self.bob_magicfolder.finish()
+            d.addCallback(lambda ign: d2)
             d.addCallback(lambda ign: result)
             clock.advance(4)
             return d
