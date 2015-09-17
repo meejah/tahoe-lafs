@@ -417,9 +417,7 @@ class Downloader(QueueMixin):
 
     def stop(self):
         self._stopped = True
-        d = defer.succeed(None)
-        d.addCallback(lambda ign: self._lazy_tail)
-        return d
+        return self._lazy_tail
 
     def _should_download(self, relpath_u, remote_version):
         """
