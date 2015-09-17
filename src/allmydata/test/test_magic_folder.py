@@ -298,6 +298,70 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
         #print "_check_version_in_local_db: %r has version %s" % (relpath_u, version)
         self.failUnlessEqual(version, expected_version)
 
+    @defer.inlineCallbacks
+    def test_alice_bob_inline(self):
+        setup = yield self.setup_alice_and_bob()
+        (alice_collective_dircap, alice_upload_dircap, alice_magicfolder,
+         bob_collective_dircap,   bob_upload_dircap,   bob_magicfolder) = setup
+
+        # alice writes a file
+        self.file_path = abspath_expanduser_unicode(u"file1", base=alice_magicfolder.uploader._local_path_u)
+        fileutil.write(self.file_path, "meow, meow meow. meow? meow meow! meow.")
+        self.magicfolder = alice_magicfolder
+        self.notify(to_filepath(self.file_path), self.inotify.IN_CLOSE_WRITE)
+
+        # alice waits for an upload
+        yield alice_magicfolder.uploader.set_hook('processed')
+
+        yield self._check_version_in_dmd(alice_magicfolder, u"file1", 0)
+        yield self._check_version_in_local_db(alice_magicfolder, u"file1", 0)
+        yield self.failUnlessReallyEqual(self._get_count('uploader.objects_succeeded', client=alice_magicfolder._client), 1)
+        yield self.failUnlessReallyEqual(self._get_count('uploader.files_uploaded', client=alice_magicfolder._client), 1)
+        yield self.failUnlessReallyEqual(self._get_count('uploader.objects_queued', client=alice_magicfolder._client), 0)
+        yield self.failUnlessReallyEqual(self._get_count('uploader.directories_created', client=alice_magicfolder._client), 0)
+
+        # bob waits for upload
+        yield bob_magicfolder.downloader.set_hook('processed')
+        yield self._check_version_in_local_db(bob_magicfolder, u"file1", 0)
+        yield self._check_version_in_dmd(bob_magicfolder, u"file1", 0) # XXX prolly not needed
+        yield self.failUnlessReallyEqual(self._get_count('downloader.objects_downloaded', client=bob_magicfolder._client), 1)
+
+        # test deletion of file behavior
+        os.unlink(self.file_path)
+        self.notify(to_filepath(self.file_path), self.inotify.IN_DELETE)
+        yield alice_magicfolder.uploader.set_hook('processed')
+
+        yield self.failUnlessReallyEqual(self._get_count('uploader.objects_succeeded', client=alice_magicfolder._client), 2)
+        yield self._check_version_in_dmd(alice_magicfolder, u"file1", 1)
+        yield self._check_version_in_local_db(alice_magicfolder, u"file1", 1)
+
+        yield bob_magicfolder.downloader.set_hook('processed')
+
+        yield self.failUnlessReallyEqual(self._get_count('downloader.objects_downloaded', client=bob_magicfolder._client), 2)
+        yield self._check_version_in_local_db(bob_magicfolder, u"file1", 1)
+        yield self._check_version_in_dmd(bob_magicfolder, u"file1", 1)
+
+        # print "Alice rewrites file\n"
+        self.file_path = abspath_expanduser_unicode(u"file1", base=alice_magicfolder.uploader._local_path_u)
+        fileutil.write(self.file_path, "Alice suddenly sees the white rabbit running into the forest.")
+        self.magicfolder = alice_magicfolder
+        self.notify(to_filepath(self.file_path), self.inotify.IN_CLOSE_WRITE)
+
+        yield alice_magicfolder.uploader.set_hook('processed')
+
+        yield self.failUnlessReallyEqual(self._get_count('uploader.objects_succeeded', client=alice_magicfolder._client), 3)
+        yield self.failUnlessReallyEqual(self._get_count('uploader.files_uploaded', client=alice_magicfolder._client), 3)
+        yield self.failUnlessReallyEqual(self._get_count('uploader.objects_queued', client=alice_magicfolder._client), 0)
+        yield self.failUnlessReallyEqual(self._get_count('uploader.directories_created', client=alice_magicfolder._client), 0)
+
+        yield bob_magicfolder.downloader.set_hook('processed')
+
+        yield self.failUnlessReallyEqual(self._get_count('downloader.objects_downloaded', client=bob_magicfolder._client), 3)
+
+        yield alice_magicfolder.finish()
+        yield bob_magicfolder.finish()
+
+
     def test_alice_bob(self):
         clock = Clock()
         d = self.setup_alice_and_bob(clock=clock)
