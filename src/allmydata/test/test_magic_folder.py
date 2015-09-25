@@ -313,7 +313,7 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
     def test_alice_bob(self):
         clock = Clock()
         if isinstance(self, MockTest):
-            d = self.setup_alice_and_bob(clock=clock)
+            d = self.setup_alice_and_bob(reactor=clock)
         else:
             d = self.setup_alice_and_bob()
 
