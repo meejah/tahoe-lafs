@@ -312,7 +312,11 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
 
     def test_alice_bob(self):
         clock = Clock()
-        d = self.setup_alice_and_bob(clock=clock)
+        if isinstance(self, MockTest):
+            d = self.setup_alice_and_bob(clock=clock)
+        else:
+            d = self.setup_alice_and_bob()
+
         def get_results(result):
             # XXX are these used?
             (self.alice_collective_dircap, self.alice_upload_dircap, self.alice_magicfolder,
