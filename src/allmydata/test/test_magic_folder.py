@@ -1,11 +1,16 @@
 
 import os, sys, stat, time
+import tempfile
+
+from mock import patch, Mock
 
 from twisted.trial import unittest
 from twisted.internet import defer
 
-from allmydata.interfaces import IDirectoryNode
+from allmydata.interfaces import IDirectoryNode, IMutableFileNode
 
+from allmydata.dirnode import DirectoryNode
+from allmydata.uri import DirectoryURI, WriteableSSKFileURI, ReadonlySSKFileURI
 from allmydata.util import fake_inotify, fileutil
 from allmydata.util.encodingutil import get_filesystem_encoding, to_filepath
 from allmydata.util.consumer import download_to_data
@@ -19,6 +24,79 @@ from allmydata.frontends import magic_folder
 from allmydata.frontends.magic_folder import MagicFolder, Downloader
 from allmydata import backupdb, magicpath
 from allmydata.util.fileutil import abspath_expanduser_unicode
+from allmydata.client import Client
+
+from zope.interface import implements
+
+class FakeFileNode(object):
+    implements(IMutableFileNode)
+
+    def __init__(self, readonly=True):
+        self._readonly = readonly
+
+    def get_cap(self):
+        if self._readonly:
+            return ReadonlySSKFileURI(
+                'URI:DIR2:7f5zane3fd444phr2q7odv6ozy:vsagfjnqjdmradzqohxzxcq2wozev4nzis4drxthtlskv62dcaoq',
+                "foo",
+            )
+        return WriteableSSKFileURI(
+            'URI:DIR2:7f5zane3fd444phr2q7odv6ozy:vsagfjnqjdmradzqohxzxcq2wozev4nzis4drxthtlskv62dcaoq',
+            "foo",
+        )
+
+    def is_readonly(self):
+        return self._readonly
+
+    def is_mutable(self):
+        return not self._readonly
+
+class FakeClient(object):
+    nickname = 'fake'
+
+    def __init__(self):
+        #self._fake_dir_node = DirectoryNode(filenode, nodemaker, uploader)
+        self._fake_dir_node_r = DirectoryNode(FakeFileNode(True), None, None)
+        self._fake_dir_node_w = DirectoryNode(FakeFileNode(False), None, None)
+
+
+    def log(self, *args, **kw):
+        pass
+
+    # returns an IDirectoryNode
+    def create_node_from_uri(self, cap):
+        print "DING", cap
+        if cap == 'read':
+            return self._fake_dir_node_r
+        return self._fake_dir_node_w
+
+
+class FakeDatabase(object):
+    pass
+
+
+class MagicFolderUnitTests(unittest.TestCase):
+    @patch('allmydata.frontends.magic_folder.backupdb')
+    def setUp(self, fakedb):
+        self.fake_db = Mock()
+        fakedb.get_backupdb = Mock(return_value=self.fake_db)
+        self.clock = Clock()
+        self.dircap = 'write'
+        self.collective_dircap = 'read'
+        self.local_path_u = unicode(tempfile.mkdtemp()) #u'/dev/null'
+        self.dbfile = u'/dev/null'
+        self.magic = MagicFolder(
+            FakeClient(),
+            self.dircap,
+            self.collective_dircap,
+            self.local_path_u,
+            self.dbfile,
+            pending_delay=1.0,
+            reactor=self.clock,
+        )
+
+    def test_basic(self):
+        print("OHAI", self.magic)
 
 
 class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqualMixin, NonASCIIPathMixin):
