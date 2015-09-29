@@ -34,7 +34,6 @@ class FakeDirectoryNode(object):
         return self.readonly
 
     def get_metadata_for(self, x):
-        print("XXX", x)
         # name, ro_uri, rwcapdata, metadata
         return self.metadata[x]
         return None
@@ -70,7 +69,7 @@ class MagicFolderUnitTests(unittest.TestCase):
 
     @patch('allmydata.frontends.magic_folder.get_inotify_module', MagicMock(return_value=fake_inotify))
     def setUp(self):
-        self.reactor = Clock()#Mock()
+        self.reactor = Mock()
         self.client = Mock()
         self.client.name = 'test-client'
         self.client.nickname = 'test-nick'
@@ -95,7 +94,6 @@ class MagicFolderUnitTests(unittest.TestCase):
         fp = os.path.join(self.tempdir, 'fake0')
         with open(fp, 'w') as f:
             f.write('''test line 0\ntest line 1\n''')
-        print("created", fp)
         fakepath = FilePath(fp)
         self.upload_node.metadata[u'fake0'] = (u"fake0", "ro-uri", "rwcapdata", "metadata")
         # we hook our node's add_file too, for checks later
@@ -114,3 +112,6 @@ class MagicFolderUnitTests(unittest.TestCase):
 
         # we should have tried to upload the file
         self.assertEqual(1, len(added))
+        (args, kw) = added[0]
+        self.assertEqual(u"fake0", args[0])
+        self.assertEqual(0, kw['metadata']['version'])
