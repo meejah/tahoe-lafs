@@ -391,18 +391,6 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
     def test_alice_bob(self):
         d = self.setup_alice_and_bob()
 
-        # there should be a better/nicer way to make this happen --
-        # basically we have to get the right things to get a turn at
-        # processing...but for *some* reason, making the "_turn_delay"
-        # simply 0 causes some kind of "infinite loop"-type behavior
-        # (constantly looping through the "wrong" queue, and not
-        # checking the uploader [or downloader] queue)
-        def turn_deques():
-            self.alice_magicfolder.uploader._turn_deque()
-            self.alice_magicfolder.downloader._turn_deque()
-            self.bob_magicfolder.downloader._turn_deque()
-            self.bob_magicfolder.uploader._turn_deque()
-
         def get_results(result):
             # XXX are these used?
             (self.alice_collective_dircap, self.alice_upload_dircap, self.alice_magicfolder,
@@ -411,20 +399,24 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
             #print "Bob   magicfolderdb is at %r" % (self.bob_magicfolder._client.basedir)
         d.addCallback(get_results)
 
+        def mock_deque_infinite_loop(_):
+            self._do_bob_download = self.bob_magicfolder.downloader._when_queue_is_empty
+            self._do_alice_download = self.alice_magicfolder.downloader._when_queue_is_empty
+            self.bob_magicfolder.downloader._when_queue_is_empty = lambda: defer.succeed(None)
+            self.alice_magicfolder.downloader._when_queue_is_empty = lambda: defer.succeed(None)
+        d.addCallback(mock_deque_infinite_loop)
+
         def Alice_write_a_file(result):
             print "Alice writes a file\n"
             self.file_path = abspath_expanduser_unicode(u"file1", base=self.alice_magicfolder.uploader._local_path_u)
             fileutil.write(self.file_path, "meow, meow meow. meow? meow meow! meow.")
             self.magicfolder = self.alice_magicfolder
             self.notify(to_filepath(self.file_path), self.inotify.IN_CLOSE_WRITE)
-            turn_deques()
         d.addCallback(Alice_write_a_file)
 
         def Alice_wait_for_upload(result):
             print "Alice waits for an upload\n"
             d2 = self.alice_magicfolder.uploader.set_hook('processed')
-            self.alice_magicfolder.uploader._turn_deque()
-            turn_deques()
             return d2
 
         d.addCallback(Alice_wait_for_upload)
@@ -441,10 +433,13 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
         def Bob_wait_for_download(result):
             print "Bob waits for a download\n"
             d2 = self.bob_magicfolder.downloader.set_hook('processed')
-            turn_deques()
+            self._do_bob_download()
             return d2
+        # XXX after changes, the 'processed' hook is already called by
+        # now, and the file bob wants already uploaded...but I don't
+        # know why/how the queue is getting processed.
+        #d.addCallback(Bob_wait_for_download)
 
-        d.addCallback(Bob_wait_for_download)
         d.addCallback(lambda ign: self._check_version_in_local_db(self.bob_magicfolder, u"file1", 0))
         d.addCallback(lambda ign: self._check_version_in_dmd(self.bob_magicfolder, u"file1", 0)) # XXX prolly not needed
         d.addCallback(lambda ign: self.failUnlessReallyEqual(self._get_count('downloader.objects_failed'), 0))
@@ -455,7 +450,6 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
             print "Alice deletes the file!\n"
             os.unlink(self.file_path)
             self.notify(to_filepath(self.file_path), self.inotify.IN_DELETE)
-            turn_deques()
             return None
 
         d.addCallback(Alice_delete_file)
@@ -477,7 +471,6 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
             fileutil.write(self.file_path, "Alice suddenly sees the white rabbit running into the forest.")
             self.magicfolder = self.alice_magicfolder
             self.notify(to_filepath(self.file_path), self.inotify.IN_CLOSE_WRITE)
-            turn_deques()
 
         d.addCallback(lambda ign: self._check_version_in_local_db(self.bob_magicfolder, u"file1", 1))
         d.addCallback(Alice_rewrite_file)
@@ -505,7 +498,6 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
             d2 = self.bob_magicfolder.finish()
             d.addBoth(lambda ign: d2)
             d.addCallback(lambda ign: result)
-            turn_deques()
             return d
         d.addCallback(cleanup_Alice_and_Bob)
         return d
