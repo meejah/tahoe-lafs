@@ -389,11 +389,19 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
         self.failUnlessEqual(version, expected_version)
 
     def test_alice_bob(self):
-        clock = Clock()
-        if isinstance(self, MockTest):
-            d = self.setup_alice_and_bob(reactor=clock)
-        else:
-            d = self.setup_alice_and_bob()
+        d = self.setup_alice_and_bob()
+
+        # there should be a better/nicer way to make this happen --
+        # basically we have to get the right things to get a turn at
+        # processing...but for *some* reason, making the "_turn_delay"
+        # simply 0 causes some kind of "infinite loop"-type behavior
+        # (constantly looping through the "wrong" queue, and not
+        # checking the uploader [or downloader] queue)
+        def turn_deques():
+            self.alice_magicfolder.uploader._turn_deque()
+            self.alice_magicfolder.downloader._turn_deque()
+            self.bob_magicfolder.downloader._turn_deque()
+            self.bob_magicfolder.uploader._turn_deque()
 
         def get_results(result):
             # XXX are these used?
@@ -409,13 +417,14 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
             fileutil.write(self.file_path, "meow, meow meow. meow? meow meow! meow.")
             self.magicfolder = self.alice_magicfolder
             self.notify(to_filepath(self.file_path), self.inotify.IN_CLOSE_WRITE)
-            clock.advance(4)
+            turn_deques()
         d.addCallback(Alice_write_a_file)
 
         def Alice_wait_for_upload(result):
             print "Alice waits for an upload\n"
             d2 = self.alice_magicfolder.uploader.set_hook('processed')
-            clock.advance(4)
+            self.alice_magicfolder.uploader._turn_deque()
+            turn_deques()
             return d2
 
         d.addCallback(Alice_wait_for_upload)
@@ -431,8 +440,8 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
 
         def Bob_wait_for_download(result):
             print "Bob waits for a download\n"
-            clock.advance(4)
             d2 = self.bob_magicfolder.downloader.set_hook('processed')
+            turn_deques()
             return d2
 
         d.addCallback(Bob_wait_for_download)
@@ -446,7 +455,7 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
             print "Alice deletes the file!\n"
             os.unlink(self.file_path)
             self.notify(to_filepath(self.file_path), self.inotify.IN_DELETE)
-            clock.advance(4)
+            turn_deques()
             return None
 
         d.addCallback(Alice_delete_file)
@@ -468,7 +477,7 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
             fileutil.write(self.file_path, "Alice suddenly sees the white rabbit running into the forest.")
             self.magicfolder = self.alice_magicfolder
             self.notify(to_filepath(self.file_path), self.inotify.IN_CLOSE_WRITE)
-            clock.advance(4)
+            turn_deques()
 
         d.addCallback(lambda ign: self._check_version_in_local_db(self.bob_magicfolder, u"file1", 1))
         d.addCallback(Alice_rewrite_file)
@@ -496,7 +505,7 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
             d2 = self.bob_magicfolder.finish()
             d.addBoth(lambda ign: d2)
             d.addCallback(lambda ign: result)
-            clock.advance(4)
+            turn_deques()
             return d
         d.addCallback(cleanup_Alice_and_Bob)
         return d
