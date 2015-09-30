@@ -28,76 +28,6 @@ from allmydata.client import Client
 
 from zope.interface import implements
 
-class FakeFileNode(object):
-    implements(IMutableFileNode)
-
-    def __init__(self, readonly=True):
-        self._readonly = readonly
-
-    def get_cap(self):
-        if self._readonly:
-            return ReadonlySSKFileURI(
-                'URI:DIR2:7f5zane3fd444phr2q7odv6ozy:vsagfjnqjdmradzqohxzxcq2wozev4nzis4drxthtlskv62dcaoq',
-                "foo",
-            )
-        return WriteableSSKFileURI(
-            'URI:DIR2:7f5zane3fd444phr2q7odv6ozy:vsagfjnqjdmradzqohxzxcq2wozev4nzis4drxthtlskv62dcaoq',
-            "foo",
-        )
-
-    def is_readonly(self):
-        return self._readonly
-
-    def is_mutable(self):
-        return not self._readonly
-
-class FakeClient(object):
-    nickname = 'fake'
-
-    def __init__(self):
-        #self._fake_dir_node = DirectoryNode(filenode, nodemaker, uploader)
-        self._fake_dir_node_r = DirectoryNode(FakeFileNode(True), None, None)
-        self._fake_dir_node_w = DirectoryNode(FakeFileNode(False), None, None)
-
-
-    def log(self, *args, **kw):
-        pass
-
-    # returns an IDirectoryNode
-    def create_node_from_uri(self, cap):
-        print "DING", cap
-        if cap == 'read':
-            return self._fake_dir_node_r
-        return self._fake_dir_node_w
-
-
-class FakeDatabase(object):
-    pass
-
-
-class MagicFolderUnitTests(unittest.TestCase):
-    @patch('allmydata.frontends.magic_folder.backupdb')
-    def setUp(self, fakedb):
-        self.fake_db = Mock()
-        fakedb.get_backupdb = Mock(return_value=self.fake_db)
-        self.clock = Clock()
-        self.dircap = 'write'
-        self.collective_dircap = 'read'
-        self.local_path_u = unicode(tempfile.mkdtemp()) #u'/dev/null'
-        self.dbfile = u'/dev/null'
-        self.magic = MagicFolder(
-            FakeClient(),
-            self.dircap,
-            self.collective_dircap,
-            self.local_path_u,
-            self.dbfile,
-            pending_delay=1.0,
-            reactor=self.clock,
-        )
-
-    def test_basic(self):
-        print("OHAI", self.magic)
-
 
 class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqualMixin, NonASCIIPathMixin):
     """
@@ -131,6 +61,20 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
     def _wait_until_started(self, ign):
         #print "_wait_until_started"
         self.magicfolder = self.get_client().getServiceNamed('magic-folder')
+
+        # mock out the two _when_queue_empty calls so we control when
+        # the queue runs, via self._do_download and self._do_upload We
+        # set _turn_delay to 0 so that there aren't any "deferLater"
+        # calls sitting in the _lazy_tail chain that actually need to
+        # wait. All this has to happen before .ready() since that
+        # queues a deferLater.
+        self.magicfolder = self.get_client().getServiceNamed('magic-folder')
+        self._do_download = self.magicfolder.downloader._when_queue_is_empty
+        self._do_upload = self.magicfolder.uploader._when_queue_is_empty
+        self.magicfolder.downloader._turn_delay = 0
+        self.magicfolder.downloader._when_queue_is_empty = lambda: defer.succeed(None)
+        self.magicfolder.uploader._when_queue_is_empty = lambda: defer.succeed(None)
+
         return self.magicfolder.ready()
 
     def test_db_basic(self):
