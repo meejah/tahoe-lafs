@@ -115,3 +115,37 @@ class MagicFolderUnitTests(unittest.TestCase):
         (args, kw) = added[0]
         self.assertEqual(u"fake0", args[0])
         self.assertEqual(0, kw['metadata']['version'])
+
+    @defer.inlineCallbacks
+    def test_create_and_modify_file(self):
+        # setup: create a fake file to "upload" etc
+        fp = os.path.join(self.tempdir, 'fake0')
+        with open(fp, 'w') as f:
+            f.write('''test line 0\ntest line 1\n''')
+        fakepath = FilePath(fp)
+        self.upload_node.metadata[u'fake0'] = (u"fake0", "ro-uri", "rwcapdata", "metadata")
+        # we hook our node's add_file too, for checks later
+        added = []
+        def add_file(*args, **kw):
+            added.append((args, kw))
+            return defer.succeed(FakeFileNode())
+        self.upload_node.add_file = add_file
+        self.client.convergence = b'0' * 40
+        self.db.get_local_file_version = MagicMock(return_value=None)
+
+        # send fake INotify event, and start the monitoring
+        self.uploader._notify(None, fakepath, None)
+        yield self.uploader.start_monitoring()
+        self.uploader._turn_deque()
+
+        # modify the file, and another event
+        with open(fp, 'w') as f:
+            f.write('''MOD test line 0\nMOD test line 1\n''')
+        self.upload_node.metadata[u'fake0'] = (u"fake0", "ro-uri1", "rwcapdata2", "metadata1")
+        self.uploader._turn_deque()
+
+        # we should have tried to upload the file
+        self.assertEqual(2, len(added))
+        (args, kw) = added[0]
+        self.assertEqual(u"fake0", args[0])
+        self.assertEqual(0, kw['metadata']['version'])
