@@ -520,6 +520,8 @@ def get_available_space(whichdir, reserved_space):
 
 
 if sys.platform == "win32":
+    from ctypes.wintypes import BOOL, HANDLE, DWORD, LPCWSTR, LPVOID, WinError, get_last_error
+
     # <http://msdn.microsoft.com/en-us/library/aa363858%28v=vs.85%29.aspx>
     CreateFileW = WINFUNCTYPE(
         HANDLE,  LPCWSTR, DWORD, DWORD, LPVOID, DWORD, DWORD, HANDLE,

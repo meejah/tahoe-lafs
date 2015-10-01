@@ -377,11 +377,6 @@ class Basic(testutil.ReallyEqualMixin, testutil.NonASCIIPathMixin, unittest.Test
             raise Boom()
         self.patch(allmydata.frontends.magic_folder, 'MagicFolder', BoomMagicFolder)
 
-        logged_messages = []
-        def mock_log(*args, **kwargs):
-            logged_messages.append("%r %r" % (args, kwargs))
-        self.patch(allmydata.util.log, 'msg', mock_log)
-
         basedir2 = "test_client.Basic.test_create_magic_folder_service2"
         os.mkdir(basedir2)
         os.mkdir(os.path.join(basedir2, "private"))
