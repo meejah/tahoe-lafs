@@ -2,7 +2,7 @@
 import os, sys
 
 from twisted.trial import unittest
-from twisted.internet import defer
+from twisted.internet import defer, task
 
 from allmydata.interfaces import IDirectoryNode
 
@@ -313,7 +313,8 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
         self.failUnlessEqual(version, expected_version)
 
     def test_alice_bob(self):
-        d = self.setup_alice_and_bob()
+        clock = task.Clock()
+        d = self.setup_alice_and_bob(clock=clock)
         def get_results(result):
             # XXX are these used?
             (self.alice_collective_dircap, self.alice_upload_dircap, self.alice_magicfolder,
@@ -334,6 +335,7 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
         def Alice_wait_for_upload(result):
             print "Alice waits for an upload\n"
             d2 = self.alice_magicfolder.uploader.set_hook('processed')
+            clock.advance(0)
             return d2
         d.addCallback(Alice_wait_for_upload)
         d.addCallback(lambda ign: self._check_version_in_dmd(self.alice_magicfolder, u"file1", 0))
@@ -348,6 +350,7 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
         def Bob_wait_for_download(result):
             print "Bob waits for a download\n"
             d2 = self.bob_magicfolder.downloader.set_hook('processed')
+            clock.advance(0)
             return d2
         d.addCallback(Bob_wait_for_download)
         d.addCallback(lambda ign: self._check_version_in_local_db(self.bob_magicfolder, u"file1", 0))
@@ -361,7 +364,7 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
             print "Alice deletes the file!\n"
             os.unlink(self.file_path)
             self.notify(to_filepath(self.file_path), self.inotify.IN_DELETE)
-
+            clock.advance(0)
             return None
         d.addCallback(Alice_delete_file)
         d.addCallback(Alice_wait_for_upload)
@@ -378,9 +381,9 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
 
         def Alice_rewrite_file(result):
             print "Alice rewrites file\n"
+            self.magicfolder = self.alice_magicfolder
             self.file_path = abspath_expanduser_unicode(u"file1", base=self.alice_magicfolder.uploader._local_path_u)
             fileutil.write(self.file_path, "Alice suddenly sees the white rabbit running into the forest.")
-            self.magicfolder = self.alice_magicfolder
             self.notify(to_filepath(self.file_path), self.inotify.IN_CLOSE_WRITE)
 
         d.addCallback(Alice_rewrite_file)
@@ -408,6 +411,7 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
             d.addCallback(lambda ign: self.alice_magicfolder.finish())
             d.addCallback(lambda ign: self.bob_magicfolder.finish())
             d.addCallback(lambda ign: result)
+            clock.advance(0)
             return d
         d.addCallback(cleanup_Alice_and_Bob)
         return d

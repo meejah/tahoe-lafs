@@ -107,16 +107,17 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin):
                                        dbfile, pending_delay=0.2, clock=clock)
         magicfolder.downloader._turn_delay = 0
 
-        # we wrap the _notify method so that we can tell -- in the
-        # RealTest only :/ -- when the actual inotify calls have
-        # happened, so that we may advance the clock.
-        orig = magicfolder.uploader._notify
-
+        orig = magicfolder.uploader._append_to_deque
+        # the _append_to_deque method queues a _turn_deque, so we
+        # immediately trigger it.
         def wrap(*args, **kw):
+            print "WRAPture", args, kw
             x = orig(*args, **kw)
+            print "zinga", x
             clock.advance(0)  # _turn_delay is always 0 for the tests
             return x
-        magicfolder.uploader._notify = wrap
+        magicfolder.uploader._append_to_deque = wrap
+        print 'WRAPPED'
 
         magicfolder.setServiceParent(self.get_client(client_num))
         magicfolder.ready()
