@@ -105,6 +105,19 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin):
         dbfile = abspath_expanduser_unicode(u"magicfolderdb.sqlite", base=self.get_clientdir(i=client_num))
         magicfolder = MagicFolder(self.get_client(client_num), upload_dircap, collective_dircap, local_magic_dir,
                                        dbfile, pending_delay=0.2, clock=clock)
+        magicfolder.downloader._turn_delay = 0
+
+        # we wrap the _notify method so that we can tell -- in the
+        # RealTest only :/ -- when the actual inotify calls have
+        # happened, so that we may advance the clock.
+        orig = magicfolder.uploader._notify
+
+        def wrap(*args, **kw):
+            x = orig(*args, **kw)
+            clock.advance(0)  # _turn_delay is always 0 for the tests
+            return x
+        magicfolder.uploader._notify = wrap
+
         magicfolder.setServiceParent(self.get_client(client_num))
         magicfolder.ready()
         return magicfolder
