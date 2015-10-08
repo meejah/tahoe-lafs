@@ -111,9 +111,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin):
         # the _append_to_deque method queues a _turn_deque, so we
         # immediately trigger it.
         def wrap(*args, **kw):
-            print "WRAPture", args, kw
             x = orig(*args, **kw)
-            print "zinga", x
             clock.advance(0)  # _turn_delay is always 0 for the tests
             return x
         magicfolder.uploader._append_to_deque = wrap
