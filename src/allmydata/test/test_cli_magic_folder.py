@@ -105,16 +105,11 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin):
         dbfile = abspath_expanduser_unicode(u"magicfolderdb.sqlite", base=self.get_clientdir(i=client_num))
         magicfolder = MagicFolder(self.get_client(client_num), upload_dircap, collective_dircap, local_magic_dir,
                                        dbfile, pending_delay=0.2, clock=clock)
-        magicfolder.downloader._turn_delay = 0
 
-        orig = magicfolder.uploader._append_to_deque
+        magicfolder.downloader._turn_delay = 0
         # the _append_to_deque method queues a _turn_deque, so we
-        # immediately trigger it by wrapping _append_to_deque
-        def wrap(*args, **kw):
-            x = orig(*args, **kw)
-            clock.advance(0)  # _turn_delay is always 0 for the tests
-            return x
-        magicfolder.uploader._append_to_deque = wrap
+        # immediately trigger it
+        magicfolder.uploader._after_append_to_deque = lambda: clock.advance(0)
 
         magicfolder.setServiceParent(self.get_client(client_num))
         magicfolder.ready()

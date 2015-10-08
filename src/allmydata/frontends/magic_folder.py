@@ -148,6 +148,10 @@ class QueueMixin(HookMixin):
         self._count('objects_queued')
         if self.is_ready:
             self._clock.callLater(0, self._turn_deque)
+        self._after_append_to_deque()
+
+    def _after_append_to_deque(self):
+        pass
 
     def _turn_deque(self):
         if self._stopped:
