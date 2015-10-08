@@ -418,6 +418,7 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
                 bob_clock.advance(0)
                 return d2
             d.addCallback(clean_bob)
+            # the return value is important in case it's a Failure
             d.addCallback(lambda ign: result)
             return d
         d.addBoth(cleanup_Alice_and_Bob)
