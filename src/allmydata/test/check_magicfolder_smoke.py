@@ -80,7 +80,7 @@ subprocess.check_call(
 
 furl_fname = join(data_base, 'introducer', 'private', 'introducer.furl')
 while not exists(furl_fname):
-    time.sleep(.1)
+    time.sleep(1)
 furl = open(furl_fname, 'r').read()
 print("FURL", furl)
 
@@ -212,7 +212,7 @@ if True:
                 if f.read() == "line one\n":
                     break
                 print("  file contents still mismatched")
-        time.sleep(.1)
+        time.sleep(1)
 
 if True:
     # bob writes a file; alice should get it
@@ -229,7 +229,7 @@ if True:
                 if f.read() == "line one\n":
                     break
                 print("  file contents still mismatched")
-        time.sleep(.1)
+        time.sleep(1)
 
 if False:
     # bob deletes alice's "first_file"; alice should also delete it
@@ -241,7 +241,27 @@ if False:
     while True:
         if not exists(alice_foo):
             print("  disappeared", alice_foo)
-        time.sleep(.1)
+        time.sleep(1)
+
+if True:
+    # bob deletes alice's "first_file"; alice should also delete it
+    alice_foo = join(data_base, 'client0-magic', 'first_file')
+    bob_foo = join(data_base, 'client1-magic', 'first_file')
+    gold_content = "line one\nsecond line\n"
+
+    with open(bob_foo, 'w') as f:
+        f.write(gold_content)
+
+    print("Waiting for:", alice_foo)
+    while True:
+        if exists(alice_foo):
+            print("  found", alice_foo)
+            with open(alice_foo, 'r') as f:
+                content = f.read()
+                if content == gold_content:
+                    break
+                print("  file contents still mismatched:\n")
+        time.sleep(1)
 
 # XXX test .backup (delete a file)
 
