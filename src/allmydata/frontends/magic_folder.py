@@ -537,11 +537,16 @@ class Downloader(QueueMixin):
             fp = self._get_filepath(relpath_u)
             abspath_u = unicode_from_filepath(fp)
             d2 = defer.succeed(res)
-            d2.addCallback(lambda result: self._write_downloaded_file(abspath_u, result, is_conflict=False))
+
+            if metadata.get('deleted', False):
+                d2.addCallback(lambda result: self._unlink_deleted_file(abspath_u, result))
+            else:
+                d2.addCallback(lambda result: self._write_downloaded_file(abspath_u, result, is_conflict=False))
+
             def do_update_db(written_abspath_u):
                 filecap = file_node.get_uri()
                 written_pathinfo = get_pathinfo(written_abspath_u)
-                if not written_pathinfo.exists:
+                if not written_pathinfo.exists and not metadata.get('deleted', False):
                     raise Exception("downloaded file %s disappeared" % quote_local_unicode_path(written_abspath_u))
 
                 self._db.did_upload_version(filecap, relpath_u, metadata['version'], written_pathinfo)
@@ -561,6 +566,13 @@ class Downloader(QueueMixin):
         return d
 
     FUDGE_SECONDS = 10.0
+
+    def _unlink_deleted_file(self, abspath_u, result):
+        try:
+            os.unlink(abspath_u)
+        except OSError:
+            self._log("Already gone: '%s'" % (abspath_u,))
+        return abspath_u
 
     @classmethod
     def _write_downloaded_file(cls, abspath_u, file_contents, is_conflict=False, now=None):
