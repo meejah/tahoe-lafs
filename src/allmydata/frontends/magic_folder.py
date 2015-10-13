@@ -265,8 +265,14 @@ class Uploader(QueueMixin):
         return d
 
     def _notify(self, opaque, path, events_mask):
-        self._log("inotify event %r, %r, %r\n" % (opaque, path, ', '.join(self._inotify.humanReadableMask(events_mask))))
         relpath_u = self._get_relpath(path)
+        if relpath_u in self._pending or magicpath.should_ignore_file(relpath_u):
+            self._log("ignore: %r\n" % (path,))
+            return
+        if relpath_u.endswith(u'@_'):
+            self._log("ignore: %r\n" % (path,))
+            return
+        self._log("inotify event %r, %r, %r\n" % (opaque, path, ', '.join(self._inotify.humanReadableMask(events_mask))))
         self._append_to_deque(relpath_u)
 
     def _when_queue_is_empty(self):
