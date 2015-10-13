@@ -314,6 +314,7 @@ class Uploader(QueueMixin):
                         return self._upload_dirnode.add_file(encoded_path_u, empty_uploadable, overwrite=True, metadata=metadata)
                     d2.addCallback(set_deleted)
                     def add_db_entry(filenode):
+                        last_downloaded_uri = filenode.get_uri()
                         filecap = filenode.get_uri()
 
                         self._db.did_upload_version(relpath_u, current_version, filecap, last_downloaded_uri, last_downloaded_timestamp, pathinfo)
