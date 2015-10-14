@@ -229,19 +229,62 @@ if True:
                 if f.read() == "line one\n":
                     break
                 print("  file contents still mismatched")
-        time.sleep(.1)
+        time.sleep(1)
 
-if False:
+if True:
     # bob deletes alice's "first_file"; alice should also delete it
     alice_foo = join(data_base, 'client0-magic', 'first_file')
     bob_foo = join(data_base, 'client1-magic', 'first_file')
-    unlink(bob_foo)
+    unlink(alice_foo)
 
-    print("Waiting for '%s' to disappear" % (alice_foo,))
+    print("Waiting for '%s' to disappear" % (bob_foo,))
     while True:
-        if not exists(alice_foo):
-            print("  disappeared", alice_foo)
-        time.sleep(.1)
+        if not exists(bob_foo):
+            print("  disappeared", bob_foo)
+            break
+        time.sleep(1)
+
+if True:
+    # re-write 'second_file'
+    alice_foo = join(data_base, 'client0-magic', 'second_file')
+    bob_foo = join(data_base, 'client1-magic', 'second_file')
+    gold_content = "line one\nsecond line\n"
+
+    with open(bob_foo, 'w') as f:
+        f.write(gold_content)
+
+    print("Waiting for:", alice_foo)
+    while True:
+        if exists(alice_foo):
+            print("  found", alice_foo)
+            with open(alice_foo, 'r') as f:
+                content = f.read()
+                if content == gold_content:
+                    break
+                print("  file contents still mismatched:\n")
+        time.sleep(1)
+
+if True:
+    # restore 'first_file' but with different contents
+    alice_foo = join(data_base, 'client0-magic', 'first_file')
+    bob_foo = join(data_base, 'client1-magic', 'first_file')
+    gold_content = "see it again for the first time\n"
+
+    with open(bob_foo, 'w') as f:
+        f.write(gold_content)
+
+    print("Waiting for:", alice_foo)
+    while True:
+        if exists(alice_foo):
+            print("  found", alice_foo)
+            with open(alice_foo, 'r') as f:
+                content = f.read()
+                if content == gold_content:
+                    break
+                print("  file contents still mismatched:\n")
+        time.sleep(1)
+
+
 
 # XXX test .backup (delete a file)
 
