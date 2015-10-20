@@ -333,7 +333,7 @@ class CreateMagicFolder(MagicFolderCLITestMixin, unittest.TestCase):
         d.addCallback(get_invite_code_and_join)
         def get_caps(ign):
             self.collective_dircap, self.upload_dircap = self.get_caps_from_files(0)
-        d.addCallback(get_caps)
+        d.addCallback(_done)
         d.addCallback(lambda ign: self.check_joined_config(0, self.upload_dircap))
         d.addCallback(lambda ign: self.check_config(0, abs_local_dir_u))
 
