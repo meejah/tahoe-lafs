@@ -109,10 +109,15 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin):
         d.addCallback(lambda ign: res)
         return d
 
-    def init_magicfolder(self, client_num, upload_dircap, collective_dircap, local_magic_dir, clock):
+    def init_magicfolder(self, client_num, upload_dircap, collective_dircap, local_magic_dir):
+
+        def do_now(_, fn, *args, **kw):
+            "in the tests, we always do it immediately"
+            return fn(*args, **kw)
+
         dbfile = abspath_expanduser_unicode(u"magicfolderdb.sqlite", base=self.get_clientdir(i=client_num))
         magicfolder = MagicFolder(self.get_client(client_num), upload_dircap, collective_dircap, local_magic_dir,
-                                       dbfile, pending_delay=0.2, clock=clock)
+                                  dbfile, pending_delay=0.2, do_later=do_now)
         magicfolder.downloader._turn_delay = 0
 
         magicfolder.setServiceParent(self.get_client(client_num))
@@ -146,7 +151,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin):
         def get_Alice_magicfolder(result):
             self.alice_magicfolder = self.init_magicfolder(0, self.alice_upload_dircap,
                                                            self.alice_collective_dircap,
-                                                           alice_magic_dir, alice_clock)
+                                                           alice_magic_dir)
             return result
         d.addCallback(get_Alice_magicfolder)
 
@@ -164,7 +169,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin):
         def get_Bob_magicfolder(result):
             self.bob_magicfolder = self.init_magicfolder(1, self.bob_upload_dircap,
                                                          self.bob_collective_dircap,
-                                                         bob_magic_dir, bob_clock)
+                                                         bob_magic_dir)
             return result
         d.addCallback(get_Bob_magicfolder)
         return d

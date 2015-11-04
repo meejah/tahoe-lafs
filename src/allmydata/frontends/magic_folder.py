@@ -46,13 +46,11 @@ class MagicFolder(service.MultiService):
     name = 'magic-folder'
 
     def __init__(self, client, upload_dircap, collective_dircap, local_path_u, dbfile,
-                 pending_delay=1.0, clock=None):
+                 pending_delay=1.0, do_later=reactor.callLater):
         precondition_abspath(local_path_u)
 
         service.MultiService.__init__(self)
 
-        immediate = clock is not None
-        clock = clock or reactor
         db = magicfolderdb.get_magicfolderdb(dbfile, create_version=(magicfolderdb.SCHEMA_v1, 1))
         if db is None:
             return Failure(Exception('ERROR: Unable to load magic folder db.'))
@@ -64,8 +62,8 @@ class MagicFolder(service.MultiService):
         upload_dirnode = self._client.create_node_from_uri(upload_dircap)
         collective_dirnode = self._client.create_node_from_uri(collective_dircap)
 
-        self.uploader = Uploader(client, local_path_u, db, upload_dirnode, pending_delay, clock, immediate)
-        self.downloader = Downloader(client, local_path_u, db, collective_dirnode, upload_dirnode.get_readonly_uri(), clock)
+        self.uploader = Uploader(client, local_path_u, db, upload_dirnode, pending_delay, do_later)
+        self.downloader = Downloader(client, local_path_u, db, collective_dirnode, upload_dirnode.get_readonly_uri(), do_later)
 
     def startService(self):
         # TODO: why is this being called more than once?
@@ -96,14 +94,17 @@ class MagicFolder(service.MultiService):
 
 
 class QueueMixin(HookMixin):
-    def __init__(self, client, local_path_u, db, name, clock):
+    def __init__(self, client, local_path_u, db, name, do_later=reactor.callLater):
         self._client = client
         self._local_path_u = local_path_u
         self._local_filepath = to_filepath(local_path_u)
         self._db = db
+        self._do_later = do_later
         self._name = name
-        self._clock = clock
-        self._hooks = {'processed': None, 'started': None}
+        self._hooks = {
+            'processed': None,
+            'started': None,
+        }
         self.started_d = self.set_hook('started')
 
         if not self._local_filepath.exists():
@@ -161,16 +162,15 @@ class QueueMixin(HookMixin):
             self._lazy_tail.addCallback(lambda ign: self._process(item))
             self._lazy_tail.addBoth(self._call_hook, 'processed')
             self._lazy_tail.addErrback(log.err)
-            self._lazy_tail.addCallback(lambda ign: task.deferLater(self._clock, self._turn_delay, self._turn_deque))
+            self._lazy_tail.addCallback(lambda ign: self._do_later(self._turn_delay, self._turn_deque))
 
 
 class Uploader(QueueMixin):
-    def __init__(self, client, local_path_u, db, upload_dirnode, pending_delay, clock,
-                 immediate=False):
-        QueueMixin.__init__(self, client, local_path_u, db, 'uploader', clock)
+    def __init__(self, client, local_path_u, db, upload_dirnode, pending_delay,
+                 do_later):
+        QueueMixin.__init__(self, client, local_path_u, db, 'uploader', do_later)
 
         self.is_ready = False
-        self._immediate = immediate
 
         if not IDirectoryNode.providedBy(upload_dirnode):
             raise AssertionError("The URI in '%s' does not refer to a directory."
@@ -292,10 +292,7 @@ class Uploader(QueueMixin):
         self._pending.add(relpath_u)
         self._count('objects_queued')
         if self.is_ready:
-            if self._immediate:  # for tests
-                self._turn_deque()
-            else:
-                self._clock.callLater(0, self._turn_deque)
+            self._do_later(0, self._turn_deque)
 
     def _when_queue_is_empty(self):
         return defer.succeed(None)
@@ -509,8 +506,8 @@ class WriteFileMixin(object):
 class Downloader(QueueMixin, WriteFileMixin):
     REMOTE_SCAN_INTERVAL = 3  # facilitates tests
 
-    def __init__(self, client, local_path_u, db, collective_dirnode, upload_readonly_dircap, clock):
-        QueueMixin.__init__(self, client, local_path_u, db, 'downloader', clock)
+    def __init__(self, client, local_path_u, db, collective_dirnode, upload_readonly_dircap, do_later):
+        QueueMixin.__init__(self, client, local_path_u, db, 'downloader', do_later)
 
         if not IDirectoryNode.providedBy(collective_dirnode):
             raise AssertionError("The URI in '%s' does not refer to a directory."
@@ -657,7 +654,13 @@ class Downloader(QueueMixin, WriteFileMixin):
         return d
 
     def _when_queue_is_empty(self):
-        d = task.deferLater(self._clock, self._turn_delay, self._scan_remote_collective)
+        d = defer.Deferred()
+
+        def scan():
+            self._scan_remote_collective()
+            d.callback(res)
+        self._do_later(self._turn_delay, scan)
+        #d = task.deferLater(self._clock, self._turn_delay, self._scan_remote_collective)
         d.addBoth(self._logcb, "after _scan_remote_collective 1")
         d.addCallback(lambda ign: self._turn_deque())
         return d
