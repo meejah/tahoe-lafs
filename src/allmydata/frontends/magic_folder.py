@@ -184,9 +184,6 @@ class Uploader(QueueMixin):
         self._notifier = self._inotify.INotify()
         self._pending = set()
 
-        if hasattr(self._notifier, 'set_pending_delay'):
-            self._notifier.set_pending_delay(pending_delay)
-
         # TODO: what about IN_MOVE_SELF and IN_UNMOUNT?
         #
         self.mask = ( self._inotify.IN_CREATE
@@ -212,10 +209,7 @@ class Uploader(QueueMixin):
         self._log("stop")
         self._notifier.stopReading()
         self._count('dirs_monitored', -1)
-        if hasattr(self._notifier, 'wait_until_stopped'):
-            d = self._notifier.wait_until_stopped()
-        else:
-            d = defer.succeed(None)
+        d = defer.succeed(None)
         d.addCallback(lambda ign: self._lazy_tail)
         return d
 
