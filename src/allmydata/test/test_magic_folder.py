@@ -684,6 +684,7 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
 
         def _wait_for_Bob(ign, downloaded_d):
             print "Now waiting for Bob to download\n"
+            alice_clock.advance(0)
             bob_clock.advance(0)
             return downloaded_d
 
@@ -694,22 +695,36 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
             else:
                 downloaded_d = self.alice_magicfolder.downloader.set_hook('processed')
                 uploaded_d = self.bob_magicfolder.uploader.set_hook('processed')
-            something_to_do()
-            if alice:
-                print "Waiting for Alice to upload\n"
-                alice_clock.advance(0)
-                uploaded_d.addCallback(_wait_for_Bob, downloaded_d)
-            else:
-                print "Waiting for Bob to upload\n"
-                bob_clock.advance(0)
-                uploaded_d.addCallback(_wait_for_Alice, downloaded_d)
-            return uploaded_d
+
+            print "doing", something_to_do, "for", ("alice" if alice else "bob")
+            d = defer.maybeDeferred(something_to_do)
+
+            def done_notify(ign):
+                # XXX wait for ... what here?
+                if alice:
+                    print "Waiting for Alice to upload\n"
+                    print "  ADVANCING ALICE"
+                    alice_clock.advance(0)
+                    uploaded_d.addCallback(_wait_for_Bob, downloaded_d)
+                else:
+                    print "Waiting for Bob to upload\n"
+                    bob_clock.advance(0)
+                    print "  ADVANCING BOB"
+                    uploaded_d.addCallback(_wait_for_Alice, downloaded_d)
+                print "RETURN UPLOADED D"
+                return uploaded_d
+            d.addCallback(done_notify)
+            return d
 
         def Alice_to_write_a_file():
             print "Alice writes a file\n"
             self.file_path = abspath_expanduser_unicode(u"file1", base=self.alice_magicfolder.uploader._local_path_u)
             fileutil.write(self.file_path, "meow, meow meow. meow? meow meow! meow.")
+            notified_d = self.alice_magicfolder.uploader.set_hook('notified')
             self.notify(to_filepath(self.file_path), self.inotify.IN_CLOSE_WRITE, magic=self.alice_magicfolder)
+            # XXX need to wait for upload now!
+            print "did notify to", self.file_path
+            return notified_d
         d.addCallback(_wait_for, Alice_to_write_a_file)
 
         d.addCallback(lambda ign: self._check_version_in_dmd(self.alice_magicfolder, u"file1", 0))
@@ -730,16 +745,20 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
         def Alice_to_delete_file():
             print "Alice deletes the file!\n"
             os.unlink(self.file_path)
+            notified_d = self.alice_magicfolder.uploader.set_hook('notified')
             self.notify(to_filepath(self.file_path), self.inotify.IN_DELETE, magic=self.alice_magicfolder)
+            return notified_d
         d.addCallback(_wait_for, Alice_to_delete_file)
 
         def notify_bob_moved(ign):
             d0 = self.bob_magicfolder.uploader.set_hook('processed')
             p = abspath_expanduser_unicode(u"file1", base=self.bob_magicfolder.uploader._local_path_u)
+            notified_d = self.bob_magicfolder.uploader.set_hook('notified')
             self.notify(to_filepath(p), self.inotify.IN_MOVED_FROM, magic=self.bob_magicfolder, flush=False)
             self.notify(to_filepath(p + u'.backup'), self.inotify.IN_MOVED_TO, magic=self.bob_magicfolder)
             bob_clock.advance(0)
-            return d0
+            notified_d.addCallback(lambda ign: d0)
+            return notified_d #return d0
         d.addCallback(notify_bob_moved)
 
         d.addCallback(lambda ign: self._check_version_in_dmd(self.alice_magicfolder, u"file1", 1))
@@ -759,7 +778,9 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
             print "Alice rewrites file\n"
             self.file_path = abspath_expanduser_unicode(u"file1", base=self.alice_magicfolder.uploader._local_path_u)
             fileutil.write(self.file_path, "Alice suddenly sees the white rabbit running into the forest.")
+            notified_d = self.alice_magicfolder.uploader.set_hook('notified')
             self.notify(to_filepath(self.file_path), self.inotify.IN_CLOSE_WRITE, magic=self.alice_magicfolder)
+            return notified_d
         d.addCallback(_wait_for, Alice_to_rewrite_file)
 
         d.addCallback(lambda ign: self._check_version_in_dmd(self.alice_magicfolder, u"file1", 2))
@@ -807,8 +828,9 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
             self.file_path = abspath_expanduser_unicode(u"file1", base=self.bob_magicfolder.uploader._local_path_u)
             print "---- bob's file is %r" % (self.file_path,)
             fileutil.write(self.file_path, "No white rabbit to be found.")
-            self.magicfolder = self.bob_magicfolder
-            self.notify(to_filepath(self.file_path), self.inotify.IN_CLOSE_WRITE)
+            notified_d = self.bob_magicfolder.uploader.set_hook('notified')
+            self.notify(to_filepath(self.file_path), self.inotify.IN_CLOSE_WRITE, self.bob_magicfolder)
+            return notified_d
         d.addCallback(lambda ign: _wait_for(None, Bob_to_rewrite_file, alice=False))
 
         d.addCallback(lambda ign: self._check_version_in_dmd(self.bob_magicfolder, u"file1", 3))
@@ -877,6 +899,7 @@ class MockTest(MagicFolderTestMixin, unittest.TestCase):
             magic = self.magicfolder
         magic.uploader._notifier.event(path, mask)
         # no flush for the mock test.
+        return defer.succeed(None)
 
     def test_errors(self):
         self.set_up_grid()

@@ -102,8 +102,11 @@ class QueueMixin(HookMixin):
         self._local_filepath = to_filepath(local_path_u)
         self._db = db
         self._name = name
-        self._clock = clock
-        self._hooks = {'processed': None, 'started': None}
+        self._hooks = {
+            'processed': None,
+            'started': None,
+            'notified': None,
+        }
         self.started_d = self.set_hook('started')
 
         if not self._local_filepath.exists():
