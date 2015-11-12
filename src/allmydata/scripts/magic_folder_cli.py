@@ -198,6 +198,19 @@ def leave(options):
 
     return 0
 
+class StatusOptions(BasedirOptions):
+    nickname = None
+    synopsis = ""
+    stdin = StringIO("")
+    def parseArgs(self):
+        BasedirOptions.parseArgs(self)
+        node_url_file = os.path.join(self['node-directory'], u"node.url")
+        self['node-url'] = open(node_url_file, "r").read().strip()
+
+def status(options):
+    # XXX todo: use http interface to ask about our magic-folder upload status
+    return 0
+
 class MagicFolderCommand(BaseOptions):
     subCommands = [
         ["create", None, CreateOptions, "Create a Magic Folder."],
