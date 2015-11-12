@@ -1,7 +1,10 @@
 
 import os
+from sys import stderr
 from types import NoneType
 from cStringIO import StringIO
+
+import simplejson  # XXX why not built-in json lib?
 
 from twisted.python import usage
 
@@ -200,14 +203,95 @@ class StatusOptions(BasedirOptions):
     nickname = None
     synopsis = ""
     stdin = StringIO("")
+
     def parseArgs(self):
         BasedirOptions.parseArgs(self)
         node_url_file = os.path.join(self['node-directory'], u"node.url")
-        self['node-url'] = open(node_url_file, "r").read().strip()
+        with open(node_url_file, "r") as f:
+            self['node-url'] = f.read().strip()
+
+
+# FIXME move to top; these are "status" related imports for just now
+from allmydata.scripts.common_http import do_http, format_http_success, format_http_error
+import urllib
+from datetime import datetime
+
+def _get_json_for_cap(options, cap):
+    nodeurl = options['node-url']
+    if nodeurl.endswith('/'):
+        nodeurl = nodeurl[:-1]
+
+    url = u'%s/uri/%s?t=json' % (nodeurl, urllib.quote(cap))
+    resp = do_http("GET", url)
+    if resp.status != 200:
+        print "url", url
+        raise RuntimeError(format_http_error("Error during GET", resp))
+
+    data = resp.read()
+    parsed = simplejson.loads(data)
+    return parsed
 
 def status(options):
+    nodedir = options["node-directory"]
+    with open(os.path.join(nodedir, u"private", u"magic_folder_dircap")) as f:
+        dmd_cap = f.read().strip()
+    with open(os.path.join(nodedir, u"private", u"collective_dircap")) as f:
+        collective_readcap = f.read().strip()
+
+    try:
+        captype, dmd = _get_json_for_cap(options, dmd_cap)
+        if captype != 'dirnode':
+            print >>stderr, "magic_folder_dircap isn't a directory capability"
+            return 2
+    except RuntimeError as e:
+        print >>stderr, str(e)
+        return 1
+
+    now = datetime.now()
+
+    print "Local files:"
+    for (name, child) in dmd['children'].items():
+        captype, meta = child
+        status = 'good'
+        size = meta['size']
+        created = datetime.fromtimestamp(meta['metadata']['tahoe']['linkcrtime'])
+        version = meta['metadata']['version']
+        import humanize
+        nice_size = humanize.naturalsize(size)
+        nice_created = humanize.naturaltime(now - created)
+        if captype != 'filenode':
+            print "%20s: error, should be a filecap" % name
+            continue
+        print "%s (%s): %s, version=%s, created %s" % (name, nice_size, status, version, nice_created)
+
+    captype, collective = _get_json_for_cap(options, collective_readcap)
+    print
+    print "Remote files:"
+    for (name, data) in collective['children'].items():
+        if data[0] != 'dirnode':
+            print "Error: '%s': expected a dirnode, not '%s'" % (name, data[0])
+        print "  %s's remote:" % name
+        dmd = _get_json_for_cap(options, data[1]['ro_uri'])
+        if dmd[0] != 'dirnode':
+            print "Error: should be a dirnode"
+            continue
+        for (n, d) in dmd[1]['children'].items():
+            if d[0] != 'filenode':
+                print "Error: expected '%s' to be a filenode." % (n,)
+
+            meta = d[1]
+            status = 'good'
+            size = meta['size']
+            created = datetime.fromtimestamp(meta['metadata']['tahoe']['linkcrtime'])
+            version = meta['metadata']['version']
+            import humanize
+            nice_size = humanize.naturalsize(size)
+            nice_created = humanize.naturaltime(now - created)
+            print "    %s (%s): %s, version=%s, created %s" % (n, nice_size, status, version, nice_created)
+
     # XXX todo: use http interface to ask about our magic-folder upload status
     return 0
+
 
 class MagicFolderCommand(BaseOptions):
     subCommands = [
@@ -215,6 +299,7 @@ class MagicFolderCommand(BaseOptions):
         ["invite", None, InviteOptions, "Invite someone to a Magic Folder."],
         ["join", None, JoinOptions, "Join a Magic Folder."],
         ["leave", None, LeaveOptions, "Leave a Magic Folder."],
+        ["status", None, StatusOptions, "Display stutus of uploads/downloads."],
     ]
     def postOptions(self):
         if not hasattr(self, 'subOptions'):
@@ -234,6 +319,7 @@ subDispatch = {
     "invite": invite,
     "join": join,
     "leave": leave,
+    "status": status,
 }
 
 def do_magic_folder(options):
