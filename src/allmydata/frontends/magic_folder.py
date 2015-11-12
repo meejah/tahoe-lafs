@@ -15,6 +15,7 @@ from allmydata.util import log
 from allmydata.util.fileutil import precondition_abspath, get_pathinfo, ConflictError
 from allmydata.util.assertutil import precondition, _assert
 from allmydata.util.deferredutil import HookMixin
+from allmydata.util.progress import PercentProgress
 from allmydata.util.encodingutil import listdir_filepath, to_filepath, \
      extend_filepath, unicode_from_filepath, unicode_segments_from, \
      quote_filepath, quote_local_unicode_path, quote_output, FilenameEncodingError
@@ -128,6 +129,7 @@ class QueueMixin(HookMixin):
                                  % quote_local_unicode_path(self._local_path_u))
 
         self._deque = deque()
+        self._process_history = deque()  # could just be a queue?
         self._lazy_tail = defer.succeed(None)
         self._stopped = False
         self._turn_delay = 0
@@ -163,7 +165,10 @@ class QueueMixin(HookMixin):
             self._log("stopped")
             return
         try:
+            #item = IQueuedItem(self._deque.pop())  # <- do this once uploader
             item = self._deque.pop()
+            self._process_history.append(item)
+
             self._log("popped %r" % (item,))
             self._count('objects_queued', -1)
         except IndexError:
@@ -211,6 +216,11 @@ class Uploader(QueueMixin):
                     )
         self._notifier.watch(self._local_filepath, mask=self.mask, callbacks=[self._notify],
                              recursive=True)
+        self._pending_uploads = []
+
+    def get_status(self):
+        for fname in self._pending_uploads:
+            yield 'uploading: "%s"' % (fname,)
 
     def get_status(self):
         for fname in sorted(self._pending):
@@ -246,6 +256,7 @@ class Uploader(QueueMixin):
             # (normally because they have been deleted on disk).
             self._log("adding %r" % (self._pending))
             self._deque.extend(self._pending)
+            self._pending_uploads.extend(self._pending)
         d.addCallback(_add_pending)
         d.addCallback(lambda ign: self._turn_deque())
         return d
@@ -309,6 +320,7 @@ class Uploader(QueueMixin):
         self._log("appending %r to deque" % (relpath_u,))
         self._deque.append(relpath_u)
         self._pending.add(relpath_u)
+        self._pending_uploads.append(relpath_u)
         self._count('objects_queued')
         if self.is_ready:
             if self._immediate:  # for tests
@@ -528,6 +540,21 @@ class WriteFileMixin(object):
             self._log("Already gone: '%s'" % (abspath_u,))
         return abspath_u
 
+#class IQueuedItem(Interface):
+#    pass
+
+#@implementer(IQueuedItem)
+class DownloadItem(object):
+    def __init__(self, relpath_u, file_node, metadata, queued_at, progress, status):
+        self.relpath_u = relpath_u
+        self.file_node = file_node
+        self.metadata = metadata
+        self.queued_at = queued_at
+        self.started_at = None
+        self.finished_at = None
+        self.progress = progress
+        self.status = status
+
 
 class Downloader(QueueMixin, WriteFileMixin):
     REMOTE_SCAN_INTERVAL = 3  # facilitates tests
@@ -548,6 +575,17 @@ class Downloader(QueueMixin, WriteFileMixin):
         self._is_upload_pending = is_upload_pending
         self._umask = umask
         self._pending = set()
+
+        self._turn_delay = self.REMOTE_SCAN_INTERVAL
+
+    def get_status(self):
+        for item in self._deque:
+            yield item
+        for item in self._process_history:
+            yield item
+#        for (fname, node, meta) in self._pending_downloads:
+#            percent = (node._progress.progress / float(node.get_size())) * 100.0
+#            yield ('downloading: "%s" %d bytes, %2.1f%%' % (fname, node.get_size(), percent), percent)
 
     def start_scanning(self):
         self._log("start_scanning")
@@ -676,7 +714,15 @@ class Downloader(QueueMixin, WriteFileMixin):
                 file_node, metadata = max(scan_batch[relpath_u], key=lambda x: x[1]['version'])
 
                 if self._should_download(relpath_u, metadata['version']):
-                    self._deque.append( (relpath_u, file_node, metadata) )
+                    to_dl = DownloadItem(
+                        relpath_u,
+                        file_node,
+                        metadata,
+                        self._clock.seconds(),
+                        PercentProgress(file_node.get_size()),
+                        'queued',
+                    )
+                    self._deque.append(to_dl)
                 else:
                     self._log("Excluding %r" % (relpath_u,))
                     self._call_hook(None, 'processed')
@@ -695,41 +741,52 @@ class Downloader(QueueMixin, WriteFileMixin):
         # Downloader
         self._log("_process(%r)" % (item,))
         if now is None:
-            now = time.time()
-        (relpath_u, file_node, metadata) = item
-        fp = self._get_filepath(relpath_u)
+            now = self._clock.seconds()
+
+        if isinstance(item, DownloadItem): # XXX FIXME
+            self._log("started! %s" % (now,))
+            item.status = 'started'
+            item.started_at = now
+        fp = self._get_filepath(item.relpath_u)
         abspath_u = unicode_from_filepath(fp)
         conflict_path_u = self._get_conflicted_filename(abspath_u)
 
         d = defer.succeed(None)
 
         def do_update_db(written_abspath_u):
-            filecap = file_node.get_uri()
-            last_uploaded_uri = metadata.get('last_uploaded_uri', None)
+            filecap = item.file_node.get_uri()
+            last_uploaded_uri = item.metadata.get('last_uploaded_uri', None)
             last_downloaded_uri = filecap
             last_downloaded_timestamp = now
             written_pathinfo = get_pathinfo(written_abspath_u)
 
-            if not written_pathinfo.exists and not metadata.get('deleted', False):
+            if not written_pathinfo.exists and not item.metadata.get('deleted', False):
                 raise Exception("downloaded object %s disappeared" % quote_local_unicode_path(written_abspath_u))
 
-            self._db.did_upload_version(relpath_u, metadata['version'], last_uploaded_uri,
-                                        last_downloaded_uri, last_downloaded_timestamp, written_pathinfo)
+            self._db.did_upload_version(
+                item.relpath_u, item.metadata['version'], last_uploaded_uri,
+                last_downloaded_uri, last_downloaded_timestamp, written_pathinfo,
+            )
             self._count('objects_downloaded')
+            item.finished_at = self._clock.seconds()
+            item.status = 'success'  # XXX FIXME
+
         def failed(f):
+            item.finished_at = self._clock.seconds()
+            item.status = 'failure'  # XXX FIXME
             self._log("download failed: %s" % (str(f),))
             self._count('objects_failed')
             return f
 
         if os.path.isfile(conflict_path_u):
             def fail(res):
-                raise ConflictError("download failed: already conflicted: %r" % (relpath_u,))
+                raise ConflictError("download failed: already conflicted: %r" % (item.relpath_u,))
             d.addCallback(fail)
         else:
             is_conflict = False
-            db_entry = self._db.get_db_entry(relpath_u)
-            dmd_last_downloaded_uri = metadata.get('last_downloaded_uri', None)
-            dmd_last_uploaded_uri = metadata.get('last_uploaded_uri', None)
+            db_entry = self._db.get_db_entry(item.relpath_u)
+            dmd_last_downloaded_uri = item.metadata.get('last_downloaded_uri', None)
+            dmd_last_uploaded_uri = item.metadata.get('last_uploaded_uri', None)
             if db_entry:
                 if dmd_last_downloaded_uri is not None and db_entry.last_downloaded_uri is not None:
                     if dmd_last_downloaded_uri != db_entry.last_downloaded_uri:
@@ -738,22 +795,22 @@ class Downloader(QueueMixin, WriteFileMixin):
                 elif dmd_last_uploaded_uri is not None and dmd_last_uploaded_uri != db_entry.last_uploaded_uri:
                     is_conflict = True
                     self._count('objects_conflicted')
-                elif self._is_upload_pending(relpath_u):
+                elif self._is_upload_pending(item.relpath_u):
                     is_conflict = True
                     self._count('objects_conflicted')
 
-            if relpath_u.endswith(u"/"):
-                if metadata.get('deleted', False):
+            if item.relpath_u.endswith(u"/"):
+                if item.metadata.get('deleted', False):
                     self._log("rmdir(%r) ignored" % (abspath_u,))
                 else:
                     self._log("mkdir(%r)" % (abspath_u,))
                     d.addCallback(lambda ign: fileutil.make_dirs(abspath_u))
                     d.addCallback(lambda ign: abspath_u)
             else:
-                if metadata.get('deleted', False):
+                if item.metadata.get('deleted', False):
                     d.addCallback(lambda ign: self._rename_deleted_file(abspath_u))
                 else:
-                    d.addCallback(lambda ign: file_node.download_best_version())
+                    d.addCallback(lambda ign: item.file_node.download_best_version(progress=item.progress))
                     d.addCallback(lambda contents: self._write_downloaded_file(abspath_u, contents,
                                                                                is_conflict=is_conflict))
 
