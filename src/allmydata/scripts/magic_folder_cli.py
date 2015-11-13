@@ -261,7 +261,7 @@ def status(options):
         if captype != 'filenode':
             print "%20s: error, should be a filecap" % name
             continue
-        print "%s (%s): %s, version=%s, created %s" % (name, nice_size, status, version, nice_created)
+        print "  %s (%s): %s, version=%s, created %s" % (name, nice_size, status, version, nice_created)
 
     captype, collective = _get_json_for_cap(options, collective_readcap)
     print
