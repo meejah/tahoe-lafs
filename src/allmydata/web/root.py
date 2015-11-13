@@ -17,6 +17,35 @@ from allmydata.web.common import abbreviate_size, getxmlfile, WebError, \
      get_arg, RenderMixin, get_format, get_mutable_type, TIME_FORMAT
 
 
+class MagicFolderWebApi(RenderMixin, rend.Page):
+    """
+    I provide the web-based API for Magic Folder status etc.
+    """
+
+    docFactory = getxmlfile("magic-folder-status.xhtml")
+
+    def __init__(self, client):
+        rend.Page.__init__(self, storage)
+        ##super(MagicFolderWebApi, self).__init__(client)
+        self.client = client
+
+    def render_foo(self, ctx):
+        return "blammo!"
+
+    def renderHTTP(self, ctx):
+        return rend.Page.renderHTTP(self, ctx)
+
+    def _render_GET(self, ctx):
+        print "RENDERGET", ctx, dir(ctx), ctx.arg
+        x = self.docFactory.load(ctx)
+        print "FOOO", x, dir(x)
+        return ''.join(x)
+        return self
+        return self.docFactory
+        return url.URL.fromContext(ctx)
+        return self.docFactory
+
+
 class URIHandler(RenderMixin, rend.Page):
     # I live at /uri . There are several operations defined on /uri itself,
     # mostly involved with creation of unlinked files and directories.
@@ -152,6 +181,11 @@ class Root(rend.Page):
 
         self.child_uri = URIHandler(client)
         self.child_cap = URIHandler(client)
+
+        # so it seems anything that starts with 'child_whatever'
+        # automagically appears at /whatever "somehow". which makes
+        # grep hard.
+        self.child_magic = MagicFolderWebApi(client)
 
         self.child_file = FileHandler(client)
         self.child_named = FileHandler(client)
