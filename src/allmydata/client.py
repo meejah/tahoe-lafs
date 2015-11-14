@@ -513,6 +513,7 @@ class Client(node.Node, pollmixin.PollMixin):
             from allmydata.frontends import magic_folder
 
             s = magic_folder.MagicFolder(self, upload_dircap, collective_dircap, local_dir, dbfile)
+            self._magic = s
             s.setServiceParent(self)
             s.startService()
 
