@@ -30,20 +30,17 @@ class MagicFolderWebApi(RenderMixin, rend.Page):
         self.client = client
 
     def render_foo(self, ctx):
+        ul = T.ul()
+        for element in self.client._magic.downloader.get_status():
+            print "DING", element
+            ul[T.li[str(element)]]
+        return ul
+        return str(dir(self.client._magic.downloader))
         return "blammo!"
 
     def renderHTTP(self, ctx):
+        print "RENDERHTTP", ctx
         return rend.Page.renderHTTP(self, ctx)
-
-    def _render_GET(self, ctx):
-        print "RENDERGET", ctx, dir(ctx), ctx.arg
-        x = self.docFactory.load(ctx)
-        print "FOOO", x, dir(x)
-        return ''.join(x)
-        return self
-        return self.docFactory
-        return url.URL.fromContext(ctx)
-        return self.docFactory
 
 
 class URIHandler(RenderMixin, rend.Page):
