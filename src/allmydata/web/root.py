@@ -32,7 +32,9 @@ class MagicFolderWebApi(RenderMixin, rend.Page):
     def render_foo(self, ctx):
         ul = T.ul()
         for element in self.client._magic.downloader.get_status():
-            print "DING", element
+            ul[T.li[str(element)]]
+
+        for element in self.client._magic.uploader.get_status():
             ul[T.li[str(element)]]
         return ul
         return str(dir(self.client._magic.downloader))
