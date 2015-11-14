@@ -267,7 +267,6 @@ class Uploader(QueueMixin):
                 if magicpath.should_ignore_file(relpath_u):
                     return None
 
-                self._status_updates.append('dingo mcblamblam "%s"' % (relpath_u,))
                 self._pending.add(relpath_u)
                 return relpath_u
             d.addCallback(_add_pending)
@@ -546,11 +545,10 @@ class Downloader(QueueMixin, WriteFileMixin):
         self._umask = umask
 
         self._turn_delay = self.REMOTE_SCAN_INTERVAL
-        self._status_updates = []
 
     def get_status(self):
-        for x in self._deque:
-            yield 'pending: "%s"' % (x,)
+        for (fname, node, meta) in self._deque:
+            yield 'pending: "%s" %d bytes' % (fname, node.get_size())
         return
 
     def start_scanning(self):
@@ -678,7 +676,6 @@ class Downloader(QueueMixin, WriteFileMixin):
                 file_node, metadata = max(scan_batch[relpath_u], key=lambda x: x[1]['version'])
 
                 if self._should_download(relpath_u, metadata['version']):
-                    self._status_updates.append("starting download '%s'" % (relpath_u,))
                     self._deque.append( (relpath_u, file_node, metadata) )
                 else:
                     self._log("Excluding %r" % (relpath_u,))
@@ -696,7 +693,6 @@ class Downloader(QueueMixin, WriteFileMixin):
 
     def _process(self, item, now=None):
         # Downloader
-        self._status_updates.append('doot doo! %s' % (item,))
         self._log("_process(%r)" % (item,))
         if now is None:
             now = time.time()
