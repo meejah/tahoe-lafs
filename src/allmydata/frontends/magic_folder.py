@@ -553,7 +553,7 @@ class Downloader(QueueMixin, WriteFileMixin):
         for (fname, node, meta) in self._pending_downloads:
             print "BLAMMO", dir(node), node._progress.value
             percent = (node._progress.progress / float(node.get_size())) * 100.0
-            yield 'downloading: "%s" %d bytes, %2.1f%%' % (fname, node.get_size(), percent)
+            yield ('downloading: "%s" %d bytes, %2.1f%%' % (fname, node.get_size(), percent), percent)
 
     def start_scanning(self):
         self._log("start_scanning")
