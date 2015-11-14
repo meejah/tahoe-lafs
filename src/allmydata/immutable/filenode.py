@@ -8,7 +8,7 @@ from twisted.internet import defer
 from allmydata import uri
 from twisted.internet.interfaces import IConsumer
 from allmydata.interfaces import IImmutableFileNode, IUploadResults
-from allmydata.util import consumer
+from allmydata.util import consumer, progress
 from allmydata.check_results import CheckResults, CheckAndRepairResults
 from allmydata.util.dictutil import DictOfSets
 from allmydata.util.happinessutil import servers_of_happiness
@@ -189,7 +189,7 @@ class DecryptingConsumer:
     real consumer."""
     implements(IConsumer, IDownloadStatusHandlingConsumer)
 
-    def __init__(self, consumer, readkey, offset):
+    def __init__(self, consumer, readkey, offset, on_progress):
         self._consumer = consumer
         self._read_ev = None
         self._download_status = None
@@ -240,24 +240,27 @@ class ImmutableFileNode:
         assert isinstance(filecap, uri.CHKFileURI)
         self.u = filecap
         self._readkey = filecap.key
+        self._progress = progress.AbsoluteProgress()
 
     # TODO: I'm not sure about this.. what's the use case for node==node? If
     # we keep it here, we should also put this on CiphertextFileNode
     def __hash__(self):
         return self.u.__hash__()
+
     def __eq__(self, other):
         if isinstance(other, ImmutableFileNode):
             return self.u.__eq__(other.u)
         else:
             return False
+
     def __ne__(self, other):
         if isinstance(other, ImmutableFileNode):
             return self.u.__eq__(other.u)
         else:
             return True
 
-    def read(self, consumer, offset=0, size=None):
-        decryptor = DecryptingConsumer(consumer, self._readkey, offset)
+    def read(self, consumer, offset=0, size=None, on_progress=None):
+        decryptor = DecryptingConsumer(consumer, self._readkey, offset, on_progress)
         d = self._cnode.read(decryptor, offset, size)
         d.addCallback(lambda dc: consumer)
         return d
@@ -273,12 +276,16 @@ class ImmutableFileNode:
 
     def get_uri(self):
         return self.u.to_string()
+
     def get_cap(self):
         return self.u
+
     def get_readcap(self):
         return self.u.get_readonly()
+
     def get_verify_cap(self):
         return self.u.get_verify_cap()
+
     def get_repair_cap(self):
         # CHK files can be repaired with just the verifycap
         return self.u.get_verify_cap()
@@ -288,6 +295,7 @@ class ImmutableFileNode:
 
     def get_size(self):
         return self.u.get_size()
+
     def get_current_size(self):
         return defer.succeed(self.get_size())
 
@@ -305,6 +313,7 @@ class ImmutableFileNode:
 
     def check_and_repair(self, monitor, verify=False, add_lease=False):
         return self._cnode.check_and_repair(monitor, verify, add_lease)
+
     def check(self, monitor, verify=False, add_lease=False):
         return self._cnode.check(monitor, verify, add_lease)
 
@@ -316,14 +325,13 @@ class ImmutableFileNode:
         """
         return defer.succeed(self)
 
-
     def download_best_version(self):
         """
         Download the best version of this file, returning its contents
         as a bytestring. Since there is only one version of an immutable
         file, we download and return the contents of this file.
         """
-        d = consumer.download_to_data(self)
+        d = consumer.download_to_data(self, on_progress=self._progress.set_value)
         return d
 
     # for an immutable file, download_to_data (specified in IReadable)
