@@ -211,6 +211,11 @@ class Uploader(QueueMixin):
                     )
         self._notifier.watch(self._local_filepath, mask=self.mask, callbacks=[self._notify],
                              recursive=True)
+        self._pending_uploads = []
+
+    def get_status(self):
+        for fname in self._pending_uploads:
+            yield 'uploading: "%s"' % (fname,)
 
     def start_monitoring(self):
         self._log("start_monitoring")
@@ -242,6 +247,7 @@ class Uploader(QueueMixin):
             # (normally because they have been deleted on disk).
             self._log("adding %r" % (self._pending))
             self._deque.extend(self._pending)
+            self._pending_uploads.extend(self._pending)
         d.addCallback(_add_pending)
         d.addCallback(lambda ign: self._turn_deque())
         return d
@@ -305,6 +311,7 @@ class Uploader(QueueMixin):
         self._log("appending %r to deque" % (relpath_u,))
         self._deque.append(relpath_u)
         self._pending.add(relpath_u)
+        self._pending_uploads.append(relpath_u)
         self._count('objects_queued')
         if self.is_ready:
             if self._immediate:  # for tests
@@ -540,11 +547,13 @@ class Downloader(QueueMixin, WriteFileMixin):
         self._is_upload_pending = is_upload_pending
 
         self._turn_delay = self.REMOTE_SCAN_INTERVAL
+        self._pending_downloads = []
 
     def get_status(self):
-        for (fname, node, meta) in self._deque:
-            yield 'pending: "%s" %d bytes' % (fname, node.get_size())
-        return
+        for (fname, node, meta) in self._pending_downloads:
+            print "BLAMMO", dir(node), node._progress.value
+            percent = (node._progress.progress / float(node.get_size())) * 100.0
+            yield 'downloading: "%s" %d bytes, %2.1f%%' % (fname, node.get_size(), percent)
 
     def start_scanning(self):
         self._log("start_scanning")
@@ -672,6 +681,7 @@ class Downloader(QueueMixin, WriteFileMixin):
 
                 if self._should_download(relpath_u, metadata['version']):
                     self._deque.append( (relpath_u, file_node, metadata) )
+                    self._pending_downloads.append((relpath_u, file_node, metadata))
                 else:
                     self._log("Excluding %r" % (relpath_u,))
                     self._count('objects_excluded')
@@ -692,6 +702,7 @@ class Downloader(QueueMixin, WriteFileMixin):
         self._log("_process(%r)" % (item,))
         if now is None:
             now = time.time()
+
         (relpath_u, file_node, metadata) = item
         fp = self._get_filepath(relpath_u)
         abspath_u = unicode_from_filepath(fp)
@@ -712,6 +723,8 @@ class Downloader(QueueMixin, WriteFileMixin):
             self._db.did_upload_version(relpath_u, metadata['version'], last_uploaded_uri,
                                         last_downloaded_uri, last_downloaded_timestamp, written_pathinfo)
             self._count('objects_downloaded')
+            self._pending_downloads.remove(item)
+
         def failed(f):
             self._log("download failed: %s" % (str(f),))
             self._count('objects_failed')
