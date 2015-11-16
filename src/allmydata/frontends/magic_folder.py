@@ -551,6 +551,12 @@ class DownloadItem(object):
         self.finished_at = None
         self.status = 'unknown'
 
+    @property
+    def percent(self):
+        if self.file_node is None:
+            return 0
+        return (self.file_node._progress.progress / float(self.file_node.get_size())) * 100.0
+
     def to_json(self):
         return "FIXME"
 
