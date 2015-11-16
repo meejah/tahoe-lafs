@@ -32,12 +32,9 @@ class MagicFolderWebApi(rend.Page):
     def render_foo(self, ctx):
         ul = T.ul()
         for item in self.client._magic.downloader.get_status():
-            prct = 0.0  # FIXME
             prog = T.div(style='width: 100%; height: 2px; background-color: #aaa;')[
-                T.div(style='width: %f%%; height: 2px; background-color: #e66; border-right: 5px solid #f00;' % prct),
+                T.div(style='width: %f%%; height: 2px; background-color: #e66; border-right: 5px solid #f00;' % item.percent),
             ]
-            if prct >= 100.0:
-                prog = ''
             took = ''
             if item.finished_at and item.started_at:
                 took = ' (took ' + str(item.finished_at - item.started_at) + 's)'
@@ -47,6 +44,7 @@ class MagicFolderWebApi(rend.Page):
                     ' started ', str(item.started_at),
                     ' finished at ', str(item.finished_at),
                     took,
+                    prog,
                 ]
             ]
 
