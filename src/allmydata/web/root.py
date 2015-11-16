@@ -31,13 +31,20 @@ class MagicFolderWebApi(RenderMixin, rend.Page):
 
     def render_foo(self, ctx):
         ul = T.ul()
-        for (element, prct) in self.client._magic.downloader.get_status():
+        for item in self.client._magic.downloader.get_status():
+            prct = 0.0  # FIXME
             prog = T.div(style='width: 100%; height: 2px; background-color: #aaa;')[
                 T.div(style='width: %f%%; height: 2px; background-color: #e66; border-right: 5px solid #f00;' % prct),
             ]
             if prct >= 100.0:
                 prog = ''
-            ul[T.li[str(element), prog]]
+            ul[
+                T.li[
+                    str(item.relpath_u), ': ', str(item.status),
+                    ' started ', str(item.started_at),
+                    ' finished at ', str(item.finished_at),
+                ]
+            ]
 
         for element in self.client._magic.uploader.get_status():
             ul[T.li[str(element)]]
