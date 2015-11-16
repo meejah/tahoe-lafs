@@ -733,7 +733,7 @@ class Downloader(QueueMixin, WriteFileMixin):
 
     def _process(self, item, now=None):
         # Downloader
-        self._log("_process(%r)" % (item, self._clock))
+        self._log("_process(%r)" % (item,))
         if now is None:
             now = self._clock.seconds()
 
@@ -773,13 +773,14 @@ class Downloader(QueueMixin, WriteFileMixin):
 
         if os.path.isfile(conflict_path_u):
             def fail(res):
-                raise ConflictError("download failed: already conflicted: %r" % (relpath_u,))
+                raise ConflictError("download failed: already conflicted: %r" % (item.relpath_u,))
             d.addCallback(fail)
         else:
             is_conflict = False
-            db_entry = self._db.get_db_entry(relpath_u)
-            dmd_last_downloaded_uri = metadata.get('last_downloaded_uri', None)
-            dmd_last_uploaded_uri = metadata.get('last_uploaded_uri', None)
+            db_entry = self._db.get_db_entry(item.relpath_u)
+            dmd_last_downloaded_uri = item.metadata.get('last_downloaded_uri', None)
+            dmd_last_uploaded_uri = item.metadata.get('last_uploaded_uri', None)
+            self._log('kablammo')
             if db_entry:
                 if dmd_last_downloaded_uri is not None and db_entry.last_downloaded_uri is not None:
                     if dmd_last_downloaded_uri != db_entry.last_downloaded_uri:
@@ -788,22 +789,22 @@ class Downloader(QueueMixin, WriteFileMixin):
                 elif dmd_last_uploaded_uri is not None and dmd_last_uploaded_uri != db_entry.last_uploaded_uri:
                     is_conflict = True
                     self._count('objects_conflicted')
-                elif self._is_upload_pending(relpath_u):
+                elif self._is_upload_pending(item.relpath_u):
                     is_conflict = True
                     self._count('objects_conflicted')
 
-            if relpath_u.endswith(u"/"):
-                if metadata.get('deleted', False):
+            if item.relpath_u.endswith(u"/"):
+                if item.metadata.get('deleted', False):
                     self._log("rmdir(%r) ignored" % (abspath_u,))
                 else:
                     self._log("mkdir(%r)" % (abspath_u,))
                     d.addCallback(lambda ign: fileutil.make_dirs(abspath_u))
                     d.addCallback(lambda ign: abspath_u)
             else:
-                if metadata.get('deleted', False):
+                if item.metadata.get('deleted', False):
                     d.addCallback(lambda ign: self._rename_deleted_file(abspath_u))
                 else:
-                    d.addCallback(lambda ign: file_node.download_best_version())
+                    d.addCallback(lambda ign: item.file_node.download_best_version())
                     d.addCallback(lambda contents: self._write_downloaded_file(abspath_u, contents,
                                                                                is_conflict=is_conflict))
 
