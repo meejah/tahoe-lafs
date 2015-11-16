@@ -116,7 +116,7 @@ class HookMixin:
         """
         hook = self._hooks[name]
         if hook is None:
-            return None  # XXX note to self, should be 'res'
+            return res  # pass on error/result
 
         (d, ignore_count) = hook
         self._log("call_hook %r, ignore_count=%r" % (name, ignore_count))
