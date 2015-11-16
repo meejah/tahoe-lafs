@@ -4,19 +4,8 @@ Utilities relating to computing progress information.
 Ties in with the "consumer" module also
 """
 
-from zope.interface import Interface, Attribute, implementer
-
-class IProgress(Interface):
-    progress = Attribute(
-        "Current amount of progress; interpretation up to implementation"
-    )
-
-    def set_value(value):
-        """
-        Set the current amount of progress; how this is interpreted is up
-        to the implementation.
-        """
-
+from allmydata.interfaces import IProgress
+from zope.interface import implementer
 
 @implementer(IProgress)
 class AbsoluteProgress(object):
@@ -25,14 +14,14 @@ class AbsoluteProgress(object):
     """
 
     def __init__(self):
-        self.value = 0.0
+        self._value = 0.0
 
-    def set_value(self, value):
-        self.value = value
+    def set_progress(self, value):
+        self._value = value
 
     @property
     def progress(self):
-        return self.value
+        return self._value
 
 
 @implementer(IProgress)
@@ -43,10 +32,10 @@ class PercentProgress(AbsoluteProgress):
 
     def __init__(self, total_size):
         super(PercentProgress, self).__init__()
-        self.total_size = float(total_size)
+        self._total_size = float(total_size)
 
     @property
     def progress(self):
-        if self.total_size is None:
+        if self._total_size is None:
             return 0
-        return (self.value / self.total_size) * 100.0
+        return (self._value / self._total_size) * 100.0

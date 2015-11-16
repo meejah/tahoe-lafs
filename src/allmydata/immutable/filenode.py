@@ -325,13 +325,13 @@ class ImmutableFileNode:
         """
         return defer.succeed(self)
 
-    def download_best_version(self):
+    def download_best_version(self, progress=None):
         """
         Download the best version of this file, returning its contents
         as a bytestring. Since there is only one version of an immutable
         file, we download and return the contents of this file.
         """
-        d = consumer.download_to_data(self, on_progress=self._progress.set_value)
+        d = consumer.download_to_data(self, progress=progress)
         return d
 
     # for an immutable file, download_to_data (specified in IReadable)
