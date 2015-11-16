@@ -128,6 +128,7 @@ class QueueMixin(HookMixin):
                                  % quote_local_unicode_path(self._local_path_u))
 
         self._deque = deque()
+        self._process_history = deque()  # could just be a queue?
         self._lazy_tail = defer.succeed(None)
         self._stopped = False
         self._turn_delay = 0
@@ -163,7 +164,12 @@ class QueueMixin(HookMixin):
             self._log("stopped")
             return
         try:
+            #item = IQueuedItem(self._deque.pop())  # <- do this once uploader
             item = self._deque.pop()
+            if isinstance(item, DownloadItem): # XXX FIXME
+                item.started_at = self._clock.seconds()
+            self._process_history.append(item)
+
             self._log("popped %r" % (item,))
             self._count('objects_queued', -1)
         except IndexError:
@@ -531,6 +537,23 @@ class WriteFileMixin(object):
             self._log("Already gone: '%s'" % (abspath_u,))
         return abspath_u
 
+#class IQueuedItem(Interface):
+#    pass
+
+#@implementer(IQueuedItem)
+class DownloadItem(object):
+    def __init__(self, relpath_u, file_node, metadata, queued_at):
+        self.relpath_u = relpath_u
+        self.file_node = file_node
+        self.metadata = metadata
+        self.queued_at = queued_at
+        self.started_at = None
+        self.finished_at = None
+        self.status = 'unknown'
+
+    def to_json(self):
+        return "FIXME"
+
 
 class Downloader(QueueMixin, WriteFileMixin):
     REMOTE_SCAN_INTERVAL = 3  # facilitates tests
@@ -552,13 +575,15 @@ class Downloader(QueueMixin, WriteFileMixin):
         self._umask = umask
 
         self._turn_delay = self.REMOTE_SCAN_INTERVAL
-        self._pending_downloads = []
 
     def get_status(self):
-        for (fname, node, meta) in self._pending_downloads:
-            print "BLAMMO", dir(node), node._progress.value
-            percent = (node._progress.progress / float(node.get_size())) * 100.0
-            yield ('downloading: "%s" %d bytes, %2.1f%%' % (fname, node.get_size(), percent), percent)
+        for item in self._deque:
+            yield item
+        for item in self._process_history:
+            yield item
+#        for (fname, node, meta) in self._pending_downloads:
+#            percent = (node._progress.progress / float(node.get_size())) * 100.0
+#            yield ('downloading: "%s" %d bytes, %2.1f%%' % (fname, node.get_size(), percent), percent)
 
     def start_scanning(self):
         self._log("start_scanning")
@@ -685,8 +710,13 @@ class Downloader(QueueMixin, WriteFileMixin):
                 file_node, metadata = max(scan_batch[relpath_u], key=lambda x: x[1]['version'])
 
                 if self._should_download(relpath_u, metadata['version']):
-                    self._deque.append( (relpath_u, file_node, metadata) )
-                    self._pending_downloads.append((relpath_u, file_node, metadata))
+                    to_dl = DownloadItem(
+                        relpath_u,
+                        file_node,
+                        metadata,
+                        self._clock.seconds(),
+                    )
+                    self._deque.append(to_dl)
                 else:
                     self._log("Excluding %r" % (relpath_u,))
                     self._call_hook(None, 'processed')
@@ -703,33 +733,40 @@ class Downloader(QueueMixin, WriteFileMixin):
 
     def _process(self, item, now=None):
         # Downloader
-        self._log("_process(%r)" % (item,))
+        self._log("_process(%r)" % (item, self._clock))
         if now is None:
-            now = time.time()
+            now = self._clock.seconds()
 
-        (relpath_u, file_node, metadata) = item
-        fp = self._get_filepath(relpath_u)
+        if isinstance(item, DownloadItem): # XXX FIXME
+            self._log("started! %s" % (now,))
+            item.started_at = now
+        fp = self._get_filepath(item.relpath_u)
         abspath_u = unicode_from_filepath(fp)
         conflict_path_u = self._get_conflicted_filename(abspath_u)
 
         d = defer.succeed(None)
 
         def do_update_db(written_abspath_u):
-            filecap = file_node.get_uri()
-            last_uploaded_uri = metadata.get('last_uploaded_uri', None)
+            filecap = item.file_node.get_uri()
+            last_uploaded_uri = item.metadata.get('last_uploaded_uri', None)
             last_downloaded_uri = filecap
             last_downloaded_timestamp = now
             written_pathinfo = get_pathinfo(written_abspath_u)
 
-            if not written_pathinfo.exists and not metadata.get('deleted', False):
+            if not written_pathinfo.exists and not item.metadata.get('deleted', False):
                 raise Exception("downloaded object %s disappeared" % quote_local_unicode_path(written_abspath_u))
 
-            self._db.did_upload_version(relpath_u, metadata['version'], last_uploaded_uri,
-                                        last_downloaded_uri, last_downloaded_timestamp, written_pathinfo)
+            self._db.did_upload_version(
+                item.relpath_u, item.metadata['version'], last_uploaded_uri,
+                last_downloaded_uri, last_downloaded_timestamp, written_pathinfo,
+            )
             self._count('objects_downloaded')
-            self._pending_downloads.remove(item)
+            item.finished_at = self._clock.seconds()
+            item.status = 'success'  # XXX FIXME
 
         def failed(f):
+            item.finished_at = self._clock.seconds()
+            item.status = 'failure'  # XXX FIXME
             self._log("download failed: %s" % (str(f),))
             self._count('objects_failed')
             return f
