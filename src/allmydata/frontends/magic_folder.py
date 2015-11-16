@@ -15,6 +15,7 @@ from allmydata.util import log
 from allmydata.util.fileutil import precondition_abspath, get_pathinfo, ConflictError
 from allmydata.util.assertutil import precondition, _assert
 from allmydata.util.deferredutil import HookMixin
+from allmydata.util.progress import PercentProgress
 from allmydata.util.encodingutil import listdir_filepath, to_filepath, \
      extend_filepath, unicode_from_filepath, unicode_segments_from, \
      quote_filepath, quote_local_unicode_path, quote_output, FilenameEncodingError
@@ -166,8 +167,6 @@ class QueueMixin(HookMixin):
         try:
             #item = IQueuedItem(self._deque.pop())  # <- do this once uploader
             item = self._deque.pop()
-            if isinstance(item, DownloadItem): # XXX FIXME
-                item.started_at = self._clock.seconds()
             self._process_history.append(item)
 
             self._log("popped %r" % (item,))
@@ -538,20 +537,15 @@ class WriteFileMixin(object):
 
 #@implementer(IQueuedItem)
 class DownloadItem(object):
-    def __init__(self, relpath_u, file_node, metadata, queued_at):
+    def __init__(self, relpath_u, file_node, metadata, queued_at, progress, status):
         self.relpath_u = relpath_u
         self.file_node = file_node
         self.metadata = metadata
         self.queued_at = queued_at
         self.started_at = None
         self.finished_at = None
-        self.status = 'unknown'
-
-    @property
-    def percent(self):
-        if self.file_node is None:
-            return 0
-        return (self.file_node._progress.progress / float(self.file_node.get_size())) * 100.0
+        self.progress = progress
+        self.status = status
 
     def to_json(self):
         return "FIXME"
@@ -716,6 +710,8 @@ class Downloader(QueueMixin, WriteFileMixin):
                         file_node,
                         metadata,
                         self._clock.seconds(),
+                        PercentProgress(file_node.get_size()),
+                        'queued',
                     )
                     self._deque.append(to_dl)
                 else:
@@ -741,6 +737,7 @@ class Downloader(QueueMixin, WriteFileMixin):
 
         if isinstance(item, DownloadItem): # XXX FIXME
             self._log("started! %s" % (now,))
+            item.status = 'started'
             item.started_at = now
         fp = self._get_filepath(item.relpath_u)
         abspath_u = unicode_from_filepath(fp)
@@ -806,7 +803,7 @@ class Downloader(QueueMixin, WriteFileMixin):
                 if item.metadata.get('deleted', False):
                     d.addCallback(lambda ign: self._rename_deleted_file(abspath_u))
                 else:
-                    d.addCallback(lambda ign: item.file_node.download_best_version())
+                    d.addCallback(lambda ign: item.file_node.download_best_version(progress=item.progress))
                     d.addCallback(lambda contents: self._write_downloaded_file(abspath_u, contents,
                                                                                is_conflict=is_conflict))
 
