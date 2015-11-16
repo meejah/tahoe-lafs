@@ -38,4 +38,6 @@ class PercentProgress(AbsoluteProgress):
     def progress(self):
         if self._total_size is None:
             return 0
+        if self._total_size <= 0.0:
+            return 0
         return (self._value / self._total_size) * 100.0
