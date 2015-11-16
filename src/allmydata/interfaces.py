@@ -1,5 +1,5 @@
 
-from zope.interface import Interface
+from zope.interface import Interface, Attribute
 from foolscap.api import StringConstraint, ListOf, TupleOf, SetOf, DictOf, \
      ChoiceOf, IntegerConstraint, Any, RemoteInterface, Referenceable
 
@@ -625,6 +625,25 @@ class MustNotBeUnknownRWError(CapConstraintError):
     """Cannot add an unknown child cap specified in a rw_uri field."""
 
 
+class IProgress(Interface):
+    """
+    Remembers progress measured in arbitrary units.
+
+    See also:
+    :class:`allmydata.util.progress.AbsoluteProgress`
+    :class:`allmydata.util.progress.PercentProgress`
+    """
+
+    progress = Attribute(
+        "Current amount of progress; interpretation up to implementation"
+    )
+
+    def set_progress(self, value):
+        """
+        Sets the current amount of progress.
+        """
+
+
 class IReadable(Interface):
     """I represent a readable object -- either an immutable file, or a
     specific version of a mutable file.
@@ -654,9 +673,12 @@ class IReadable(Interface):
     def get_size():
         """Return the length (in bytes) of this readable object."""
 
-    def download_to_data():
+    def download_to_data(progress=None):
         """Download all of the file contents. I return a Deferred that fires
-        with the contents as a byte string."""
+        with the contents as a byte string.
+
+        :param progress: None or IProgress implementer
+        """
 
     def read(consumer, offset=0, size=None):
         """Download a portion (possibly all) of the file's contents, making
@@ -916,10 +938,12 @@ class IFileNode(IFilesystemNode):
         the Deferred will errback with an UnrecoverableFileError.
         """
 
-    def download_best_version():
+    def download_best_version(progress=None):
         """Download the contents of the version that would be returned
         by get_best_readable_version(). This is equivalent to calling
         download_to_data() on the IReadable given by that method.
+
+        progress is anything that implements IProgress
 
         I return a Deferred that fires with a byte string when the file
         has been fully downloaded. To support streaming download, use

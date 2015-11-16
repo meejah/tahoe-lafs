@@ -32,8 +32,9 @@ class MagicFolderWebApi(rend.Page):
     def render_foo(self, ctx):
         ul = T.ul()
         for item in self.client._magic.downloader.get_status():
+            prct = item.progress.progress  # XXX hmm, smells bad
             prog = T.div(style='width: 100%; height: 2px; background-color: #aaa;')[
-                T.div(style='width: %f%%; height: 2px; background-color: #e66; border-right: 5px solid #f00;' % item.percent),
+                T.div(style='width: %f%%; height: 2px; background-color: #e66; border-right: 5px solid #f00;' % prct),
             ]
             took = ''
             if item.finished_at and item.started_at:
