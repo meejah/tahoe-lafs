@@ -17,7 +17,7 @@ from allmydata.web.common import abbreviate_size, getxmlfile, WebError, \
      get_arg, RenderMixin, get_format, get_mutable_type, TIME_FORMAT
 
 
-class MagicFolderWebApi(RenderMixin, rend.Page):
+class MagicFolderWebApi(rend.Page):
     """
     I provide the web-based API for Magic Folder status etc.
     """
@@ -54,12 +54,9 @@ class MagicFolderWebApi(RenderMixin, rend.Page):
             ul[T.li[str(element)]]
 
         return ul
-        return str(dir(self.client._magic.downloader))
-        return "blammo!"
 
-    def renderHTTP(self, ctx):
-        print "RENDERHTTP", ctx
-        return rend.Page.renderHTTP(self, ctx)
+#    def renderHTTP(self, ctx):
+#        return rend.Page.renderHTTP(self, ctx)
 
 
 class URIHandler(RenderMixin, rend.Page):
