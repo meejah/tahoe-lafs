@@ -38,11 +38,15 @@ class MagicFolderWebApi(RenderMixin, rend.Page):
             ]
             if prct >= 100.0:
                 prog = ''
+            took = ''
+            if item.finished_at and item.started_at:
+                took = ' (took ' + str(item.finished_at - item.started_at) + 's)'
             ul[
                 T.li[
                     str(item.relpath_u), ': ', str(item.status),
                     ' started ', str(item.started_at),
                     ' finished at ', str(item.finished_at),
+                    took,
                 ]
             ]
 
