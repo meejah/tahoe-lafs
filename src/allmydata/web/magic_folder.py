@@ -21,7 +21,7 @@ class MagicFolderWebApi(rend.Page):
 
     def render_magic_status(self, ctx):
         ul = T.ul()
-        for item in self.client._magic.downloader.get_status():
+        for item in self.client._magic_folder.downloader.get_status():
             prct = item.progress.progress  # XXX hmm, smells bad
             prog = T.div(style='width: 100%; height: 2px; background-color: #aaa;')[
                 T.div(style='width: %f%%; height: 2px; background-color: #e66; border-right: 5px solid #f00;' % prct),
@@ -39,7 +39,7 @@ class MagicFolderWebApi(rend.Page):
                 ]
             ]
 
-        for element in self.client._magic.uploader.get_status():
+        for element in self.client._magic_folder.uploader.get_status():
             ul[T.li[str(element)]]
 
         return ul
@@ -47,7 +47,7 @@ class MagicFolderWebApi(rend.Page):
     def _render_json(self, req):
         req.setHeader("content-type", "application/json")
         data = []
-        for item in self.client._magic.downloader.get_status():
+        for item in self.client._magic_folder.downloader.get_status():
             d = dict(
                 path=item.relpath_u,
                 status=item.status,
