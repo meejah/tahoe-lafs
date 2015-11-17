@@ -153,10 +153,8 @@ class Root(rend.Page):
         self.child_uri = URIHandler(client)
         self.child_cap = URIHandler(client)
 
-        # so it seems anything that starts with 'child_whatever'
-        # automagically appears at /whatever "somehow". which makes
-        # grep hard.
-        self.child_magic = magic_folder.MagicFolderWebApi(client)
+        # handler for "/magic_folder" URIs
+        self.child_magic_folder = magic_folder.MagicFolderWebApi(client)
 
         self.child_file = FileHandler(client)
         self.child_named = FileHandler(client)
