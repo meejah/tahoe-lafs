@@ -776,7 +776,6 @@ class Downloader(QueueMixin, WriteFileMixin):
             db_entry = self._db.get_db_entry(item.relpath_u)
             dmd_last_downloaded_uri = item.metadata.get('last_downloaded_uri', None)
             dmd_last_uploaded_uri = item.metadata.get('last_uploaded_uri', None)
-            self._log('kablammo')
             if db_entry:
                 if dmd_last_downloaded_uri is not None and db_entry.last_downloaded_uri is not None:
                     if dmd_last_downloaded_uri != db_entry.last_downloaded_uri:
