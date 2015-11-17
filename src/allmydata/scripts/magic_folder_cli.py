@@ -304,9 +304,9 @@ def status(options):
     if len(magicdata):
         print
         print "In-progress files:"
-        longest = max([item['path'] for item in magicdata], 0)
+        longest = max([len(item['path']) for item in magicdata])
         for item in magicdata:
-            paddedname = (' ' * len(item['path'])) + item['path']
+            paddedname = (' ' * (longest - len(item['path']))) + item['path']
 
             if item['percent_done'] < 100.0:
                 so_far = now - datetime.fromtimestamp(item['started_at'])
@@ -318,21 +318,15 @@ def status(options):
                 )
 
             else:
-                when = None
-                if 'finished_at' in item:
-                    when = datetime.fromtimestamp(item['finished_at'])
-                    qualifier = 'done'
-                elif 'started_at' in item:
-                    when = datetime.fromtimestamp(item['started_at'])
-                    qualifier = 'started'
-                elif 'queued_at' in item:
-                    when = datetime.fromtimestamp(item['queued_at'])
-                    qualifier = 'queued'
-                if when:
-                    prog = ' (%s %s)' % (qualifier, humanize.naturaltime(now - when))
-                else:
-                    prog = ''
-            print "%s: %s: %s" % (paddedname, item['status'], prog)
+                prog = ''
+                for verb in ['finished', 'started', 'queued']:
+                    keyname = verb + '_at'
+                    if keyname in item:
+                        when = datetime.fromtimestamp(item[keyname])
+                        prog = '%s %s' % (verb, humanize.naturaltime(now - when))
+                        break
+
+            print "  %s: %s: %s" % (paddedname, item['status'], prog)
     return 0
 
 
