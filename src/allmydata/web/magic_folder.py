@@ -1,5 +1,10 @@
+import simplejson  # XXX why not built-in "json"
+
 from nevow import rend, url, tags as T
-from allmydata.web.common import getxmlfile
+from nevow.inevow import IRequest
+
+from allmydata.web.common import getxmlfile, get_arg, WebError
+
 
 class MagicFolderWebApi(rend.Page):
     """
@@ -13,8 +18,7 @@ class MagicFolderWebApi(rend.Page):
         super(MagicFolderWebApi, self).__init__(client)
         self.client = client
 
-
-    def render_foo(self, ctx):
+    def render_magic_status(self, ctx):
         ul = T.ul()
         for item in self.client._magic.downloader.get_status():
             prct = item.progress.progress  # XXX hmm, smells bad
@@ -39,7 +43,32 @@ class MagicFolderWebApi(rend.Page):
 
         return ul
 
-#    def renderHTTP(self, ctx):
-#        return rend.Page.renderHTTP(self, ctx)
+    def _render_json(self, req):
+        req.setHeader("content-type", "application/json")
+        data = []
+        for item in self.client._magic.downloader.get_status():
+            d = dict(
+                path=item.relpath_u,
+                status=item.status,
+            )
+            for nm in ['started_at', 'finished_at', 'queued_at']:
+                if getattr(item, nm) is not None:
+                    d[nm] = getattr(item, nm)
+            d['percent_done'] = item.progress.progress
+            data.append(d)
+        return simplejson.dumps(data)
+
+    def renderHTTP(self, ctx):
+        req = IRequest(ctx)
+        t = get_arg(req, "t", None)
+
+        if t is None:
+            return rend.Page.renderHTTP(self, ctx)
+
+        t = t.strip()
+        if t == 'json':
+            return self._render_json(req)
+
+        raise WebError("'%s' invalid type for 't' arg" % (t,), 400)
 
 

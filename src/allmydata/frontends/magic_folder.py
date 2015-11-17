@@ -551,9 +551,6 @@ class DownloadItem(object):
         self.progress = progress
         self.status = status
 
-    def to_json(self):
-        return "FIXME"
-
 
 class Downloader(QueueMixin, WriteFileMixin):
     REMOTE_SCAN_INTERVAL = 3  # facilitates tests
