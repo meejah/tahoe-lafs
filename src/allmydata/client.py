@@ -1,5 +1,6 @@
 import os, stat, time, weakref
 from allmydata import node
+from base64 import urlsafe_b64encode
 
 from zope.interface import implements
 from twisted.internet import reactor, defer
@@ -342,6 +343,34 @@ class Client(node.Node, pollmixin.PollMixin):
                                   self.history))
         self.init_blacklist()
         self.init_nodemaker()
+
+        # this creates the token if it doesn't exist, which we want to
+        # do when starting up.
+        self.get_auth_token()
+
+    def get_auth_token(self):
+        """
+        This returns a local authentication token, which is just some
+        random data in "api_auth_token" which must be echoed to API
+        calls[*]
+
+        For backwards compatibility and ease of use, if the
+        appropriate file doesn't exist, it is created with data from
+        os.urandom()
+
+        [*] - currently only magic-folder status; other endpoints are
+        invited to include this as well, as appropriate.
+        """
+        fname = os.path.join(self.basedir, 'private', 'api_auth_token')
+        try:
+            with open(fname, 'rb') as f:
+                data = f.read()
+        except (OSError, IOError):
+            log.msg("Creating '%s'." % (fname,))
+            with open(fname, 'wb') as f:
+                data = urlsafe_b64encode(os.urandom(32))
+                f.write(data)
+        return data
 
     def init_client_storage_broker(self):
         # create a StorageFarmBroker object, for use by Uploader/Downloader
