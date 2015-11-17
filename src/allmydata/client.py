@@ -335,6 +335,9 @@ class Client(node.Node, pollmixin.PollMixin):
         DEP["n"] = int(self.get_config("client", "shares.total", DEP["n"]))
         DEP["happy"] = int(self.get_config("client", "shares.happy", DEP["happy"]))
 
+        # for the CLI to authenticate to local JSON endpoints
+        self._auth_token = self._create_or_read_auth_token()
+
         self.init_client_storage_broker()
         self.history = History(self.stats_provider)
         self.terminator = Terminator()
@@ -344,22 +347,21 @@ class Client(node.Node, pollmixin.PollMixin):
         self.init_blacklist()
         self.init_nodemaker()
 
-        # this creates the token if it doesn't exist, which we want to
-        # do when starting up.
-        self.get_auth_token()
-
     def get_auth_token(self):
         """
         This returns a local authentication token, which is just some
         random data in "api_auth_token" which must be echoed to API
-        calls[*]
+        calls.
 
-        For backwards compatibility and ease of use, if the
-        appropriate file doesn't exist, it is created with data from
-        os.urandom()
+        Currently only the URI '/magic' for magic-folder status; other
+        endpoints are invited to include this as well, as appropriate.
+        """
+        return self._auth_token
 
-        [*] - currently only magic-folder status; other endpoints are
-        invited to include this as well, as appropriate.
+    def _create_or_read_auth_token(self):
+        """
+        This returns the current auth-token data, possibly creating it and
+        writing 'private/api_auth_token' in the process.
         """
         fname = os.path.join(self.basedir, 'private', 'api_auth_token')
         try:
