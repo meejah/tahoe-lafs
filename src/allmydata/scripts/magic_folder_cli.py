@@ -299,7 +299,7 @@ def status(options):
         token = f.read()
     magicdata = _get_json_for_fragment(
         options,
-        'magic?t=json&token=' + token,
+        'magic_folder?t=json&token=' + token,
         method='POST',
     )
     if len(magicdata):
