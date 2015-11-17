@@ -219,12 +219,12 @@ from allmydata.scripts.common_http import do_http, format_http_success, format_h
 import urllib
 from datetime import datetime
 
-def _get_json_for_cap(options, cap):
+def _get_json_for_fragment(options, fragment):
     nodeurl = options['node-url']
     if nodeurl.endswith('/'):
         nodeurl = nodeurl[:-1]
 
-    url = u'%s/uri/%s?t=json' % (nodeurl, urllib.quote(cap))
+    url = u'%s/%s' % (nodeurl, fragment)
     resp = do_http("GET", url)
     if resp.status != 200:
         print "url", url
@@ -233,6 +233,14 @@ def _get_json_for_cap(options, cap):
     data = resp.read()
     parsed = simplejson.loads(data)
     return parsed
+
+
+def _get_json_for_cap(options, cap):
+    return _get_json_for_fragment(
+        options,
+        'uri/%s?t=json' % urllib.quote(cap),
+    )
+
 
 def status(options):
     nodedir = options["node-directory"]
@@ -292,7 +300,39 @@ def status(options):
             nice_created = humanize.naturaltime(now - created)
             print "    %s (%s): %s, version=%s, created %s" % (n, nice_size, status, version, nice_created)
 
-    # XXX todo: use http interface to ask about our magic-folder upload status
+    magicdata = _get_json_for_fragment(options, 'magic?t=json')
+    if len(magicdata):
+        print
+        print "In-progress files:"
+        longest = max([item['path'] for item in magicdata], 0)
+        for item in magicdata:
+            paddedname = (' ' * len(item['path'])) + item['path']
+
+            if item['percent_done'] < 100.0:
+                so_far = now - datetime.fromtimestamp(item['started_at'])
+                rate = item['percent_done'] / so_far.seconds
+                time_left = (100.0 - item['percent_done']) / rate
+                prog = ' %2.1f%% done, around %s left' % (
+                    item['percent_done'],
+                    humanize.naturaldelta(time_left),
+                )
+
+            else:
+                when = None
+                if 'finished_at' in item:
+                    when = datetime.fromtimestamp(item['finished_at'])
+                    qualifier = 'done'
+                elif 'started_at' in item:
+                    when = datetime.fromtimestamp(item['started_at'])
+                    qualifier = 'started'
+                elif 'queued_at' in item:
+                    when = datetime.fromtimestamp(item['queued_at'])
+                    qualifier = 'queued'
+                if when:
+                    prog = ' (%s %s)' % (qualifier, humanize.naturaltime(now - when))
+                else:
+                    prog = ''
+            print "%s: %s: %s" % (paddedname, item['status'], prog)
     return 0
 
 
