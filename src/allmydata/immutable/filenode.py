@@ -189,7 +189,7 @@ class DecryptingConsumer:
     real consumer."""
     implements(IConsumer, IDownloadStatusHandlingConsumer)
 
-    def __init__(self, consumer, readkey, offset, on_progress):
+    def __init__(self, consumer, readkey, offset):
         self._consumer = consumer
         self._read_ev = None
         self._download_status = None
@@ -240,7 +240,6 @@ class ImmutableFileNode:
         assert isinstance(filecap, uri.CHKFileURI)
         self.u = filecap
         self._readkey = filecap.key
-        self._progress = progress.AbsoluteProgress()
 
     # TODO: I'm not sure about this.. what's the use case for node==node? If
     # we keep it here, we should also put this on CiphertextFileNode
@@ -259,8 +258,8 @@ class ImmutableFileNode:
         else:
             return True
 
-    def read(self, consumer, offset=0, size=None, on_progress=None):
-        decryptor = DecryptingConsumer(consumer, self._readkey, offset, on_progress)
+    def read(self, consumer, offset=0, size=None):
+        decryptor = DecryptingConsumer(consumer, self._readkey, offset)
         d = self._cnode.read(decryptor, offset, size)
         d.addCallback(lambda dc: consumer)
         return d
