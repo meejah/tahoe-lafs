@@ -216,10 +216,9 @@ class Uploader(QueueMixin):
                     )
         self._notifier.watch(self._local_filepath, mask=self.mask, callbacks=[self._notify],
                              recursive=True)
-        self._pending_uploads = []
 
     def get_status(self):
-        for fname in self._pending_uploads:
+        for fname in sorted(self._pending):
             yield 'uploading: "%s"' % (fname,)
 
     def start_monitoring(self):
@@ -252,7 +251,6 @@ class Uploader(QueueMixin):
             # (normally because they have been deleted on disk).
             self._log("adding %r" % (self._pending))
             self._deque.extend(self._pending)
-            self._pending_uploads.extend(self._pending)
         d.addCallback(_add_pending)
         d.addCallback(lambda ign: self._turn_deque())
         return d
@@ -316,7 +314,6 @@ class Uploader(QueueMixin):
         self._log("appending %r to deque" % (relpath_u,))
         self._deque.append(relpath_u)
         self._pending.add(relpath_u)
-        self._pending_uploads.append(relpath_u)
         self._count('objects_queued')
         if self.is_ready:
             if self._immediate:  # for tests
