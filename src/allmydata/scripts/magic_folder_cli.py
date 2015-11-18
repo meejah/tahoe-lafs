@@ -317,14 +317,17 @@ def status(options):
                 so_far = now - datetime.fromtimestamp(item['started_at'])
                 if so_far.seconds > 0.0:
                     rate = item['percent_done'] / so_far.seconds
-                    time_left = (100.0 - item['percent_done']) / rate
-                    prog = '%2.1f%% done, around %s left' % (
-                        item['percent_done'],
-                        humanize.naturaldelta(time_left),
-                    )
+                    if rate != 0:
+                        time_left = (100.0 - item['percent_done']) / rate
+                        prog = '%2.1f%% done, around %s left' % (
+                            item['percent_done'],
+                            humanize.naturaldelta(time_left),
+                        )
+                    else:
+                        time_left = None
+                        prog = '%2.1f%% done' % (item['percent_done'],)
                 else:
                     prog = 'just started'
-
             else:
                 prog = ''
                 for verb in ['finished', 'started', 'queued']:
