@@ -47,7 +47,15 @@ class MagicFolderWebApi(rend.Page):
     def _render_json(self, req):
         req.setHeader("content-type", "application/json")
         data = []
-        for item in self.client._magic_folder.downloader.get_status():
+
+        def all_status():
+            # this is what 'yield from' is for ;)
+#            for x in self.client._magic_folder.downloader.get_status():
+#                yield x
+            for x in self.client._magic_folder.uploader.get_status():
+                yield x
+
+        for item in all_status():
             d = dict(
                 path=item.relpath_u,
                 status=item.status,
