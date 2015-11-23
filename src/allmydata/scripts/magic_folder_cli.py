@@ -278,16 +278,19 @@ def status(options):
             paddedname = (' ' * (longest - len(item['path']))) + item['path']
 
             if item['percent_done'] < 100.0:
-                so_far = now - datetime.fromtimestamp(item['started_at'])
-                if so_far.seconds > 0.0:
-                    rate = item['percent_done'] / so_far.seconds
-                    time_left = (100.0 - item['percent_done']) / rate
-                    prog = '%2.1f%% done, around %s left' % (
-                        item['percent_done'],
-                        humanize.naturaldelta(time_left),
-                    )
+                if 'started_at' not in item:
+                    prog = 'not yet started'
                 else:
-                    prog = 'just started'
+                    so_far = now - datetime.fromtimestamp(item['started_at'])
+                    if so_far.seconds > 0.0:
+                        rate = item['percent_done'] / so_far.seconds
+                        time_left = (100.0 - item['percent_done']) / rate
+                        prog = '%2.1f%% done, around %s left' % (
+                            item['percent_done'],
+                            humanize.naturaldelta(time_left),
+                        )
+                    else:
+                        prog = 'just started'
 
             else:
                 prog = ''
