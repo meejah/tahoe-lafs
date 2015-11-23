@@ -313,7 +313,7 @@ def status(options):
                 so_far = now - datetime.fromtimestamp(item['started_at'])
                 if so_far.seconds > 0.0:
                     rate = item['percent_done'] / so_far.seconds
-                    if rate != 0:
+                    if rate > 0.0:
                         time_left = (100.0 - item['percent_done']) / rate
                         prog = '%2.1f%% done, around %s left' % (
                             item['percent_done'],

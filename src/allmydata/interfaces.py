@@ -1090,7 +1090,7 @@ class IMutableFileNode(IFileNode):
         everything) to get increased visibility.
         """
 
-    def upload(new_contents, servermap):
+    def upload(new_contents, servermap, progress=None):
         """Replace the contents of the file with new ones. This requires a
         servermap that was previously updated with MODE_WRITE.
 
@@ -1110,6 +1110,8 @@ class IMutableFileNode(IFileNode):
         wait a random interval (with exponential backoff) and repeat your
         operation. If I do not signal UncoordinatedWriteError, then I was
         able to write the new version without incident.
+
+        ``progress`` is either None or an IProgress provider
 
         I return a Deferred that fires (with a PublishStatus object) when the
         publish has completed. I will update the servermap in-place with the
@@ -1301,11 +1303,13 @@ class IDirectoryNode(IFilesystemNode):
         equivalent to calling set_node() multiple times, but is much more
         efficient."""
 
-    def add_file(name, uploadable, metadata=None, overwrite=True):
+    def add_file(name, uploadable, metadata=None, overwrite=True, progress=None):
         """I upload a file (using the given IUploadable), then attach the
         resulting ImmutableFileNode to the directory at the given name. I set
         metadata the same way as set_uri and set_node. The child name must be
         a unicode string.
+
+        ``progress`` either provides IProgress or is None
 
         I return a Deferred that fires (with the IFileNode of the uploaded
         file) when the operation completes."""
