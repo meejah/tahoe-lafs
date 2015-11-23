@@ -45,17 +45,30 @@ class MagicFolderWebApi(rend.Page):
 
     def _render_json(self, req):
         req.setHeader("content-type", "application/json")
+
         data = []
+        for item in self.client._magic_folder.uploader.get_status():
+            d = dict(
+                path=item.relpath_u,
+                status=item.status_history()[-1][0],
+                kind='upload',
+            )
+            for (status, ts) in item.status_history():
+                d[status + '_at'] = ts
+            d['percent_done'] = item.progress.progress
+            data.append(d)
+
         for item in self.client._magic_folder.downloader.get_status():
             d = dict(
                 path=item.relpath_u,
-                status=item.status,
+                status=item.status_history()[-1][0],
+                kind='download',
             )
-            for nm in ['started_at', 'finished_at', 'queued_at']:
-                if getattr(item, nm) is not None:
-                    d[nm] = getattr(item, nm)
+            for (status, ts) in item.status_history():
+                d[status + '_at'] = ts
             d['percent_done'] = item.progress.progress
             data.append(d)
+
         return simplejson.dumps(data)
 
     def renderHTTP(self, ctx):
