@@ -11,51 +11,37 @@ class MagicFolderWebApi(rend.Page):
     I provide the web-based API for Magic Folder status etc.
     """
 
-    docFactory = getxmlfile("magic-folder-status.xhtml")
-
     def __init__(self, client):
         ##rend.Page.__init__(self, storage)
         super(MagicFolderWebApi, self).__init__(client)
         self.client = client
 
-    def render_magic_status(self, ctx):
-        ul = T.ul()
-        for item in self.client._magic_folder.downloader.get_status():
-            prct = item.progress.progress  # XXX hmm, smells bad
-            prog = T.div(style='width: 100%; height: 2px; background-color: #aaa;')[
-                T.div(style='width: %f%%; height: 2px; background-color: #e66; border-right: 5px solid #f00;' % prct),
-            ]
-            took = ''
-            if item.finished_at and item.started_at:
-                took = ' (took ' + str(item.finished_at - item.started_at) + 's)'
-            ul[
-                T.li[
-                    str(item.relpath_u), ': ', str(item.status),
-                    ' started ', str(item.started_at),
-                    ' finished at ', str(item.finished_at),
-                    took,
-                    prog,
-                ]
-            ]
-
-        for element in self.client._magic_folder.uploader.get_status():
-            ul[T.li[str(element)]]
-
-        return ul
-
     def _render_json(self, req):
         req.setHeader("content-type", "application/json")
+
         data = []
+        for item in self.client._magic_folder.uploader.get_status():
+            d = dict(
+                path=item.relpath_u,
+                status=item.status_history()[-1][0],
+                kind='upload',
+            )
+            for (status, ts) in item.status_history():
+                d[status + '_at'] = ts
+            d['percent_done'] = item.progress.progress
+            data.append(d)
+
         for item in self.client._magic_folder.downloader.get_status():
             d = dict(
                 path=item.relpath_u,
-                status=item.status,
+                status=item.status_history()[-1][0],
+                kind='download',
             )
-            for nm in ['started_at', 'finished_at', 'queued_at']:
-                if getattr(item, nm) is not None:
-                    d[nm] = getattr(item, nm)
+            for (status, ts) in item.status_history():
+                d[status + '_at'] = ts
             d['percent_done'] = item.progress.progress
             data.append(d)
+
         return simplejson.dumps(data)
 
     def renderHTTP(self, ctx):

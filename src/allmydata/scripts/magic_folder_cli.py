@@ -1,9 +1,12 @@
 
 import os
+import urllib
 from sys import stderr
 from types import NoneType
 from cStringIO import StringIO
+from datetime import datetime
 
+import humanize
 import simplejson  # XXX why not built-in json lib?
 
 from twisted.python import usage
@@ -15,9 +18,12 @@ from .cli import MakeDirectoryOptions, LnOptions, CreateAliasOptions
 import tahoe_mv
 from allmydata.util.encodingutil import argv_to_abspath, argv_to_unicode, to_str, \
     quote_local_unicode_path
+from allmydata.scripts.common_http import do_http, format_http_success, \
+    format_http_error, BadResponse
 from allmydata.util import fileutil
 from allmydata.util import configutil
 from allmydata import uri
+
 
 INVITE_SEPARATOR = "+"
 
@@ -211,24 +217,24 @@ class StatusOptions(BasedirOptions):
             self['node-url'] = f.read().strip()
 
 
-# FIXME move to top; these are "status" related imports for just now
-from allmydata.scripts.common_http import do_http, format_http_success, format_http_error
-import urllib
-from datetime import datetime
-
 def _get_json_for_fragment(options, fragment):
     nodeurl = options['node-url']
     if nodeurl.endswith('/'):
         nodeurl = nodeurl[:-1]
 
     url = u'%s/%s' % (nodeurl, fragment)
-    resp = do_http("GET", url)
-    if resp.status != 200:
-        print "url", url
-        raise RuntimeError(format_http_error("Error during GET", resp))
+    resp = do_http(method, url)
+    if isinstance(resp, BadResponse):
+        # specifically NOT using format_http_error() here because the
+        # URL is pretty sensitive (we're doing /uri/<key>).
+        raise RuntimeError(
+            "Failed to get json from '%s': %s" % (nodeurl, resp.error)
+        )
 
     data = resp.read()
     parsed = simplejson.loads(data)
+    if not parsed:
+        raise RuntimeError("No data from '%s'" % (nodeurl,))
     return parsed
 
 
@@ -238,6 +244,39 @@ def _get_json_for_cap(options, cap):
         'uri/%s?t=json' % urllib.quote(cap),
     )
 
+def _print_item_status(item, now, longest):
+    paddedname = (' ' * (longest - len(item['path']))) + item['path']
+    if 'failure_at' in item:
+        ts = datetime.fromtimestamp(item['started_at'])
+        prog = 'Failed %s (%s)' % (humanize.naturaltime(now - ts), ts)
+    elif item['percent_done'] < 100.0:
+        if 'started_at' not in item:
+            prog = 'not yet started'
+        else:
+            so_far = now - datetime.fromtimestamp(item['started_at'])
+            if so_far.seconds > 0.0:
+                rate = item['percent_done'] / so_far.seconds
+                if rate != 0:
+                    time_left = (100.0 - item['percent_done']) / rate
+                    prog = '%2.1f%% done, around %s left' % (
+                        item['percent_done'],
+                        humanize.naturaldelta(time_left),
+                    )
+                else:
+                    time_left = None
+                    prog = '%2.1f%% done' % (item['percent_done'],)
+            else:
+                prog = 'just started'
+    else:
+        prog = ''
+        for verb in ['finished', 'started', 'queued']:
+            keyname = verb + '_at'
+            if keyname in item:
+                when = datetime.fromtimestamp(item[keyname])
+                prog = '%s %s' % (verb, humanize.naturaltime(now - when))
+                break
+
+    print "  %s: %s" % (paddedname, prog)
 
 def status(options):
     nodedir = options["node-directory"]
@@ -264,7 +303,6 @@ def status(options):
         size = meta['size']
         created = datetime.fromtimestamp(meta['metadata']['tahoe']['linkcrtime'])
         version = meta['metadata']['version']
-        import humanize
         nice_size = humanize.naturalsize(size)
         nice_created = humanize.naturaltime(now - created)
         if captype != 'filenode':
@@ -292,44 +330,36 @@ def status(options):
             size = meta['size']
             created = datetime.fromtimestamp(meta['metadata']['tahoe']['linkcrtime'])
             version = meta['metadata']['version']
-            import humanize
             nice_size = humanize.naturalsize(size)
             nice_created = humanize.naturaltime(now - created)
             print "    %s (%s): %s, version=%s, created %s" % (n, nice_size, status, version, nice_created)
 
-    magicdata = _get_json_for_fragment(options, 'magic?t=json')
+    magicdata = _get_json_for_fragment(options, 'magic_folder?t=json')
     if len(magicdata):
-        print
-        print "In-progress files:"
+        uploads = [item for item in magicdata if item['kind'] == 'upload']
+        downloads = [item for item in magicdata if item['kind'] == 'download']
         longest = max([len(item['path']) for item in magicdata])
+
+        if True: # maybe --show-completed option or something?
+            uploads = [item for item in uploads if item['status'] != 'success']
+            downloads = [item for item in downloads if item['status'] != 'success']
+
+        if len(uploads):
+            print
+            print "Uploads:"
+            for item in uploads:
+                _print_item_status(item, now, longest)
+
+        if len(downloads):
+            print
+            print "Downloads:"
+            for item in downloads:
+                _print_item_status(item, now, longest)
+
         for item in magicdata:
-            paddedname = (' ' * (longest - len(item['path']))) + item['path']
+            if item['status'] == 'failure':
+                print "Failed:", item
 
-            if item['percent_done'] < 100.0:
-                so_far = now - datetime.fromtimestamp(item['started_at'])
-                if so_far.seconds > 0.0:
-                    rate = item['percent_done'] / so_far.seconds
-                    if rate != 0:
-                        time_left = (100.0 - item['percent_done']) / rate
-                        prog = '%2.1f%% done, around %s left' % (
-                            item['percent_done'],
-                            humanize.naturaldelta(time_left),
-                        )
-                    else:
-                        time_left = None
-                        prog = '%2.1f%% done' % (item['percent_done'],)
-                else:
-                    prog = 'just started'
-            else:
-                prog = ''
-                for verb in ['finished', 'started', 'queued']:
-                    keyname = verb + '_at'
-                    if keyname in item:
-                        when = datetime.fromtimestamp(item[keyname])
-                        prog = '%s %s' % (verb, humanize.naturaltime(now - when))
-                        break
-
-            print "  %s: %s: %s" % (paddedname, item['status'], prog)
     return 0
 
 
