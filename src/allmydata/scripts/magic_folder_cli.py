@@ -4,6 +4,7 @@ from sys import stderr
 from types import NoneType
 from cStringIO import StringIO
 
+import humanize
 import simplejson  # XXX why not built-in json lib?
 
 from twisted.python import usage
@@ -204,6 +205,35 @@ def _get_json_for_cap(options, cap):
         'uri/%s?t=json' % urllib.quote(cap),
     )
 
+def _print_item_status(item, now, longest):
+    paddedname = (' ' * (longest - len(item['path']))) + item['path']
+    if item['percent_done'] < 100.0:
+        if 'started_at' not in item:
+            prog = 'not yet started'
+        else:
+            so_far = now - datetime.fromtimestamp(item['started_at'])
+            if so_far.seconds > 0.0:
+                rate = item['percent_done'] / so_far.seconds
+                if rate != 0:
+                    time_left = (100.0 - item['percent_done']) / rate
+                    prog = '%2.1f%% done, around %s left' % (
+                        item['percent_done'],
+                        humanize.naturaldelta(time_left),
+                    )
+                else:
+                    time_left = None
+                    prog = '%2.1f%% done' % (item['percent_done'],)
+                    #prog = 'just started'
+    else:
+        prog = ''
+        for verb in ['finished', 'started', 'queued']:
+            keyname = verb + '_at'
+            if keyname in item:
+                when = datetime.fromtimestamp(item[keyname])
+                prog = '%s %s' % (verb, humanize.naturaltime(now - when))
+                break
+
+    print "  %s: %s" % (paddedname, prog)
 
 def status(options):
     nodedir = options["node-directory"]
@@ -230,7 +260,6 @@ def status(options):
         size = meta['size']
         created = datetime.fromtimestamp(meta['metadata']['tahoe']['linkcrtime'])
         version = meta['metadata']['version']
-        import humanize
         nice_size = humanize.naturalsize(size)
         nice_created = humanize.naturaltime(now - created)
         if captype != 'filenode':
@@ -258,7 +287,6 @@ def status(options):
             size = meta['size']
             created = datetime.fromtimestamp(meta['metadata']['tahoe']['linkcrtime'])
             version = meta['metadata']['version']
-            import humanize
             nice_size = humanize.naturalsize(size)
             nice_created = humanize.naturaltime(now - created)
             print "    %s (%s): %s, version=%s, created %s" % (n, nice_size, status, version, nice_created)
@@ -271,39 +299,26 @@ def status(options):
         method='POST',
     )
     if len(magicdata):
-        print
-        print "In-progress files:"
+        uploads = [item for item in magicdata if item['kind'] == 'upload']
+        downloads = [item for item in magicdata if item['kind'] == 'download']
         longest = max([len(item['path']) for item in magicdata])
-        for item in magicdata:
-            paddedname = (' ' * (longest - len(item['path']))) + item['path']
 
-            if item['percent_done'] < 100.0:
-                if 'started_at' not in item:
-                    prog = 'not yet started'
-                else:
-                    so_far = now - datetime.fromtimestamp(item['started_at'])
-                    if so_far.seconds > 0.0:
-                        rate = item['percent_done'] / so_far.seconds
-                        if rate != 0:
-                            time_left = (100.0 - item['percent_done']) / rate
-                            prog = '%2.1f%% done, around %s left' % (
-                                item['percent_done'],
-                                humanize.naturaldelta(time_left),
-                            )
-                        else:
-                            time_left = None
-                            prog = '%2.1f%% done' % (item['percent_done'],)
-                            #prog = 'just started'
-            else:
-                prog = ''
-                for verb in ['finished', 'started', 'queued']:
-                    keyname = verb + '_at'
-                    if keyname in item:
-                        when = datetime.fromtimestamp(item[keyname])
-                        prog = '%s %s' % (verb, humanize.naturaltime(now - when))
-                        break
+        if True: # maybe --show-completed option or something?
+            uploads = [item for item in uploads if item['status'] != 'success']
+            downloads = [item for item in downloads if item['status'] != 'success']
 
-            print "  %s: %s: %s" % (paddedname, item['status'], prog)
+        if len(uploads):
+            print
+            print "Uploads:"
+            for item in uploads:
+                _print_item_status(item, now, longest)
+
+        if len(downloads):
+            print
+            print "Downloads:"
+            for item in downloads:
+                _print_item_status(item, now, longest)
+
     return 0
 
 

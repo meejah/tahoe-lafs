@@ -46,25 +46,32 @@ class MagicFolderWebApi(rend.Page):
 
     def _render_json(self, req):
         req.setHeader("content-type", "application/json")
+
         data = []
-
-        def all_status():
-            # this is what 'yield from' is for ;)
-#            for x in self.client._magic_folder.downloader.get_status():
-#                yield x
-            for x in self.client._magic_folder.uploader.get_status():
-                yield x
-
-        for item in all_status():
+        for item in self.client._magic_folder.uploader.get_status():
             d = dict(
                 path=item.relpath_u,
                 status=item.status,
+                kind='upload',
             )
             for nm in ['started_at', 'finished_at', 'queued_at']:
                 if getattr(item, nm) is not None:
                     d[nm] = getattr(item, nm)
             d['percent_done'] = item.progress.progress
             data.append(d)
+
+        for item in self.client._magic_folder.downloader.get_status():
+            d = dict(
+                path=item.relpath_u,
+                status=item.status,
+                kind='download',
+            )
+            for nm in ['started_at', 'finished_at', 'queued_at']:
+                if getattr(item, nm) is not None:
+                    d[nm] = getattr(item, nm)
+            d['percent_done'] = item.progress.progress
+            data.append(d)
+
         return simplejson.dumps(data)
 
     def renderHTTP(self, ctx):

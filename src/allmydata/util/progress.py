@@ -35,7 +35,7 @@ class PercentProgress(AbsoluteProgress):
         self._total_size = float(total_size)
 
     def set_progress_total(self, size):  # FIXME HACK not part of API
-        self._total_size = size
+        self._total_size = float(size)
 
     @property
     def progress(self):
