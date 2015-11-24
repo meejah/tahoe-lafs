@@ -275,7 +275,8 @@ class Uploader(QueueMixin):
             # (normally because they have been deleted on disk).
             self._log("adding %r" % (self._pending))
             for relpath_u in self._pending:
-                progress = PercentProgress(1.0)  # XXX fixme
+                file_size = 1.0  # XXX FIXME
+                progress = PercentProgress(file_size)
                 self._deque.append(
                     UploadItem(relpath_u, self._clock.seconds(), progress, 'queued')
                 )
@@ -342,6 +343,7 @@ class Uploader(QueueMixin):
         self._log("appending %r to deque" % (relpath_u,))
         filesize = 1.0  # XXX fixme
         progress = PercentProgress(filesize)
+        progress.set_progress(1.0)
         item = UploadItem(relpath_u, self._clock.seconds(), progress, 'queued')
         self._deque.append(item)
         self._pending.add(relpath_u)
