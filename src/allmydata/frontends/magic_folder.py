@@ -422,6 +422,7 @@ class Uploader(QueueMixin):
                                                 last_downloaded_uri, last_downloaded_timestamp,
                                                 pathinfo)
                     self._count('files_uploaded')
+                    print "upload completed!", item
                 d2.addCallback(_add_db_entry)
                 return d2
             elif pathinfo.islink:
@@ -493,6 +494,8 @@ class Uploader(QueueMixin):
 
         def _succeeded(res):
             self._count('objects_succeeded')
+            item.finished_at = self._clock.seconds()
+            item.status = 'success'  # XXX FIXME
             return res
         def _failed(f):
             self._count('objects_failed')
@@ -784,8 +787,8 @@ class Downloader(QueueMixin, WriteFileMixin):
     def _process(self, item, now=None):
         # Downloader
         self._log("_process(%r)" % (item,))
-        if now is None:
-            now = self._clock.seconds()
+        if now is None:  # XXX why can we pass in now?
+            now = time.time()  # self._clock.seconds()
 
         self._log("started! %s" % (now,))
         item.status = 'started'
