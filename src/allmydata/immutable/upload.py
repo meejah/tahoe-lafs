@@ -656,8 +656,8 @@ class EncryptAnUploadable:
             self._file_size = size
             if self._status:
                 self._status.set_size(size)
-            if self._progress:
-                self._progress.set_progress_total(size)
+#            if self._progress:
+#                self._progress.set_progress_total(size)
             return size
         d.addCallback(_got_size)
         return d
@@ -906,6 +906,7 @@ class CHKUploader:
         self._upload_status = UploadStatus()
         self._upload_status.set_helper(False)
         self._upload_status.set_active(True)
+        print "progress is!", progress
         self._progress = progress
 
         # locate_all_shareholders() will create the following attribute:
@@ -950,8 +951,11 @@ class CHKUploader:
         eu = IEncryptedUploadable(encrypted)
 
         started = time.time()
-        self._encoder = e = encode.Encoder(self._log_number,
-                                           self._upload_status)
+        self._encoder = e = encode.Encoder(
+            self._log_number,
+            self._upload_status,
+            progress=self._progress,
+        )
         d = e.set_encrypted_uploadable(eu)
         d.addCallback(self.locate_all_shareholders, started)
         d.addCallback(self.set_shareholders, e)
@@ -1579,7 +1583,7 @@ class Uploader(service.MultiService, log.PrefixingLogMixin):
                 else:
                     storage_broker = self.parent.get_storage_broker()
                     secret_holder = self.parent._secret_holder
-                    uploader = CHKUploader(storage_broker, secret_holder)
+                    uploader = CHKUploader(storage_broker, secret_holder, progress=progress)
                     d2.addCallback(lambda x: uploader.start(eu))
 
                 self._all_uploads[uploader] = None
