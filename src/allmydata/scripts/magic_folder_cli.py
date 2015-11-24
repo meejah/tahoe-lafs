@@ -292,8 +292,8 @@ def status(options):
                             )
                         else:
                             time_left = None
-                            #prog = '%2.1f%% done' % (item['percent_done'],)
-                            prog = 'just started'
+                            prog = '%2.1f%% done' % (item['percent_done'],)
+                            #prog = 'just started'
             else:
                 prog = ''
                 for verb in ['finished', 'started', 'queued']:
