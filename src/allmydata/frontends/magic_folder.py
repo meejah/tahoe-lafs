@@ -862,7 +862,7 @@ class Downloader(QueueMixin, WriteFileMixin):
 
         d.addCallbacks(do_update_db, failed)
         def remove_from_pending(result):
-            self._pending.remove( (relpath_u, metadata['version']) )
+            self._pending.remove( (item.relpath_u, item.metadata['version']) )
             return result
         d.addBoth(remove_from_pending)
         def trap_conflicts(f):
