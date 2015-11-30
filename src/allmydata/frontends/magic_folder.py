@@ -500,6 +500,8 @@ class Uploader(QueueMixin):
         def _failed(f):
             self._count('objects_failed')
             self._log("%s while processing %r" % (f, relpath_u))
+            item.finished_at = self._clock.seconds()
+            item.status = 'failure'  # XXX FIXME
             return f
         d.addCallbacks(_succeeded, _failed)
         return d
