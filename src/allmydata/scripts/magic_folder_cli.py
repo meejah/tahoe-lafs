@@ -355,6 +355,10 @@ def status(options):
             for item in downloads:
                 _print_item_status(item, now, longest)
 
+        for item in magicdata:
+            if item['status'] == 'failure':
+                print "Failed:", item
+
     return 0
 
 
