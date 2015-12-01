@@ -30,12 +30,14 @@ class PercentProgress(AbsoluteProgress):
     Represents progress as a percentage, from 0.0 to 100.0
     """
 
-    def __init__(self, total_size):
+    def __init__(self, total_size=None):
         super(PercentProgress, self).__init__()
-        self._total_size = float(total_size)
+        self.set_progress_total(total_size)
 
-    def set_progress_total(self, size):  # FIXME HACK not part of API
-        self._total_size = float(size)
+    def set_progress_total(self, size):
+        if size is not None:
+            size = float(size)
+        self._total_size = size
 
     @property
     def progress(self):

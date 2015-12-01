@@ -906,7 +906,6 @@ class CHKUploader:
         self._upload_status = UploadStatus()
         self._upload_status.set_helper(False)
         self._upload_status.set_active(True)
-        print "progress is!", progress
         self._progress = progress
 
         # locate_all_shareholders() will create the following attribute:
