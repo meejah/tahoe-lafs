@@ -188,18 +188,35 @@ class IQueuedItem(Interface):
 
 
 @implementer(IQueuedItem)
-class UploadItem(object):
-    def __init__(self, relpath_u, queued_at, progress, status):
+class QueuedItem(object):
+    def __init__(self, relpath_u, progress):
         self.relpath_u = relpath_u
-        self.queued_at = queued_at
-        self.started_at = None
-        self.finished_at = None
         self.progress = progress
-        self.status = status
+        self._status_history = dict()
 
-    # XXX for downloaderitem too: instead of queue_at, started_at etc
-    # just have a "status" which is a state (string) + timestamp. and
-    # maybe history of those?
+    def set_status(self, status, current_time=None):
+        if current_time is None:
+            current_time = time.time()
+        self._status_history[status] = current_time
+
+    def status_time(self, state):
+        """
+        Returns None if there's no status-update for 'state', else returns
+        the timestamp when that state was reached.
+        """
+        return self._status_history.get(state, None)
+
+    def status_history(self):
+        """
+        Returns a list of 2-tuples of (state, timestamp) sorted by timestamp
+        """
+        hist = self._status_history.items()
+        hist.sort(lambda a, b: cmp(a[1], b[1]))
+        return hist
+
+
+class UploadItem(QueuedItem):
+    pass
 
 
 class Uploader(QueueMixin):
@@ -275,11 +292,11 @@ class Uploader(QueueMixin):
             # (normally because they have been deleted on disk).
             self._log("adding %r" % (self._pending))
             for relpath_u in self._pending:
-                file_size = 1.0  # XXX FIXME
-                progress = PercentProgress(file_size)
-                self._deque.append(
-                    UploadItem(relpath_u, self._clock.seconds(), progress, 'queued')
-                )
+                progress = PercentProgress()
+                item = UploadItem(relpath_u, progress)
+                item.set_status('queued', self._clock.seconds())
+                self._deque.append(item)
+
         d.addCallback(_add_pending)
         d.addCallback(lambda ign: self._turn_deque())
         return d
@@ -341,11 +358,10 @@ class Uploader(QueueMixin):
             return
 
         self._log("appending %r to deque" % (relpath_u,))
-        filesize = 1.0  # XXX fixme
-        progress = PercentProgress(filesize)
-        progress.set_progress(1.0)
-        item = UploadItem(relpath_u, self._clock.seconds(), progress, 'queued')
+        item = UploadItem(relpath_u, PercentProgress())
+        item.set_status('queued', self._clock.seconds())
         self._deque.append(item)
+
         self._pending.add(relpath_u)
         self._count('objects_queued')
         if self.is_ready:
@@ -361,8 +377,7 @@ class Uploader(QueueMixin):
         # Uploader
         relpath_u = item.relpath_u
         self._log("_process(%r)" % (relpath_u,))
-        item.status = 'started'
-        item.started_at = self._clock.seconds()
+        item.set_status('started', self._clock.seconds())
 
         if relpath_u is None:
             item.status = 'invalid_path'
@@ -494,14 +509,12 @@ class Uploader(QueueMixin):
 
         def _succeeded(res):
             self._count('objects_succeeded')
-            item.finished_at = self._clock.seconds()
-            item.status = 'success'  # XXX FIXME
+            item.set_status('success', self._clock.seconds())
             return res
         def _failed(f):
             self._count('objects_failed')
             self._log("%s while processing %r" % (f, relpath_u))
-            item.finished_at = self._clock.seconds()
-            item.status = 'failure'  # XXX FIXME
+            item.set_status('failure', self._clock.seconds())
             return f
         d.addCallbacks(_succeeded, _failed)
         return d
@@ -586,17 +599,11 @@ class WriteFileMixin(object):
         return abspath_u
 
 
-@implementer(IQueuedItem)
-class DownloadItem(object):
-    def __init__(self, relpath_u, file_node, metadata, queued_at, progress, status):
-        self.relpath_u = relpath_u
-        self.file_node = file_node
+class DownloadItem(QueuedItem):
+    def __init__(self, relpath_u, progress, filenode, metadata):
+        super(DownloadItem, self).__init__(relpath_u, progress)
+        self.file_node = filenode
         self.metadata = metadata
-        self.queued_at = queued_at
-        self.started_at = None
-        self.finished_at = None
-        self.progress = progress
-        self.status = status
 
 
 class Downloader(QueueMixin, WriteFileMixin):
@@ -625,9 +632,6 @@ class Downloader(QueueMixin, WriteFileMixin):
             yield item
         for item in self._process_history:
             yield item
-#        for (fname, node, meta) in self._pending_downloads:
-#            percent = (node._progress.progress / float(node.get_size())) * 100.0
-#            yield ('downloading: "%s" %d bytes, %2.1f%%' % (fname, node.get_size(), percent), percent)
 
     def start_scanning(self):
         self._log("start_scanning")
@@ -758,12 +762,11 @@ class Downloader(QueueMixin, WriteFileMixin):
                 if self._should_download(relpath_u, metadata['version']):
                     to_dl = DownloadItem(
                         relpath_u,
+                        PercentProgress(file_node.get_size()),
                         file_node,
                         metadata,
-                        self._clock.seconds(),
-                        PercentProgress(file_node.get_size()),
-                        'queued',
                     )
+                    to_dl.set_status('queued', self._clock.seconds())
                     self._deque.append(to_dl)
                     self._pending.add( (relpath_u, metadata['version']) )
                 else:
@@ -788,8 +791,7 @@ class Downloader(QueueMixin, WriteFileMixin):
             now = time.time()  # self._clock.seconds()
 
         self._log("started! %s" % (now,))
-        item.status = 'started'
-        item.started_at = now
+        item.set_status('started', now)
         fp = self._get_filepath(item.relpath_u)
         abspath_u = unicode_from_filepath(fp)
         conflict_path_u = self._get_conflicted_filename(abspath_u)
@@ -811,12 +813,10 @@ class Downloader(QueueMixin, WriteFileMixin):
                 last_downloaded_uri, last_downloaded_timestamp, written_pathinfo,
             )
             self._count('objects_downloaded')
-            item.finished_at = self._clock.seconds()
-            item.status = 'success'  # XXX FIXME
+            item.set_status('success', self._clock.seconds())
 
         def failed(f):
-            item.finished_at = self._clock.seconds()
-            item.status = 'failure'  # XXX FIXME
+            item.set_status('failure', self._clock.seconds())
             self._log("download failed: %s" % (str(f),))
             self._count('objects_failed')
             return f

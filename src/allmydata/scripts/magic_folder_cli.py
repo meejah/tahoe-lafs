@@ -243,7 +243,10 @@ def _get_json_for_cap(options, cap):
 
 def _print_item_status(item, now, longest):
     paddedname = (' ' * (longest - len(item['path']))) + item['path']
-    if item['percent_done'] < 100.0:
+    if 'failure_at' in item:
+        ts = datetime.fromtimestamp(item['started_at'])
+        prog = 'Failed %s (%s)' % (humanize.naturaltime(now - ts), ts)
+    elif item['percent_done'] < 100.0:
         if 'started_at' not in item:
             prog = 'not yet started'
         else:
