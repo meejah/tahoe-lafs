@@ -290,6 +290,10 @@ class Uploader(QueueMixin):
         def _add_pending(ign):
             # This adds all of the files that were in the db but not already processed
             # (normally because they have been deleted on disk).
+
+            # XXX I don't see how ^ can be true; _scan() adds
+            # everything that is already in the database, but isn't
+            # ignorable...
             self._log("adding %r" % (self._pending))
             for relpath_u in self._pending:
                 progress = PercentProgress()
