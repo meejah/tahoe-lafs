@@ -441,7 +441,6 @@ class Uploader(QueueMixin):
                                                 last_downloaded_uri, last_downloaded_timestamp,
                                                 pathinfo)
                     self._count('files_uploaded')
-                    print "upload completed!", item
                 d2.addCallback(_add_db_entry)
                 return d2
             elif pathinfo.islink:
