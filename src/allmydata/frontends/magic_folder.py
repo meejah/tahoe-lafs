@@ -327,7 +327,11 @@ class Uploader(QueueMixin):
                     return None
 
                 self._pending.add(relpath_u)
-                return relpath_u
+                progress = PercentProgress()
+                item = UploadItem(relpath_u, progress)
+                # self._process() needs a QueuedItem; probably should
+                # fix as per the comment below, though...
+                return item
             d.addCallback(_add_pending)
             # This call to _process doesn't go through the deque, and probably should.
             d.addCallback(self._process)
