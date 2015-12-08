@@ -434,7 +434,6 @@ class Encoder(object):
         dl = []
         self.set_status("Sending segment %d of %d" % (segnum+1,
                                                       self.num_segments))
-        print "SENDING", segnum
         self.log('sending %d' % segnum)
         self.set_encode_and_push_progress(segnum)
         lognum = self.log("send_segment(%d)" % segnum, level=log.NOISY)
