@@ -358,6 +358,7 @@ class Root(rend.Page):
         ctx.fillSlots("service_connection_status", service_connection_status)
         ctx.fillSlots("service_connection_status_alt",
             self._connectedalts[service_connection_status])
+        ctx.fillSlots("connected-bool", bool(rhost))
         ctx.fillSlots("service_connection_status_abs_time", service_connection_status_abs_time)
         ctx.fillSlots("service_connection_status_rel_time", service_connection_status_rel_time)
         ctx.fillSlots("last_received_data_abs_time", last_received_data_abs_time)
