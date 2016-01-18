@@ -107,7 +107,7 @@ class Encoder(object):
             self.log(format="file size: %(size)d", size=size)
             self.file_size = size
             if self._progress:
-                self._progress.set_progress_total(self.file_size)  # FIXME HACK
+                self._progress.set_progress_total(self.file_size)
         d.addCallback(_got_size)
         d.addCallback(lambda res: eu.get_all_encoding_parameters())
         d.addCallback(self._got_all_encoding_parameters)
