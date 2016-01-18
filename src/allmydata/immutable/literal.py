@@ -115,7 +115,7 @@ class LiteralFileNode(_ImmutableFileNodeBase):
 
     def download_best_version(self, progress=None):
         if progress is not None:
-            progress.set_progress_total(len(self.u.data))  # FIXME HACK? not part of api, anyway
+            progress.set_progress_total(len(self.u.data))
             progress.set_progress(len(self.u.data))
         return defer.succeed(self.u.data)
 
