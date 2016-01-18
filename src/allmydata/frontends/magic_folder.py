@@ -135,6 +135,15 @@ class QueueMixin(HookMixin):
         self._stopped = False
         self._turn_delay = 0
 
+    def get_status(self):
+        """
+        Returns an iterable of instances that implement IQueuedItem
+        """
+        for item in self._deque:
+            yield item
+        for item in self._process_history:
+            yield item
+
     def _get_filepath(self, relpath_u):
         self._log("_get_filepath(%r)" % (relpath_u,))
         return extend_filepath(self._local_filepath, relpath_u.split(u"/"))
@@ -166,8 +175,7 @@ class QueueMixin(HookMixin):
             self._log("stopped")
             return
         try:
-            #item = IQueuedItem(self._deque.pop())  # <- do this once uploader
-            item = self._deque.pop()
+            item = IQueuedItem(self._deque.pop())
             self._process_history.append(item)
 
             self._log("popped %r, now have %d" % (item, len(self._deque)))
@@ -260,13 +268,6 @@ class Uploader(QueueMixin):
     def get_status(self):
         for fname in self._pending_uploads:
             yield 'uploading: "%s"' % (fname,)
-
-    # XXX promote to base class
-    def get_status(self):
-        for item in self._deque:
-            yield item
-        for item in self._process_history:
-            yield item
 
     def start_monitoring(self):
         self._log("start_monitoring")
@@ -391,7 +392,7 @@ class Uploader(QueueMixin):
         item.set_status('started', self._clock.seconds())
 
         if relpath_u is None:
-            item.status = 'invalid_path'
+            item.set_status('invalid_path', self._clock.seconds())
             return
         precondition(isinstance(relpath_u, unicode), relpath_u)
         precondition(not relpath_u.endswith(u'/'), relpath_u)
@@ -641,12 +642,6 @@ class Downloader(QueueMixin, WriteFileMixin):
         self._pending = set()
 
         self._turn_delay = self.REMOTE_SCAN_INTERVAL
-
-    def get_status(self):
-        for item in self._deque:
-            yield item
-        for item in self._process_history:
-            yield item
 
     def start_scanning(self):
         self._log("start_scanning")

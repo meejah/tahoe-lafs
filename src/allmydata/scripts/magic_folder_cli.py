@@ -1,8 +1,10 @@
 
 import os
+import urllib
 from sys import stderr
 from types import NoneType
 from cStringIO import StringIO
+from datetime import datetime
 
 import humanize
 import simplejson  # XXX why not built-in json lib?
@@ -16,9 +18,12 @@ from .cli import MakeDirectoryOptions, LnOptions, CreateAliasOptions
 import tahoe_mv
 from allmydata.util.encodingutil import argv_to_abspath, argv_to_unicode, to_str, \
     quote_local_unicode_path
+from allmydata.scripts.common_http import do_http, format_http_success, \
+    format_http_error, BadResponse
 from allmydata.util import fileutil
 from allmydata.util import configutil
 from allmydata import uri
+
 
 INVITE_SEPARATOR = "+"
 
@@ -223,13 +228,18 @@ def _get_json_for_fragment(options, fragment):
         nodeurl = nodeurl[:-1]
 
     url = u'%s/%s' % (nodeurl, fragment)
-    resp = do_http("GET", url)
-    if resp.status != 200:
-        print "url", url
-        raise RuntimeError(format_http_error("Error during GET", resp))
+    resp = do_http(method, url)
+    if isinstance(resp, BadResponse):
+        # specifically NOT using format_http_error() here because the
+        # URL is pretty sensitive (we're doing /uri/<key>).
+        raise RuntimeError(
+            "Failed to get json from '%s': %s" % (nodeurl, resp.error)
+        )
 
     data = resp.read()
     parsed = simplejson.loads(data)
+    if not parsed:
+        raise RuntimeError("No data from '%s'" % (nodeurl,))
     return parsed
 
 
