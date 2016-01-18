@@ -262,7 +262,8 @@ def _print_item_status(item, now, longest):
                 else:
                     time_left = None
                     prog = '%2.1f%% done' % (item['percent_done'],)
-                    #prog = 'just started'
+            else:
+                prog = 'just started'
     else:
         prog = ''
         for verb in ['finished', 'started', 'queued']:
