@@ -119,14 +119,12 @@ class Encoder(object):
         return d
 
     def _got_all_encoding_parameters(self, params):
-        print "_got_all_encoding_parameters", self._codec
         assert not self._codec
         k, happy, n, segsize = params
         self.required_shares = k
         self.servers_of_happiness = happy
         self.num_shares = n
         self.segment_size = segsize
-        print "segsize", segsize
         self.log("got encoding parameters: %d/%d/%d %d" % (k,happy,n, segsize))
         self.log("now setting up codec")
 
@@ -434,7 +432,6 @@ class Encoder(object):
         dl = []
         self.set_status("Sending segment %d of %d" % (segnum+1,
                                                       self.num_segments))
-        self.log('sending %d' % segnum)
         self.set_encode_and_push_progress(segnum)
         lognum = self.log("send_segment(%d)" % segnum, level=log.NOISY)
         for i in range(len(shares)):
