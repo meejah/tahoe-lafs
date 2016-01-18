@@ -180,7 +180,7 @@ class StatusOptions(BasedirOptions):
 
 
 # FIXME move to top; these are "status" related imports for just now
-from allmydata.scripts.common_http import do_http, format_http_success, format_http_error
+from allmydata.scripts.common_http import do_http, format_http_success, format_http_error, BadResponse
 import urllib
 from datetime import datetime
 
@@ -191,11 +191,17 @@ def _get_json_for_fragment(options, fragment, method='GET'):
 
     url = u'%s/%s' % (nodeurl, fragment)
     resp = do_http(method, url)
-    if resp.status != 200:
-        raise RuntimeError(format_http_error(url, resp))
+    if isinstance(resp, BadResponse):
+        # specifically NOT using format_http_error() here because the
+        # URL is pretty sensitive (we're doing /uri/<key>).
+        raise RuntimeError(
+            "Failed to get json from '%s': %s" % (nodeurl, resp.error)
+        )
 
     data = resp.read()
     parsed = simplejson.loads(data)
+    if not parsed:
+        raise RuntimeError("No data from '%s'" % (nodeurl,))
     return parsed
 
 
