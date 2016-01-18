@@ -627,20 +627,33 @@ class MustNotBeUnknownRWError(CapConstraintError):
 
 class IProgress(Interface):
     """
-    Remembers progress measured in arbitrary units.
+    Remembers progress measured in arbitrary units. Users of these
+    instances must call ``set_progress_total`` at least once before
+    progress can be valid, and must use the same units for both
+    ``set_progress_total`` and ``set_progress calls``.
 
     See also:
-    :class:`allmydata.util.progress.AbsoluteProgress`
     :class:`allmydata.util.progress.PercentProgress`
     """
 
     progress = Attribute(
-        "Current amount of progress; interpretation up to implementation"
+        "Current amount of progress (in percentage)"
     )
 
     def set_progress(self, value):
         """
         Sets the current amount of progress.
+
+        Arbitrary units, but must match units used for
+        set_progress_total.
+        """
+
+    def set_progress_total(self, value):
+        """
+        Sets the total amount of expected progress
+
+        Arbitrary units, but must be same units as used when calling
+        set_progress() on this instance)..
         """
 
 
