@@ -12,28 +12,29 @@ from allmydata.util.dbutil import get_db, DBError
 DAY = 24*60*60
 MONTH = 30*DAY
 
-SCHEMA_v1 = """
-CREATE TABLE version -- added in v1
+MAIN_SCHEMA = """
+CREATE TABLE version
 (
- version INTEGER  -- contains one row, set to 2
+ version INTEGER  -- contains one row, set to %s
 );
 
-CREATE TABLE local_files -- added in v1
+CREATE TABLE local_files
 (
  path  VARCHAR(1024) PRIMARY KEY, -- index, this is an absolute UTF-8-encoded local filename
- size  INTEGER,       -- os.stat(fn)[stat.ST_SIZE]
+ -- note that size is before mtime and ctime here, but after in function parameters
+ size  INTEGER,       -- os.stat(fn)[stat.ST_SIZE]   (NULL if the file has been deleted)
  mtime NUMBER,        -- os.stat(fn)[stat.ST_MTIME]
  ctime NUMBER,        -- os.stat(fn)[stat.ST_CTIME]
- fileid INTEGER
+ fileid INTEGER%s
 );
 
-CREATE TABLE caps -- added in v1
+CREATE TABLE caps
 (
  fileid INTEGER PRIMARY KEY AUTOINCREMENT,
  filecap VARCHAR(256) UNIQUE       -- URI:CHK:...
 );
 
-CREATE TABLE last_upload -- added in v1
+CREATE TABLE last_upload
 (
  fileid INTEGER PRIMARY KEY,
  last_uploaded TIMESTAMP,
@@ -41,6 +42,8 @@ CREATE TABLE last_upload -- added in v1
 );
 
 """
+
+SCHEMA_v1 = MAIN_SCHEMA % (1, "")
 
 TABLE_DIRECTORY = """
 
@@ -54,7 +57,7 @@ CREATE TABLE directories -- added in v2
 
 """
 
-SCHEMA_v2 = SCHEMA_v1 + TABLE_DIRECTORY
+SCHEMA_v2 = MAIN_SCHEMA % (2, "") + TABLE_DIRECTORY
 
 UPDATE_v1_to_v2 = TABLE_DIRECTORY + """
 UPDATE version SET version=2;
@@ -64,6 +67,7 @@ UPDATERS = {
     2: UPDATE_v1_to_v2,
 }
 
+
 def get_backupdb(dbfile, stderr=sys.stderr,
                  create_version=(SCHEMA_v2, 2), just_create=False):
     # Open or create the given backupdb file. The parent directory must
@@ -71,7 +75,11 @@ def get_backupdb(dbfile, stderr=sys.stderr,
     try:
         (sqlite3, db) = get_db(dbfile, stderr, create_version, updaters=UPDATERS,
                                just_create=just_create, dbname="backupdb")
-        return BackupDB_v2(sqlite3, db)
+        if create_version[1] in (1, 2):
+            return BackupDB(sqlite3, db)
+        else:
+            print >>stderr, "invalid db schema version specified"
+            return None
     except DBError, e:
         print >>stderr, e
         return None
@@ -127,7 +135,7 @@ class DirectoryResult:
         self.bdb.did_check_directory_healthy(self.dircap, results)
 
 
-class BackupDB_v2:
+class BackupDB:
     VERSION = 2
     NO_CHECK_BEFORE = 1*MONTH
     ALWAYS_CHECK_AFTER = 2*MONTH
@@ -136,6 +144,21 @@ class BackupDB_v2:
         self.sqlite_module = sqlite_module
         self.connection = connection
         self.cursor = connection.cursor()
+
+    def check_file_db_exists(self, path):
+        """I will tell you if a given file has an entry in my database or not
+        by returning True or False.
+        """
+        c = self.cursor
+        c.execute("SELECT size,mtime,ctime,fileid"
+                  " FROM local_files"
+                  " WHERE path=?",
+                  (path,))
+        row = self.cursor.fetchone()
+        if not row:
+            return False
+        else:
+            return True
 
     def check_file(self, path, use_timestamps=True):
         """I will tell you if a given local file needs to be uploaded or not,
@@ -159,9 +182,9 @@ class BackupDB_v2:
         is not healthy, please upload the file and call r.did_upload(filecap)
         when you're done.
 
-        If use_timestamps=True (the default), I will compare ctime and mtime
+        If use_timestamps=True (the default), I will compare mtime and ctime
         of the local file against an entry in my database, and consider the
-        file to be unchanged if ctime, mtime, and filesize are all the same
+        file to be unchanged if mtime, ctime, and filesize are all the same
         as the earlier version. If use_timestamps=False, I will not trust the
         timestamps, so more files (perhaps all) will be marked as needing
         upload. A future version of this database may hash the file to make
@@ -173,10 +196,12 @@ class BackupDB_v2:
         """
 
         path = abspath_expanduser_unicode(path)
+
+        # XXX consider using get_pathinfo
         s = os.stat(path)
         size = s[stat.ST_SIZE]
-        ctime = s[stat.ST_CTIME]
         mtime = s[stat.ST_MTIME]
+        ctime = s[stat.ST_CTIME]
 
         now = time.time()
         c = self.cursor
