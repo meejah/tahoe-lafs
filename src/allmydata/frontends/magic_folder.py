@@ -389,7 +389,7 @@ class Uploader(QueueMixin):
         item.set_status('started', self._clock.seconds())
 
         if relpath_u is None:
-            item.status = 'invalid_path'
+            item.set_status('invalid_path', self._clock.seconds())
             return
         precondition(isinstance(relpath_u, unicode), relpath_u)
         precondition(not relpath_u.endswith(u'/'), relpath_u)
