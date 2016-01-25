@@ -166,8 +166,7 @@ class QueueMixin(HookMixin):
             self._log("stopped")
             return
         try:
-            #item = IQueuedItem(self._deque.pop())  # <- do this once uploader
-            item = self._deque.pop()
+            item = IQueuedItem(self._deque.pop())
             self._process_history.append(item)
 
             self._log("popped %r, now have %d" % (item, len(self._deque)))
