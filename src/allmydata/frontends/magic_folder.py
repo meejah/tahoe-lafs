@@ -135,6 +135,15 @@ class QueueMixin(HookMixin):
         self._stopped = False
         self._turn_delay = 0
 
+    def get_status(self):
+        """
+        Returns an iterable of instances that implement IQueuedItem
+        """
+        for item in self._deque:
+            yield item
+        for item in self._process_history:
+            yield item
+
     def _get_filepath(self, relpath_u):
         self._log("_get_filepath(%r)" % (relpath_u,))
         return extend_filepath(self._local_filepath, relpath_u.split(u"/"))
@@ -254,13 +263,6 @@ class Uploader(QueueMixin):
                     )
         self._notifier.watch(self._local_filepath, mask=self.mask, callbacks=[self._notify],
                              recursive=True)
-
-    # XXX promote to base class
-    def get_status(self):
-        for item in self._deque:
-            yield item
-        for item in self._process_history:
-            yield item
 
     def start_monitoring(self):
         self._log("start_monitoring")
@@ -638,12 +640,6 @@ class Downloader(QueueMixin, WriteFileMixin):
         self._pending = set()
 
         self._turn_delay = self.REMOTE_SCAN_INTERVAL
-
-    def get_status(self):
-        for item in self._deque:
-            yield item
-        for item in self._process_history:
-            yield item
 
     def start_scanning(self):
         self._log("start_scanning")
