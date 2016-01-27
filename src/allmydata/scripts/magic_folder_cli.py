@@ -1,8 +1,10 @@
 
 import os
+import urllib
 from sys import stderr
 from types import NoneType
 from cStringIO import StringIO
+from datetime import datetime
 
 import humanize
 import simplejson  # XXX why not built-in json lib?
@@ -16,9 +18,12 @@ from .cli import MakeDirectoryOptions, LnOptions, CreateAliasOptions
 import tahoe_mv
 from allmydata.util.encodingutil import argv_to_abspath, argv_to_unicode, to_str, \
     quote_local_unicode_path
+from allmydata.scripts.common_http import do_http, format_http_success, \
+    format_http_error, BadResponse
 from allmydata.util import fileutil
 from allmydata.util import configutil
 from allmydata import uri
+
 
 INVITE_SEPARATOR = "+"
 
@@ -211,11 +216,6 @@ class StatusOptions(BasedirOptions):
         with open(node_url_file, "r") as f:
             self['node-url'] = f.read().strip()
 
-
-# FIXME move to top; these are "status" related imports for just now
-from allmydata.scripts.common_http import do_http, format_http_success, format_http_error, BadResponse
-import urllib
-from datetime import datetime
 
 def _get_json_for_fragment(options, fragment, method='GET'):
     nodeurl = options['node-url']
