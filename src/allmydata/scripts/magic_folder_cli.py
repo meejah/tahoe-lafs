@@ -222,7 +222,7 @@ from allmydata.scripts.common_http import do_http, format_http_success, format_h
 import urllib
 from datetime import datetime
 
-def _get_json_for_fragment(options, fragment):
+def _get_json_for_fragment(options, fragment, method='GET'):
     nodeurl = options['node-url']
     if nodeurl.endswith('/'):
         nodeurl = nodeurl[:-1]
@@ -339,7 +339,13 @@ def status(options):
             nice_created = humanize.naturaltime(now - created)
             print "    %s (%s): %s, version=%s, created %s" % (n, nice_size, status, version, nice_created)
 
-    magicdata = _get_json_for_fragment(options, 'magic?t=json')
+    with open(os.path.join(nodedir, u'private', u'api_auth_token'), 'rb') as f:
+        token = f.read()
+    magicdata = _get_json_for_fragment(
+        options,
+        'magic?t=json&token=' + token,
+        method='POST',
+    )
     if len(magicdata):
         uploads = [item for item in magicdata if item['kind'] == 'upload']
         downloads = [item for item in magicdata if item['kind'] == 'download']
