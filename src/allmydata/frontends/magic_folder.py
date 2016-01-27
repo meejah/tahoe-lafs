@@ -263,11 +263,6 @@ class Uploader(QueueMixin):
                     )
         self._notifier.watch(self._local_filepath, mask=self.mask, callbacks=[self._notify],
                              recursive=True)
-        self._pending_uploads = []
-
-    def get_status(self):
-        for fname in self._pending_uploads:
-            yield 'uploading: "%s"' % (fname,)
 
     def start_monitoring(self):
         self._log("start_monitoring")
@@ -302,8 +297,12 @@ class Uploader(QueueMixin):
             # everything that is already in the database, but isn't
             # ignorable...
             self._log("adding %r" % (self._pending))
-            self._deque.extend(self._pending)
-            self._pending_uploads.extend(self._pending)
+            for relpath_u in self._pending:
+                progress = PercentProgress()
+                item = UploadItem(relpath_u, progress)
+                item.set_status('queued', self._clock.seconds())
+                self._deque.append(item)
+
         d.addCallback(_add_pending)
         d.addCallback(lambda ign: self._turn_deque())
         return d
@@ -374,7 +373,6 @@ class Uploader(QueueMixin):
         self._deque.append(item)
 
         self._pending.add(relpath_u)
-        self._pending_uploads.append(relpath_u)
         self._count('objects_queued')
         if self.is_ready:
             if self._immediate:  # for tests
@@ -778,6 +776,7 @@ class Downloader(QueueMixin, WriteFileMixin):
                     )
                     to_dl.set_status('queued', self._clock.seconds())
                     self._deque.append(to_dl)
+                    self._pending.add( (relpath_u, metadata['version']) )
                 else:
                     self._log("Excluding %r" % (relpath_u,))
                     self._call_hook(None, 'processed')
