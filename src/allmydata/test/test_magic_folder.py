@@ -288,6 +288,16 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
         d.addBoth(self.cleanup)
         return d
 
+    @staticmethod
+    def iterate_downloader(magic):
+        d = magic.downloader._process_deque()
+        magic.downloader._clock.advance(0)  # REMOTE_SCAN_INTERVAL
+        return d
+
+    @staticmethod
+    def iterate_uploader(magic):
+        return magic.uploader._process_deque()
+
     @defer.inlineCallbacks
     def test_delete(self):
         self.set_up_grid()
@@ -297,34 +307,23 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
         yield self.create_invite_join_magic_folder(u"Alice\u0101", self.local_dir)
         yield self._restart_client(None)
 
-        def iterate_downloader(magic):
-            # XXX turn this into an @staticmethod helper
-            d = magic.downloader._process_deque()
-            magic.downloader._clock.advance(0)  # REMOTE_SCAN_INTERVAL
-            return d
-
-        def iterate_uploader(magic):
-            # XXX turn this into an @staticmethod helper
-            return magic.uploader._process_deque()
-
-
         try:
             path = os.path.join(self.local_dir, u'foo')
             fileutil.write(path, 'foo\n')
             self.notify(to_filepath(path), self.inotify.IN_CLOSE_WRITE)
 
-            yield iterate_uploader(self.magicfolder)
+            yield self.iterate_uploader(self.magicfolder)
             self.assertTrue(os.path.exists(path))
 
             # the real test part: delete the file and fake notifies
             os.unlink(path)
             self.notify(to_filepath(path), self.inotify.IN_DELETE)
 
-            yield iterate_uploader(self.magicfolder)
+            yield self.iterate_uploader(self.magicfolder)
             self.assertFalse(os.path.exists(path))
             print("DID DELETE")
 
-            yield iterate_downloader(self.magicfolder)
+            yield self.iterate_downloader(self.magicfolder)
             # ensure we still have a DB entry, and that the version is 1
             node, metadata = yield self.magicfolder.downloader._get_collective_latest_file(u'foo')
             self.assertTrue(node is not None, "Failed to find %r in DMD" % (path,))
