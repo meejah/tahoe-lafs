@@ -163,51 +163,62 @@ class QueueMixin(HookMixin):
         print s
         #open("events", "ab+").write(msg)
 
-    @defer.inlineCallbacks
-    def drain_queue(self):
-        did_work = len(self._deque) > 0
-        for item in self._deque:
-            item = self._deque.pop()
-            self._log("popped %r" % (item,))
-            self._count('objects_queued', -1)
-            try:
-                self._log("processing '%r'" % (item,))
-                proc = yield self._process(item)
-                self._log("processing completed")
-            except Exception as e:
-                log.err("processing '%r' failed: %s" % (item, e))
-                proc = None  # actually in old way, proc would be Failure
-            yield self._call_hook(proc, 'processed')
-        defer.returnValue(did_work)
+    def _begin_processing(self, res):
+        self._log("starting processing loop")
+        self._processing = self._do_processing()
+
+        # if there are any errors coming out of _do_processing then
+        # our loop is done and we're hosed (i.e. _do_processing()
+        # itself has a bug in it)
+        def fatal_error(f):
+            self._log("internal error: %s" % (f.value))
+            self._log(f)
+        self._processing.addErrback(fatal_error)
+        return res
 
     @defer.inlineCallbacks
     def _do_processing(self):
         """
-        This is an infinite loop that processes things out of the _deque,
-        asynchronously pausing for _turn_delay between iterations
+        This is an infinite loop that processes things out of the _deque.
+
+        One iteration runs self._process_deque which calls
+        _when_queue_is_empty() and then completely drains the _deque
+        (processing each item). After that we yield for _turn_deque
+        seconds.
         """
         while not self._stopped:
-            self._log("iterating queue")
-            self._log("defer-later %f %r" % (self._turn_delay, self._clock))
-            delay = task.deferLater(self._clock, self._turn_delay, lambda: None)
-
-            # process everything currently in the queue
-            did_work = yield self.drain_queue()
-            if not did_work:
-                self._log("deque is now empty")
-                yield self._when_queue_is_empty()
-
-            # pause, asynchronously, for _turn_delay seconds if we're
-            # going to keep going
+            yield self._process_deque()
+            # pause, asynchronously, for _turn_delay seconds (if we're
+            # going to keep going)
             if not self._stopped:
-                yield delay
-            # note that we created the delay object (that is: called
-            # reactor.callLater) *before* doing the self._call_hook so
-            # that in the unit-tests for example, when 'processed' is
-            # triggered we can clock.advance() right away to
-            # effectively make the delay zero.
+                self._log("defer-later %f %r" % (self._turn_delay, self._clock))
+                # i.e. sleep(self._turn_delay)
+                yield task.deferLater(self._clock, self._turn_delay, lambda: None)
 
         self._log("stopped")
+
+    @defer.inlineCallbacks
+    def _process_deque(self):
+        self._log("_process_deque")
+        yield self._when_queue_is_empty()
+
+        # process everything currently in the queue. we're turning it
+        # into a list so that if any new items get added while we're
+        # processing, they'll not run until next time)
+        to_process = list(self._deque)
+        self._deque.clear()
+        self._count('objects_queued', -len(to_process))
+
+        self._log("%d items to process" % len(to_process), )
+        for item in to_process:
+            try:
+                self._log("  processing '%r'" % (item,))
+                proc = yield self._process(item)
+            except Exception as e:
+                log.err("processing '%r' failed: %s" % (item, e))
+                proc = None  # actually in old _lazy_tail way, proc would be Failure
+            # XXX can we just get rid of the hooks now?
+            yield self._call_hook(proc, 'processed')
 
 
 class Uploader(QueueMixin):
@@ -278,20 +289,7 @@ class Uploader(QueueMixin):
             self._deque.extend(self._pending)
             return self._call_hook(None, 'queued')
         d.addCallback(_add_pending)
-
-        def begin_processing(ign):
-            # start the processing loop
-            self._log("starting processing loop")
-            self._processing = self._do_processing()
-
-            # if there are any errors coming out of _do_processing then
-            # our loop is done and we're hosed (i.e. _do_processing()
-            # itself has a bug in it)
-            def fatal_error(f):
-                self._log("internal error: %s" % (f.value))
-                self._log(f)
-            self._processing.addErrback(fatal_error)
-        d.addCallback(begin_processing)
+        d.addCallback(self._begin_processing)
         return d
 
     def _scan(self, reldir_u):
@@ -595,20 +593,7 @@ class Downloader(QueueMixin, WriteFileMixin):
 
         d = self._scan_remote_collective(scan_self=True)
         d.addBoth(self._logcb, "after _scan_remote_collective 0")
-
-        def begin_processing(ign):
-            # start the processing loop
-            self._log("starting processing loop")
-            self._processing = self._do_processing()
-
-            # if there are any errors coming out of _do_processing then
-            # our loop is done and we're hosed (i.e. _do_processing()
-            # itself has a bug in it)
-            def fatal_error(f):
-                self._log("internal error: %s" % (f.value))
-                self._log(f)
-            self._processing.addErrback(fatal_error)
-        d.addCallback(begin_processing)
+        d.addCallback(self._begin_processing)
         return d
 
     def stop(self):
