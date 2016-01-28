@@ -115,7 +115,11 @@ class QueueMixin(HookMixin):
         self._db = db
         self._name = name
         self._clock = clock
-        self._hooks = {'processed': None, 'started': None}
+        self._hooks = {
+            'processed': None,
+            'started': None,
+            'queued': None,
+        }
         self.started_d = self.set_hook('started')
 
         if not self._local_filepath.exists():
@@ -348,11 +352,7 @@ class Uploader(QueueMixin):
         self._deque.append(relpath_u)
         self._pending.add(relpath_u)
         self._count('objects_queued')
-        if self.is_ready:
-            if self._immediate:  # for tests
-                self._turn_deque()
-            else:
-                self._clock.callLater(0, self._turn_deque)
+        return self._call_hook(None, 'queued')
 
     def _when_queue_is_empty(self):
         return defer.succeed(None)
@@ -727,9 +727,10 @@ class Downloader(QueueMixin, WriteFileMixin):
 
                 if self._should_download(relpath_u, metadata['version']):
                     self._deque.append( (relpath_u, file_node, metadata) )
+                    self._call_hook(None, 'queued')  # await this maybe-Deferred??
                 else:
                     self._log("Excluding %r" % (relpath_u,))
-                    self._call_hook(None, 'processed')
+                    self._call_hook(None, 'processed')  # await this maybe-Deferred??
 
             self._log("deque after = %r" % (self._deque,))
         d.addCallback(_filter_batch_to_deque)
