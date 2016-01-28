@@ -55,6 +55,16 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
     def _wait_until_started(self, ign):
         #print "_wait_until_started"
         self.magicfolder = self.get_client().getServiceNamed('magic-folder')
+        self.up_clock = task.Clock()
+        self.down_clock = task.Clock()
+        self.magicfolder.uploader._clock = self.up_clock
+        self.magicfolder.downloader._clock = self.down_clock
+        # XXX should probably be passing the reactor to instances when
+        # they're created, but that's a ton of re-factoring, so we
+        # side-step that issue by hacking it in here. However, we
+        # *have* to "hack it in" before we call ready() so that the
+        # first iteration of the loop doesn't call the "real"
+        # reactor's callLater. :(
         return self.magicfolder.ready()
 
     def test_db_basic(self):
@@ -289,18 +299,26 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
 
         try:
             # create a file
+            up_queued = self.magicfolder.uploader.set_hook('queued')
             up_proc = self.magicfolder.uploader.set_hook('processed')
-            # down_proc = self.magicfolder.downloader.set_hook('processed')
+
             path = os.path.join(self.local_dir, u'foo')
             fileutil.write(path, 'foo\n')
             self.notify(to_filepath(path), self.inotify.IN_CLOSE_WRITE)
+            self.up_clock.advance(4)
+            yield up_queued
+            self.up_clock.advance(4)
             yield up_proc
             self.assertTrue(os.path.exists(path))
 
             # the real test part: delete the file
-            up_proc = self.magicfolder.uploader.set_hook('processed')
+            up_queued = self.magicfolder.uploader.set_hook('queued')
             os.unlink(path)
             self.notify(to_filepath(path), self.inotify.IN_DELETE)
+            self.up_clock.advance(4)
+            yield up_queued
+            up_proc = self.magicfolder.uploader.set_hook('processed')
+            self.up_clock.advance(4)
             yield up_proc
             self.assertFalse(os.path.exists(path))
 
@@ -310,7 +328,10 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
             self.failUnlessEqual(metadata['version'], 1)
 
         finally:
-            yield self.cleanup(None)
+            d = self.cleanup(None)
+            self.up_clock.advance(4)
+            self.down_clock.advance(4)
+            yield d
 
     @defer.inlineCallbacks
     def test_delete_and_restore(self):
