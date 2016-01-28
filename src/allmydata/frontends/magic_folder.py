@@ -361,7 +361,7 @@ class Uploader(QueueMixin):
         # Uploader
         self._log("_process(%r)" % (relpath_u,))
         if relpath_u is None:
-            return
+            return  # FIXME XXX should *always* return Deferred, since this method is async
         precondition(isinstance(relpath_u, unicode), relpath_u)
         precondition(not relpath_u.endswith(u'/'), relpath_u)
 
