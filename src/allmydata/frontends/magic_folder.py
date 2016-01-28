@@ -128,9 +128,12 @@ class QueueMixin(HookMixin):
                                  % quote_local_unicode_path(self._local_path_u))
 
         self._deque = deque()
-        self._lazy_tail = defer.succeed(None)
         self._stopped = False
-        self._turn_delay = 0
+        self._turn_delay = 4  # FIXME why was this 0?!
+        # a Deferred to wait for the _do_processing() loop to exit
+        # (gets set to the return from _do_processing() if we get that
+        # far)
+        self._processing = defer.succeed(None)
 
     def _get_filepath(self, relpath_u):
         self._log("_get_filepath(%r)" % (relpath_u,))
@@ -157,23 +160,46 @@ class QueueMixin(HookMixin):
         print s
         #open("events", "ab+").write(msg)
 
-    def _turn_deque(self):
-        self._log("_turn_deque")
-        if self._stopped:
-            self._log("stopped")
-            return
-        try:
-            item = self._deque.pop()
-            self._log("popped %r" % (item,))
-            self._count('objects_queued', -1)
-        except IndexError:
-            self._log("deque is now empty")
-            self._lazy_tail.addCallback(lambda ign: self._when_queue_is_empty())
-        else:
-            self._lazy_tail.addCallback(lambda ign: self._process(item))
-            self._lazy_tail.addBoth(self._call_hook, 'processed')
-            self._lazy_tail.addErrback(log.err)
-            self._lazy_tail.addCallback(lambda ign: task.deferLater(self._clock, self._turn_delay, self._turn_deque))
+    @defer.inlineCallbacks
+    def _do_processing(self):
+        """
+        This is an infinite loop that processes things out of the _deque,
+        asynchronously pausing for _turn_delay between iterations
+        """
+        while not self._stopped:
+            self._log("iterating queue")
+            try:
+                item = self._deque.pop()
+                self._log("popped %r" % (item,))
+                self._count('objects_queued', -1)
+            except IndexError:
+                self._log("deque is now empty")
+                yield self._when_queue_is_empty()
+                self._log("defer-later %f %r" % (self._turn_delay, self._clock))
+                delay = task.deferLater(self._clock, self._turn_delay, lambda: None)
+            else:
+                try:
+                    self._log("processing '%r'" % (item,))
+                    proc = yield self._process(item)
+                    self._log("processing completed")
+                except Exception as e:
+                    log.err("processing '%r' failed: %s" % (item, e))
+                    proc = None  # actually in old way, proc would be Failure
+                self._log("defer-later %f %r" % (self._turn_delay, self._clock))
+                delay = task.deferLater(self._clock, self._turn_delay, lambda: None)
+                yield self._call_hook(proc, 'processed')
+
+            # pause, asynchronously, for _turn_delay seconds if we're
+            # going to keep going
+            if not self._stopped:
+                yield delay
+            # note that we created the delay object (that is: called
+            # reactor.callLater) *before* doing the self._call_hook so
+            # that in the unit-tests for example, when 'processed' is
+            # triggered we can clock.advance() right away to
+            # effectively make the delay zero.
+
+        self._log("stopped")
 
 
 class Uploader(QueueMixin):
@@ -228,7 +254,9 @@ class Uploader(QueueMixin):
             d = self._notifier.wait_until_stopped()
         else:
             d = defer.succeed(None)
-        d.addCallback(lambda ign: self._lazy_tail)
+        self._stopped = True
+        # wait for processing loop to actually exit
+        d.addCallback(lambda ign: self._processing)
         return d
 
     def start_scanning(self):
@@ -242,8 +270,22 @@ class Uploader(QueueMixin):
             # (normally because they have been deleted on disk).
             self._log("adding %r" % (self._pending))
             self._deque.extend(self._pending)
+            return self._call_hook(None, 'queued')
         d.addCallback(_add_pending)
-        d.addCallback(lambda ign: self._turn_deque())
+
+        def begin_processing(ign):
+            # start the processing loop
+            self._log("starting processing loop")
+            self._processing = self._do_processing()
+
+            # if there are any errors coming out of _do_processing then
+            # our loop is done and we're hosed (i.e. _do_processing()
+            # itself has a bug in it)
+            def fatal_error(f):
+                self._log("internal error: %s" % (f.value))
+                self._log(f)
+            self._processing.addErrback(fatal_error)
+        d.addCallback(begin_processing)
         return d
 
     def _scan(self, reldir_u):
@@ -551,13 +593,28 @@ class Downloader(QueueMixin, WriteFileMixin):
 
         d = self._scan_remote_collective(scan_self=True)
         d.addBoth(self._logcb, "after _scan_remote_collective 0")
-        self._turn_deque()
+
+        def begin_processing(ign):
+            # start the processing loop
+            self._log("starting processing loop")
+            self._processing = self._do_processing()
+            self._log("PROC %r" % self._processing)
+
+            # if there are any errors coming out of _do_processing then
+            # our loop is done and we're hosed (i.e. _do_processing()
+            # itself has a bug in it)
+            def fatal_error(f):
+                self._log("internal error: %s" % (f.value))
+                self._log(f)
+            self._processing.addErrback(fatal_error)
+        d.addCallback(begin_processing)
         return d
 
     def stop(self):
         self._stopped = True
         d = defer.succeed(None)
-        d.addCallback(lambda ign: self._lazy_tail)
+        # wait for processing loop to actually exit
+        d.addCallback(lambda ign: self._processing)
         return d
 
     def _should_download(self, relpath_u, remote_version):
@@ -681,7 +738,7 @@ class Downloader(QueueMixin, WriteFileMixin):
     def _when_queue_is_empty(self):
         d = task.deferLater(self._clock, self.REMOTE_SCAN_INTERVAL, self._scan_remote_collective)
         d.addBoth(self._logcb, "after _scan_remote_collective 1")
-        d.addCallback(lambda ign: self._turn_deque())
+##        d.addCallback(lambda ign: self._turn_deque())
         return d
 
     def _process(self, item, now=None):
