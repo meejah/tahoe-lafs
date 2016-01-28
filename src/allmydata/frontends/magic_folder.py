@@ -62,7 +62,6 @@ class MagicFolder(service.MultiService):
 
         service.MultiService.__init__(self)
 
-        immediate = clock is not None
         clock = clock or reactor
         db = magicfolderdb.get_magicfolderdb(dbfile, create_version=(magicfolderdb.SCHEMA_v1, 1))
         if db is None:
@@ -75,7 +74,7 @@ class MagicFolder(service.MultiService):
         upload_dirnode = self._client.create_node_from_uri(upload_dircap)
         collective_dirnode = self._client.create_node_from_uri(collective_dircap)
 
-        self.uploader = Uploader(client, local_path_u, db, upload_dirnode, pending_delay, clock, immediate)
+        self.uploader = Uploader(client, local_path_u, db, upload_dirnode, pending_delay, clock)
         self.downloader = Downloader(client, local_path_u, db, collective_dirnode,
                                      upload_dirnode.get_readonly_uri(), clock, self.uploader.is_pending, umask)
 
@@ -165,6 +164,23 @@ class QueueMixin(HookMixin):
         #open("events", "ab+").write(msg)
 
     @defer.inlineCallbacks
+    def drain_queue(self):
+        did_work = len(self._deque) > 0
+        for item in self._deque:
+            item = self._deque.pop()
+            self._log("popped %r" % (item,))
+            self._count('objects_queued', -1)
+            try:
+                self._log("processing '%r'" % (item,))
+                proc = yield self._process(item)
+                self._log("processing completed")
+            except Exception as e:
+                log.err("processing '%r' failed: %s" % (item, e))
+                proc = None  # actually in old way, proc would be Failure
+            yield self._call_hook(proc, 'processed')
+        defer.returnValue(did_work)
+
+    @defer.inlineCallbacks
     def _do_processing(self):
         """
         This is an infinite loop that processes things out of the _deque,
@@ -172,26 +188,14 @@ class QueueMixin(HookMixin):
         """
         while not self._stopped:
             self._log("iterating queue")
-            try:
-                item = self._deque.pop()
-                self._log("popped %r" % (item,))
-                self._count('objects_queued', -1)
-            except IndexError:
+            self._log("defer-later %f %r" % (self._turn_delay, self._clock))
+            delay = task.deferLater(self._clock, self._turn_delay, lambda: None)
+
+            # process everything currently in the queue
+            did_work = yield self.drain_queue()
+            if not did_work:
                 self._log("deque is now empty")
                 yield self._when_queue_is_empty()
-                self._log("defer-later %f %r" % (self._turn_delay, self._clock))
-                delay = task.deferLater(self._clock, self._turn_delay, lambda: None)
-            else:
-                try:
-                    self._log("processing '%r'" % (item,))
-                    proc = yield self._process(item)
-                    self._log("processing completed")
-                except Exception as e:
-                    log.err("processing '%r' failed: %s" % (item, e))
-                    proc = None  # actually in old way, proc would be Failure
-                self._log("defer-later %f %r" % (self._turn_delay, self._clock))
-                delay = task.deferLater(self._clock, self._turn_delay, lambda: None)
-                yield self._call_hook(proc, 'processed')
 
             # pause, asynchronously, for _turn_delay seconds if we're
             # going to keep going
@@ -207,12 +211,10 @@ class QueueMixin(HookMixin):
 
 
 class Uploader(QueueMixin):
-    def __init__(self, client, local_path_u, db, upload_dirnode, pending_delay, clock,
-                 immediate=False):
+    def __init__(self, client, local_path_u, db, upload_dirnode, pending_delay, clock):
         QueueMixin.__init__(self, client, local_path_u, db, 'uploader', clock)
 
         self.is_ready = False
-        self._immediate = immediate
 
         if not IDirectoryNode.providedBy(upload_dirnode):
             raise AssertionError("The URI in '%s' does not refer to a directory."
@@ -598,7 +600,6 @@ class Downloader(QueueMixin, WriteFileMixin):
             # start the processing loop
             self._log("starting processing loop")
             self._processing = self._do_processing()
-            self._log("PROC %r" % self._processing)
 
             # if there are any errors coming out of _do_processing then
             # our loop is done and we're hosed (i.e. _do_processing()
