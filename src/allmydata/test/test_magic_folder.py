@@ -1,5 +1,7 @@
 
-import os, sys
+import os
+import sys
+import re
 
 from twisted.trial import unittest
 from twisted.internet import defer, task
@@ -7,8 +9,10 @@ from twisted.internet import defer, task
 from allmydata.interfaces import IDirectoryNode
 from allmydata.util.assertutil import precondition
 
+from allmydata import uri
 from allmydata.util import fake_inotify, fileutil
 from allmydata.util.encodingutil import get_filesystem_encoding, to_filepath
+from allmydata.util.encodingutil import unicode_to_argv
 from allmydata.util.consumer import download_to_data
 from allmydata.test.no_network import GridTestMixin
 from allmydata.test.common_util import ReallyEqualMixin, NonASCIIPathMixin
@@ -30,6 +34,83 @@ def iterate_downloader(magic):
 
 def iterate_uploader(magic):
     return magic.uploader._process_deque()
+
+
+from contextlib import contextmanager
+
+
+@contextmanager
+def fixture_grid(basedir, **kwargs): # num_clients=1, num_servers=10, client_config_hooks={}):
+    """
+    a context-manager that returns a new instance of GridTestMixin and
+    handles setup/teardown.
+
+    with test_grid() as grid:
+        # test code, can call grid.get_client() etc.
+    """
+    # in py.test this would be a @fixture
+    # XXX just hacking around this for now so I don't have to inherit,
+    # can have multiple instances, etc.
+    grid_builder = GridTestMixin()
+    grid_builder.basedir = basedir
+    grid_builder.setUp()
+    grid_builder.set_up_grid(**kwargs)
+    yield grid_builder
+    grid_builder.tearDown()
+
+@defer.inlineCallbacks
+def fixture_magic_folder(nick, local_dir, magic_dir, grid, cli_runner):
+    nickname_arg = unicode_to_argv(nick)
+    local_dir_arg = unicode_to_argv(local_dir)
+    rc, stdout, stderr = yield cli_runner(
+        "magic-folder", "create", "magic:", nickname_arg, local_dir_arg
+    )
+    if rc != 0:
+        raise RuntimeError("command failed: %s%s" % stdout, stderr)
+
+    # XXX we should take a client-number inside the grid, and use cliendir(i=0) etc
+    client = grid.get_client()
+    collective_dircap = fileutil.read(
+        os.path.join(grid.get_clientdir(), u"private", u"collective_dircap")
+    )
+    upload_dircap = fileutil.read(
+        os.path.join(grid.get_clientdir(i=0), u"private", u"magic_folder_dircap")
+    )
+
+    collective_dirnode = client.create_node_from_uri(collective_dircap)
+    upload_dirnode = client.create_node_from_uri(upload_dircap)
+    collective_readonly_cap = fileutil.read(
+        os.path.join(grid.get_clientdir(i=0),
+                     u"private", u"collective_dircap")
+    )
+    # formerly check_joined_config()
+    #d.addCallback(lambda ign: self.check_joined_config(0, self.upload_dircap))
+    rc, stdout, stderr = yield cli_runner("ls", "--json", collective_readonly_cap, client_num=0)
+    if rc != 0:
+        raise RuntimeError("command failed: %s%s" % stdout, stderr)
+    readonly_cap = unicode(uri.from_string(upload_dircap).get_readonly().to_string(), 'utf-8')
+    s = re.search(readonly_cap, stdout)
+    if s is None:
+        raise RuntimeError("didn't find something; see test_joined_magic_folder inner-method XXX FIXME")
+    # formerly check_config
+    # d.addCallback(lambda ign: self.check_config(0, local_dir))
+    client_config = fileutil.read(os.path.join(grid.get_clientdir(i=0), "tahoe.cfg"))
+    local_dir_utf8 = local_dir.encode('utf-8')
+    magic_folder_config = "[magic_folder]\nenabled = True\nlocal.directory = %s" % local_dir_utf8
+    if magic_folder_config not in client_config:
+        raise RuntimeError("didn't find config")
+
+    dbfile = abspath_expanduser_unicode(u"magicfolderdb.sqlite", base=grid.get_clientdir(i=0))
+    clock = task.Clock()
+    magicfolder = MagicFolder(client, upload_dircap, collective_dircap, magic_dir,
+                              dbfile, 0077, pending_delay=0.2, clock=clock)
+    magicfolder.downloader._turn_delay = 0
+
+    magicfolder.setServiceParent(client)
+    magicfolder.ready()
+    assert client.getServiceNamed('magic-folder') == magicfolder
+
+    defer.returnValue(magicfolder)
 
 
 class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqualMixin, NonASCIIPathMixin):
@@ -300,37 +381,41 @@ class MagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqual
 
     @defer.inlineCallbacks
     def test_delete(self):
-        self.set_up_grid()
-        self.local_dir = os.path.join(self.basedir, u"local_dir")
-        self.mkdir_nonascii(self.local_dir)
 
-        yield self.create_invite_join_magic_folder(u"Alice\u0101", self.local_dir)
-        yield self._restart_client(None)
+        local_dir = os.path.join(self.basedir, u"local_dir")
+        self.mkdir_nonascii(self.basedir)
+        print("DING", self.basedir, os.path.exists(self.basedir))
+        self.mkdir_nonascii(local_dir)
 
-        try:
-            path = os.path.join(self.local_dir, u'foo')
+        with fixture_grid(self.basedir, num_clients=1) as grid:
+            self.g = grid.g  # HAAAAAAAX0r
+            alice_magic_dir = abspath_expanduser_unicode(u"Alice-magic", base=self.basedir)
+            self.mkdir_nonascii(alice_magic_dir)
+            mf = yield fixture_magic_folder(
+                u"Alice\u0101", local_dir, alice_magic_dir,
+                grid, self.do_cli,
+            )
+
+            path = os.path.join(alice_magic_dir, u'foo')
             fileutil.write(path, 'foo\n')
-            self.notify(to_filepath(path), self.inotify.IN_CLOSE_WRITE)
+            self.notify(to_filepath(path), self.inotify.IN_CLOSE_WRITE, mf)
 
-            yield iterate_uploader(self.magicfolder)
+            yield iterate_uploader(mf)
             self.assertTrue(os.path.exists(path))
 
             # the real test part: delete the file and fake notifies
             os.unlink(path)
-            self.notify(to_filepath(path), self.inotify.IN_DELETE)
+            self.notify(to_filepath(path), self.inotify.IN_DELETE, mf)
 
-            yield iterate_uploader(self.magicfolder)
+            yield iterate_uploader(mf)
             self.assertFalse(os.path.exists(path))
             print("DID DELETE")
 
-            yield iterate_downloader(self.magicfolder)
+            yield iterate_downloader(mf)
             # ensure we still have a DB entry, and that the version is 1
-            node, metadata = yield self.magicfolder.downloader._get_collective_latest_file(u'foo')
+            node, metadata = yield mf.downloader._get_collective_latest_file(u'foo')
             self.assertTrue(node is not None, "Failed to find %r in DMD" % (path,))
             self.failUnlessEqual(metadata['version'], 1)
-
-        finally:
-            yield self.cleanup(None)
 
     @defer.inlineCallbacks
     def test_delete_and_restore(self):
