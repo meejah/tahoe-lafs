@@ -6,7 +6,6 @@ from types import NoneType
 from cStringIO import StringIO
 from datetime import datetime
 
-import humanize
 import simplejson
 
 from twisted.python import usage
