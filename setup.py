@@ -70,8 +70,6 @@ if len(sys.argv) > 1 and sys.argv[1] == '--fakedependency':
     del sys.argv[1]
     install_requires += ["fakedependency >= 1.0.0"]
 
-__requires__ = install_requires[:]
-
 from setuptools import setup
 from setuptools.command import sdist
 from setuptools import Command
