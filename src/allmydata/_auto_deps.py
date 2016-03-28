@@ -16,9 +16,11 @@
 # >=, <= and != operators.)
 
 install_requires = [
-    # We require newer versions of setuptools to build, but can handle
-    # older versions to run.
-    "setuptools >= 0.6c6",
+    # we don't need much out of setuptools, but the __init__.py stuff does
+    # need pkg_resources . We use >=11.3 here because that's what
+    # "cryptography" requires (which is a sub-dependency of TLS-using
+    # packages), so there's no point in requiring less.
+    "setuptools >= 11.3",
 
     "zfec >= 1.1.0",
 
@@ -61,7 +63,12 @@ install_requires = [
     # * The FTP frontend depends on Twisted >= 11.1.0 for
     #   filepath.Permissions
     # * Nevow 0.11.1 depends on Twisted >= 13.0.0.
-    "Twisted >= 13.0.0",
+    # * The SFTP frontend and manhole depend on the conch extra. However, we
+    #   can't explicitly declare that without an undesirable dependency on gmpy,
+    #   as explained in ticket #2740.
+    # * Due to a setuptools bug, we need to declare a dependency on the tls
+    #   extra even though we only depend on it via foolscap.
+    "Twisted[tls] >= 13.0.0",
 
     # We need Nevow >= 0.11.1 which can be installed using pip.
     "Nevow >= 0.11.1",
