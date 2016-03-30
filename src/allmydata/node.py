@@ -6,7 +6,7 @@ from twisted.application import service
 from twisted.internet import defer, reactor
 from foolscap.api import Tub, eventually, app_versions
 import foolscap.logging.log
-from foolscap.connection_plugins import SocksPlugin
+from foolscap.connection_plugins import SOCKS5
 from allmydata import get_package_versions, get_package_versions_string
 from allmydata.util import log
 from allmydata.util import fileutil, iputil, observer
@@ -199,7 +199,7 @@ class Node(service.MultiService):
         for hint_type in hint_types:
             socks_host, socks_port = get_socks_config(hint_type)
             if socks_host != "" and socks_port != "":
-                handler = SocksPlugin(socks_host=socks_host, socks_port=int(socks_port))
+                handler = SOCKS5(socks_host=socks_host, socks_port=int(socks_port))
                 self.tub.addConnectionHintHandler(hint_type, handler)
 
     def create_tub(self):
