@@ -130,12 +130,9 @@ class Client(node.Node, pollmixin.PollMixin):
                                    }
 
     def __init__(self, basedir="."):
-        #print "Client.__init__(%r)" % (basedir,)
         node.Node.__init__(self, basedir)
         # All tub.registerReference must happen *after* we upcall, since
         # that's what does tub.setLocation()
-        self.upload_ready_d = defer.Deferred()
-        self.connected_enough_d = defer.Deferred()
         self.started_timestamp = time.time()
         self.logSource="Client"
         self.encoding_params = self.DEFAULT_ENCODING_PARAMETERS.copy()
@@ -362,18 +359,8 @@ class Client(node.Node, pollmixin.PollMixin):
         # (and everybody else who wants to use storage servers)
         ps = self.get_config("client", "peers.preferred", "").split(",")
         preferred_peers = tuple([p.strip() for p in ps if p != ""])
-
-        connection_threshold = min(self.encoding_params["k"],
-                                   self.encoding_params["happy"] + 1)
-
-        sb = storage_client.StorageFarmBroker(self.tub, True, connection_threshold,
-                                              self.connected_enough_d, preferred_peers=preferred_peers)
+        sb = storage_client.StorageFarmBroker(self.tub, permute_peers=True, preferred_peers=preferred_peers)
         self.storage_broker = sb
-
-        connection_threshold = min(self.encoding_params["k"],
-                                   self.encoding_params["happy"] + 1)
-        helper = storage_client.ConnectedEnough(sb, connection_threshold)
-        self.upload_ready_d = helper.when_connected_enough()
 
         # load static server specifications from tahoe.cfg, if any.
         # Not quite ready yet.
@@ -524,7 +511,13 @@ class Client(node.Node, pollmixin.PollMixin):
             s.startService()
 
             # start processing the upload queue when we've connected to enough servers
-            self.connected_enough_d.addCallback(lambda ign: s.ready())
+            connection_threshold = min(self.encoding_params["k"],
+                                       self.encoding_params["happy"] + 1)
+            connected = storage_client.ConnectedEnough(
+                self.storage_broker,
+                connection_threshold,
+            )
+            connected.when_connected_enough().addCallback(lambda ign: s.ready())
 
     def _check_exit_trigger(self, exit_trigger_file):
         if os.path.exists(exit_trigger_file):
