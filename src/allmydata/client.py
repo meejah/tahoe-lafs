@@ -130,9 +130,8 @@ class Client(node.Node, pollmixin.PollMixin):
                                    }
 
     def __init__(self, basedir="."):
+        #print "Client.__init__(%r)" % (basedir,)
         node.Node.__init__(self, basedir)
-        # All tub.registerReference must happen *after* we upcall, since
-        # that's what does tub.setLocation()
         self.started_timestamp = time.time()
         self.logSource="Client"
         self.encoding_params = self.DEFAULT_ENCODING_PARAMETERS.copy()

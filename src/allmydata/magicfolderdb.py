@@ -14,11 +14,11 @@ CREATE TABLE version
 
 CREATE TABLE local_files
 (
- path                VARCHAR(1024) PRIMARY KEY, -- UTF-8 filename relative to local magic folder dir
+ path                VARCHAR(1024) PRIMARY KEY,   -- UTF-8 filename relative to local magic folder dir
  -- note that size is before mtime and ctime here, but after in function parameters
- size                INTEGER,                   -- ST_SIZE, or NULL if the file has been deleted
- mtime               NUMBER,                      -- ST_MTIME
- ctime               NUMBER,                      -- ST_CTIME
+ size                INTEGER,                     -- ST_SIZE, or NULL if the file has been deleted
+ mtime_ns            NUMBER,                     -- ST_MTIME in nanoseconds
+ ctime_ns            NUMBER,                     -- ST_CTIME in nanoseconds
  version             INTEGER,
  last_uploaded_uri   VARCHAR(256),                -- URI:CHK:...
  last_downloaded_uri VARCHAR(256),                -- URI:CHK:...
@@ -43,7 +43,8 @@ def get_magicfolderdb(dbfile, stderr=sys.stderr,
         print >>stderr, e
         return None
 
-PathEntry = namedtuple('PathEntry', 'size mtime ctime version last_uploaded_uri last_downloaded_uri last_downloaded_timestamp')
+PathEntry = namedtuple('PathEntry', 'size mtime_ns ctime_ns version last_uploaded_uri '
+                                    'last_downloaded_uri last_downloaded_timestamp')
 
 class MagicFolderDB(object):
     VERSION = 1
@@ -53,13 +54,17 @@ class MagicFolderDB(object):
         self.connection = connection
         self.cursor = connection.cursor()
 
+    def close(self):
+        self.connection.close()
+
     def get_db_entry(self, relpath_u):
         """
         Retrieve the entry in the database for a given path, or return None
         if there is no such entry.
         """
         c = self.cursor
-        c.execute("SELECT size, mtime, ctime, version, last_uploaded_uri, last_downloaded_uri, last_downloaded_timestamp"
+        c.execute("SELECT size, mtime_ns, ctime_ns, version, last_uploaded_uri,"
+                  "       last_downloaded_uri, last_downloaded_timestamp"
                   " FROM local_files"
                   " WHERE path=?",
                   (relpath_u,))
@@ -68,8 +73,9 @@ class MagicFolderDB(object):
             print "no dbentry for %r" % (relpath_u,)
             return None
         else:
-            (size, mtime, ctime, version, last_uploaded_uri, last_downloaded_uri, last_downloaded_timestamp) = row
-            return PathEntry(size=size, mtime=mtime, ctime=ctime, version=version,
+            (size, mtime_ns, ctime_ns, version, last_uploaded_uri,
+             last_downloaded_uri, last_downloaded_timestamp) = row
+            return PathEntry(size=size, mtime_ns=mtime_ns, ctime_ns=ctime_ns, version=version,
                              last_uploaded_uri=last_uploaded_uri,
                              last_downloaded_uri=last_downloaded_uri,
                              last_downloaded_timestamp=last_downloaded_timestamp)
@@ -88,12 +94,17 @@ class MagicFolderDB(object):
         try:
             print "insert"
             self.cursor.execute("INSERT INTO local_files VALUES (?,?,?,?,?,?,?,?)",
-                                (relpath_u, pathinfo.size, pathinfo.mtime, pathinfo.ctime, version, last_uploaded_uri, last_downloaded_uri, last_downloaded_timestamp))
+                                (relpath_u, pathinfo.size, pathinfo.mtime_ns, pathinfo.ctime_ns,
+                                 version, last_uploaded_uri, last_downloaded_uri,
+                                 last_downloaded_timestamp))
         except (self.sqlite_module.IntegrityError, self.sqlite_module.OperationalError):
             print "err... update"
             self.cursor.execute("UPDATE local_files"
-                                " SET size=?, mtime=?, ctime=?, version=?, last_uploaded_uri=?, last_downloaded_uri=?, last_downloaded_timestamp=?"
+                                " SET size=?, mtime_ns=?, ctime_ns=?, version=?, last_uploaded_uri=?,"
+                                "     last_downloaded_uri=?, last_downloaded_timestamp=?"
                                 " WHERE path=?",
-                                (pathinfo.size, pathinfo.mtime, pathinfo.ctime, version, last_uploaded_uri, last_downloaded_uri, last_downloaded_timestamp, relpath_u))
+                                (pathinfo.size, pathinfo.mtime_ns, pathinfo.ctime_ns, version,
+                                 last_uploaded_uri, last_downloaded_uri, last_downloaded_timestamp,
+                                 relpath_u))
         self.connection.commit()
         print "committed"
