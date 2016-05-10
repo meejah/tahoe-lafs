@@ -122,7 +122,7 @@ class StorageFarmBroker(service.MultiService):
 
     # these two are used in unit tests
     def test_add_rref(self, serverid, rref, ann):
-        s = NativeStorageServer(serverid, ann.copy(), self)
+        s = NativeStorageServer(serverid, ann.copy(), self._tub_options)
         s.rref = rref
         s._is_connected = True
         self.servers[serverid] = s
