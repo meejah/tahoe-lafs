@@ -106,8 +106,6 @@ class StorageFarmBroker(service.MultiService):
         service.MultiService.__init__(self)
         assert permute_peers # False not implemented yet
         self.permute_peers = permute_peers
-        self.connected_threshold = connected_threshold
-        self.connected_d = connected_d
         self.preferred_peers = preferred_peers
         self._tub_options = tub_options
 
@@ -186,13 +184,6 @@ class StorageFarmBroker(service.MultiService):
         # existing shares of mutable files). See #374 for more details.
         for dsc in self.servers.values():
             dsc.try_to_connect()
-
-    def check_enough_connected(self):
-        if (self.connected_d is not None and
-            len(self.get_connected_servers()) >= self.connected_threshold):
-            d = self.connected_d
-            self.connected_d = None
-            d.callback(None)
 
     def get_servers_for_psi(self, peer_selection_index):
         # return a list of server objects (IServers)
