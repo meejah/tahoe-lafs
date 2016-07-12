@@ -1,0 +1,28 @@
+# build this:
+#    docker build --rm --tag tahoe-introducer .
+# run this:
+#   docker run --name tahoe-introducer -h introducer0 -P -d tahoe-introducer 
+# confirm, visit: http://<container-ip>:4560
+# get IP: docker inspect tahoe-introducer | grep IPAddress
+# figure stuff out:
+# docker exec tahoe-introducer ls /tahoe-introducer/
+
+# TODO FIXME:
+
+# need to also expose a port for the introducer Tub stuff -- this is
+# currently getting randomly assigned so:
+#    - explicitly configure port?
+#    - export port
+
+FROM python:2.7
+
+# FIXME should run "python setup.py sdist" ... somethingsomething stuff it in here...
+ADD tahoe-lafs.tar.gz /tahoe-src
+RUN virtualenv /tahoevenv && /tahoevenv/bin/pip install --upgrade pip setuptools && /tahoevenv/bin/pip install /tahoe-src/tahoe-lafs-1.11.0.post381.dev0
+
+RUN /tahoevenv/bin/tahoe create-introducer /tahoe-introducer
+COPY introducer.port /tahoe-introducer/introducer.port
+COPY tahoe.cfg /tahoe-introducer/tahoe.cfg
+EXPOSE 4560 5555
+
+CMD /tahoevenv/bin/tahoe start /tahoe-introducer -n
