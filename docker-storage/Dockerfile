@@ -2,11 +2,9 @@ FROM python:2.7
 ARG furl
 ARG nick
 
-# FIXME should run "python setup.py sdist" ... somethingsomething stuff it in here...
-ADD tahoe-lafs-1.11.0.post381.dev0.tar.gz /tahoe-src
-RUN virtualenv /tahoevenv && /tahoevenv/bin/pip install --upgrade pip setuptools && /tahoevenv/bin/pip install /tahoe-src/tahoe-lafs-1.11.0.post381.dev0
+COPY tahoe-lafs.tar.gz /tahoe-lafs.tar.gz
+RUN virtualenv /tahoevenv && /tahoevenv/bin/pip install --upgrade pip setuptools && /tahoevenv/bin/pip install --find-links=https://tahoe-lafs.org/deps/ /tahoe-lafs.tar.gz
 
-# FIXME get introducer fURL dynamically from introducer container!
 RUN /tahoevenv/bin/tahoe create-node --nickname $nick --introducer $furl --webport tcp:3456 /tahoe-storage
 
 # XXX FIXME can haz templatez?
