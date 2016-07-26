@@ -47,6 +47,14 @@ docker build --rm --tag tahoe-bob --build-arg furl=${FURL} --build-arg nick=bob 
 docker run --name tahoe-alice -h alice -P -d --link tahoe-introducer:introducer tahoe-alice
 docker run --name tahoe-bob -h bob -P -d --link tahoe-introducer:introducer tahoe-bob
 
+echo "alice creates a magic-folder, invites bob"
+
+docker exec tahoe-alice /tahoevenv/bin/tahoe -d /tahoe-client magic-folder create magic: alice /magic
+INVITE=$(docker exec tahoe-alice /tahoevenv/bin/tahoe -d /tahoe-client magic-folder invite magic: bob)
+docker exec tahoe-bob /tahoevenv/bin/tahoe -d /tahoe-client magic-folder join $INVITE /magic
+
+docker cp README.rst tahoe-alice:/magic/README.rst
+
 
 echo "done."
 echo "introducer address (web-api on :4560)"
