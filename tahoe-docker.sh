@@ -26,7 +26,10 @@ docker rm -f tahoe-alice
 docker rm -f tahoe-bob
 
 
+echo "--------------------------------------------------------------------------------"
 echo "creating introducer"
+echo
+
 docker build --rm --tag tahoe-introducer docker-introducer/ || exit $?
 docker run --name tahoe-introducer -h introducer0 -P -d tahoe-introducer || exit $?
 echo "...waiting"
@@ -35,19 +38,27 @@ FURL=$(docker exec tahoe-introducer cat /tahoe-introducer/private/introducer.fur
 echo "fURL is" $FURL
 
 
+echo "--------------------------------------------------------------------------------"
 echo "creating storage nodes"
+echo
+
 docker build --rm --tag tahoe-storage0 --build-arg furl=${FURL} --build-arg nick=storage0 docker-storage/
 docker build --rm --tag tahoe-storage1 --build-arg furl=${FURL} --build-arg nick=storage1 docker-storage/
 docker run --name tahoe-storage0 -h storage0 -P -d --link tahoe-introducer:introducer tahoe-storage0
 docker run --name tahoe-storage1 -h storage0 -P -d --link tahoe-introducer:introducer tahoe-storage1
 
+echo "--------------------------------------------------------------------------------"
 echo "create client nodes"
+echo
+
 docker build --rm --tag tahoe-alice --build-arg furl=${FURL} --build-arg nick=alice docker-client/
 docker build --rm --tag tahoe-bob --build-arg furl=${FURL} --build-arg nick=bob docker-client/
 docker run --name tahoe-alice -h alice -P -d --link tahoe-introducer:introducer tahoe-alice
 docker run --name tahoe-bob -h bob -P -d --link tahoe-introducer:introducer tahoe-bob
 
+echo "--------------------------------------------------------------------------------"
 echo "alice creates a magic-folder, invites bob"
+echo
 
 docker exec tahoe-alice /tahoevenv/bin/tahoe -d /tahoe-client magic-folder create magic: alice /magic
 INVITE=$(docker exec tahoe-alice /tahoevenv/bin/tahoe -d /tahoe-client magic-folder invite magic: bob)
@@ -56,7 +67,9 @@ docker exec tahoe-bob /tahoevenv/bin/tahoe -d /tahoe-client magic-folder join $I
 docker cp README.rst tahoe-alice:/magic/README.rst
 
 
+echo "--------------------------------------------------------------------------------"
 echo "done."
+echo
 echo "introducer address (web-api on :4560)"
 docker inspect tahoe-introducer | grep IPAddress
 echo "introducer fURL:"

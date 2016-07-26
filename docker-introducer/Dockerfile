@@ -29,4 +29,4 @@ CMD /tahoevenv/bin/tahoe start /tahoe-introducer -n
 
 
 # now can "do stuff" with e.g. alice or bob:
-cat README.rst | docker exec -i tahoe-alice /tahoevenv/bin/tahoe -d /tahoe-client put -
+# cat README.rst | docker exec -i tahoe-alice /tahoevenv/bin/tahoe -d /tahoe-client put -
