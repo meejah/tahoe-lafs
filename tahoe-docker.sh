@@ -64,7 +64,7 @@ docker exec tahoe-alice /tahoevenv/bin/tahoe -d /tahoe-client magic-folder creat
 INVITE=$(docker exec tahoe-alice /tahoevenv/bin/tahoe -d /tahoe-client magic-folder invite magic: bob)
 docker exec tahoe-bob /tahoevenv/bin/tahoe -d /tahoe-client magic-folder join $INVITE /magic
 
-docker cp README.rst tahoe-alice:/magic/README.rst
+#docker cp README.rst tahoe-alice:/magic/README.rst
 
 
 echo "--------------------------------------------------------------------------------"
