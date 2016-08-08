@@ -244,8 +244,7 @@ def _get_json_for_fragment(options, fragment, method='GET', post_args=None):
     try:
         parsed = simplejson.loads(data)
     except Exception:
-        print "Failed to parse reply:\n%s" % (data,)
-        return []
+        return dict(error="invalid JSON retrieved")
     if parsed is None:
         raise RuntimeError("No data from '%s'" % (nodeurl,))
     return parsed
@@ -299,7 +298,10 @@ def status(options):
         collective_readcap = f.read().strip()
 
     try:
-        captype, dmd = _get_json_for_cap(options, dmd_cap)
+        data = _get_json_for_cap(options, dmd_cap)
+        if 'error' in data:
+            raise RuntimeError("Error retrieving DMD: %s" % (data['error'],))
+        captype, dmd = data
         if captype != 'dirnode':
             print >>stderr, "magic_folder_dircap isn't a directory capability"
             return 2

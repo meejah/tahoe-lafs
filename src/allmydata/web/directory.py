@@ -36,6 +36,7 @@ from allmydata.web.info import MoreInfo
 from allmydata.web.operations import ReloadMixin
 from allmydata.web.check_results import json_check_results, \
      json_check_and_repair_results
+from allmydata.mutable.common import UnrecoverableFileError
 
 class BlockingFileError(Exception):
     # TODO: catch and transform
@@ -911,6 +912,19 @@ def DirectoryJSONMetadata(ctx, dirnode):
         return json
     d.addCallback(_got)
     d.addCallback(text_plain, ctx)
+
+    def error(f):
+        why = 'an error occurred'
+        # XXX do we cause any crypto-relevant leakage by being
+        # slightly specific here?
+        if isinstance(f.value, UnrecoverableFileError):
+            why = 'UnrecoverableFileError'
+        return simplejson.dumps(
+            {
+                'error': why,
+            }
+        )
+    d.addErrback(error)
     return d
 
 
