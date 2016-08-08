@@ -18,7 +18,10 @@ cp dist/tahoe-lafs-${LATEST}.tar.gz docker-storage/tahoe-lafs.tar.gz
 cp dist/tahoe-lafs-${LATEST}.tar.gz docker-client/tahoe-lafs.tar.gz
 
 
-echo "nuking exiting containers"
+echo "--------------------------------------------------------------------------------"
+echo "nuking existing containers"
+echo
+
 docker rm -f tahoe-introducer
 docker rm -f tahoe-storage0
 docker rm -f tahoe-storage1
