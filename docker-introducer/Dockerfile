@@ -7,16 +7,10 @@
 # figure stuff out:
 # docker exec tahoe-introducer ls /tahoe-introducer/
 
-# TODO FIXME:
-
-# need to also expose a port for the introducer Tub stuff -- this is
-# currently getting randomly assigned so:
-#    - explicitly configure port?
-#    - export port
-
 FROM python:2.7
 
-# FIXME should run "python setup.py sdist" ... somethingsomething stuff it in here...
+# NOTE: this depends on "python setup.py sdist" being run *before* we
+# run this -- see tahoe-docker.sh, which does in fact do this.
 COPY tahoe-lafs.tar.gz /tahoe-src/tahoe-lafs.tar.gz
 RUN virtualenv /tahoevenv && /tahoevenv/bin/pip install --upgrade pip setuptools && /tahoevenv/bin/pip install --find-links=https://tahoe-lafs.org/deps/ /tahoe-src/tahoe-lafs.tar.gz
 
