@@ -13,9 +13,14 @@ echo "building dist"
 python setup.py sdist || exit $?
 # kinda-bad; hopefully we've installed this in our "current" venv??
 LATEST=$(python -c "import allmydata; print allmydata.__version__")
-cp dist/tahoe-lafs-${LATEST}.tar.gz docker-introducer/tahoe-lafs.tar.gz
-cp dist/tahoe-lafs-${LATEST}.tar.gz docker-storage/tahoe-lafs.tar.gz
-cp dist/tahoe-lafs-${LATEST}.tar.gz docker-client/tahoe-lafs.tar.gz
+cp dist/tahoe-lafs-${LATEST}.tar.gz docker-tahoe-base/tahoe-lafs.tar.gz
+
+
+echo "--------------------------------------------------------------------------------"
+echo "building the tahoe-base image"
+echo
+
+docker build --rm --tag tahoe-base docker-tahoe-base || exit $?
 
 
 echo "--------------------------------------------------------------------------------"
@@ -63,11 +68,27 @@ echo "--------------------------------------------------------------------------
 echo "alice creates a magic-folder, invites bob"
 echo
 
-docker exec tahoe-alice /tahoevenv/bin/tahoe -d /tahoe-client magic-folder create magic: alice /magic
-INVITE=$(docker exec tahoe-alice /tahoevenv/bin/tahoe -d /tahoe-client magic-folder invite magic: bob)
-docker exec tahoe-bob /tahoevenv/bin/tahoe -d /tahoe-client magic-folder join $INVITE /magic
+sleep 2
 
+docker exec tahoe-alice /tahoevenv/bin/tahoe magic-folder create magic: alice /magic
+# does the filesystem now contain node.url?? should it??
+INVITE=$(docker exec tahoe-alice /tahoevenv/bin/tahoe magic-folder invite magic: bob)
+docker exec tahoe-bob /tahoevenv/bin/tahoe magic-folder join $INVITE /magic
+docker exec -i tahoe-bob ls /root/.tahoe/private
+docker exec -i tahoe-bob ls /root/.tahoe/
 #docker cp README.rst tahoe-alice:/magic/README.rst
+
+
+echo "--------------------------------------------------------------------------------"
+echo "restarting alice, bob"
+echo "FIXME: this should really be automagic, or something ..."
+echo "magic-folder stuff won't work on alice, bob until we restart"
+echo
+
+#docker stop tahoe-bob
+#docker stop tahoe-alice
+#docker start tahoe-bob
+#docker start tahoe-alice
 
 
 echo "--------------------------------------------------------------------------------"

@@ -1,9 +1,6 @@
-FROM python:2.7
+FROM tahoe-base
 ARG furl
 ARG nick
-
-COPY tahoe-lafs.tar.gz /tahoe-lafs.tar.gz
-RUN virtualenv /tahoevenv && /tahoevenv/bin/pip install --upgrade pip setuptools && /tahoevenv/bin/pip install --find-links=https://tahoe-lafs.org/deps/ /tahoe-lafs.tar.gz
 
 RUN /tahoevenv/bin/tahoe create-node --nickname $nick --introducer $furl --webport tcp:3456 /tahoe-storage
 
