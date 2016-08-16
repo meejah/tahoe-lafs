@@ -110,8 +110,13 @@ class MagicFolder(service.MultiService):
         return self.downloader.start_downloading()
 
     def finish(self):
+        def foo(res, *args, **kw):
+            print("fooooooo", res, args, kw)
+            return res
         d = self.uploader.stop()
+        d.addCallback(foo)
         d2 = self.downloader.stop()
+        d2.addCallback(foo)
         d.addCallback(lambda ign: d2)
         return d
 
@@ -133,6 +138,7 @@ class QueueMixin(HookMixin):
             'processed': None,
             'started': None,
             'iteration': None,
+            'inotify': None,
         }
         self.started_d = self.set_hook('started')
 
@@ -194,11 +200,14 @@ class QueueMixin(HookMixin):
         (processing each item). After that we yield for _turn_deque
         seconds.
         """
+
+        print("_do_processing")
         # we subtract here so there's a scan on the very first iteration
         last_scan = self._clock.seconds() - self.scan_interval
         while not self._stopped:
-            self._log("doing iteration")
+            self._log("doing iteration; delay %f" % (self._turn_delay,))
             d = task.deferLater(self._clock, self._turn_delay, lambda: None)
+            self._log("made deferlater with %s %s %s" % (self._clock, self._turn_delay, d))
             # ">=" is important here if scan scan_interval is 0
             if self._clock.seconds() - last_scan >= self.scan_interval:
                 # XXX can't we unify the "_full_scan" vs what
@@ -210,7 +219,9 @@ class QueueMixin(HookMixin):
                 self._log("skipped scan")
 
             # process anything in our queue
-            yield self._process_deque()
+            d2 = self._process_deque()
+            self._log("processing, awaiting %s" % (d,))
+            yield d2
             self._log("one loop; call_hook iteration %r" % self)
             self._call_hook(None, 'iteration')
             # we want to have our callLater queued in the reactor
@@ -221,6 +232,7 @@ class QueueMixin(HookMixin):
                 self._log("waiting... %r" % d)
                 yield d
 
+        print("post-loop")
         self._log("stopped")
 
     def _when_queue_is_empty(self):
@@ -266,6 +278,7 @@ class QueueMixin(HookMixin):
 
     def _log(self, msg):
         s = "Magic Folder %s %s: %s" % (quote_output(self._client.nickname), self._name, msg)
+        print(s)
         self._client.log(s)
 
 
@@ -375,15 +388,22 @@ class Uploader(QueueMixin):
         self._count('dirs_monitored', -1)
         self.periodic_callid.cancel()
         if hasattr(self._notifier, 'wait_until_stopped'):
+            print "\n\nwait_until_stopped\n"
             d = self._notifier.wait_until_stopped()
         else:
             d = defer.succeed(None)
         self._stopped = True
         # wait for processing loop to actually exit
+        def boom(arg):
+            print("\n\nwaiting", arg, self._processing)
+            return arg
+        d.addCallback(boom)
         d.addCallback(lambda ign: self._processing)
+        d.addCallback(boom)
         return d
 
     def start_uploading(self):
+        print("SCAN INTERVAL", self.scan_interval, self._turn_delay)
         self._log("start_uploading")
         self.is_ready = True
 
@@ -447,6 +467,7 @@ class Uploader(QueueMixin):
     def _notify(self, opaque, path, events_mask):
         self._log("inotify event %r, %r, %r\n" % (opaque, path, ', '.join(self._inotify.humanReadableMask(events_mask))))
         relpath_u = self._get_relpath(path)
+        self._call_hook(path, 'inotify')
 
         # We filter out IN_CREATE events not associated with a directory.
         # Acting on IN_CREATE for files could cause us to read and upload
@@ -749,6 +770,7 @@ class Downloader(QueueMixin, WriteFileMixin):
 
     @defer.inlineCallbacks
     def start_downloading(self):
+        print("SCAN INTERVAL", self.scan_interval)
         self._log("start_downloading")
         self._turn_delay = self.scan_interval
         files = self._db.get_all_relpaths()
