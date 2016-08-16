@@ -115,9 +115,14 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin):
     def cleanup(self, res):
         d = defer.succeed(None)
         def _clean(ign):
+            print("in _clean", ign)
             d = self.magicfolder.finish()
-            self.magicfolder.uploader._clock.advance(self.magicfolder.uploader.scan_interval + 1)
+            print("waiting for finish", d, self.magicfolder.uploader._turn_delay)
+            # if we're shutting down due to error, we need a double-advance on the uploader (why??)
+            #self.magicfolder.uploader._clock.advance(self.magicfolder.uploader.scan_interval + self.magicfolder.uploader._turn_delay + 1)
+            self.magicfolder.uploader._clock.advance(self.magicfolder.uploader._turn_delay + 1)
             self.magicfolder.downloader._clock.advance(self.magicfolder.downloader.scan_interval + 1)
+            print("advanced both")
             return d
 
         d.addCallback(_clean)
@@ -126,9 +131,18 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin):
 
     def init_magicfolder(self, client_num, upload_dircap, collective_dircap, local_magic_dir, clock):
         dbfile = abspath_expanduser_unicode(u"magicfolderdb.sqlite", base=self.get_clientdir(i=client_num))
-        magicfolder = MagicFolder(self.get_client(client_num), upload_dircap, collective_dircap, local_magic_dir,
-                                       dbfile, 0077, pending_delay=0.2, clock=clock)
+        magicfolder = MagicFolder(
+            client=self.get_client(client_num),
+            upload_dircap=upload_dircap,
+            collective_dircap=collective_dircap,
+            local_path_u=local_magic_dir,
+            dbfile=dbfile,
+            umask=0o077,
+            pending_delay=0.2,
+            clock=clock,
+        )
         magicfolder.downloader._turn_delay = 0
+#        magicfolder.downloader._scan_interval = 0
 
         magicfolder.setServiceParent(self.get_client(client_num))
         magicfolder.ready()
