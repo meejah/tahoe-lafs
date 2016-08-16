@@ -350,21 +350,20 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         d.addCallback(get_Bob_magicfolder)
         return d
 
+    @defer.inlineCallbacks
     def tearDown(self):
-        d = GridTestMixin.tearDown(self)
-        def foo(res, *args, **kw):
-            print("foo", args, kw)
-            return res
-        d.addCallback(foo)
-        d.addCallback(lambda ign: self.alice_magicfolder.finish())
-        d.addCallback(foo)
-        d.addCallback(lambda ign: self.bob_magicfolder.finish())
-        d.addCallback(foo)
+        yield GridTestMixin.tearDown(self)
+        d0 = self.alice_magicfolder.finish()
+        d1 = self.bob_magicfolder.finish()
+
         for mf in [self.alice_magicfolder, self.bob_magicfolder]:
             for loader in [mf.uploader, mf.downloader]:
                 loader._clock.advance(loader.scan_interval + 1)
-        # XXX double-check: are self.mktemp() dirs blown away automagically?
-        return d
+
+        print("done advancing", self.alice_magicfolder.uploader._processing)
+        print("done advancing", self.bob_magicfolder.uploader._processing)
+        yield d0
+        yield d1
 
     @defer.inlineCallbacks
     def test_alice_delete_bob_restore(self):
@@ -730,8 +729,12 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
 
         @defer.inlineCallbacks
         def notify_bob_moved(ign):
+            # WARNING: this is just directly notifying for the mock
+            # tests, because in the Real* tests the .backup file will
+            # me moved into place (from the original)
             p = abspath_expanduser_unicode(u"file1", base=self.bob_magicfolder.uploader._local_path_u)
-            self.bob_fileops.move(p, p + u'.backup')
+            if self.bob_fileops._fake_inotify:
+                self.bob_magicfolder.uploader._notifier.event(to_filepath(p + u'.backup'), fake_inotify.IN_MOVED_TO)
             yield iterate(self.bob_magicfolder)
         d.addCallback(notify_bob_moved)
 

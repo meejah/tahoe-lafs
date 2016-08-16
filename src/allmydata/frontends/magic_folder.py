@@ -109,16 +109,12 @@ class MagicFolder(service.MultiService):
         self.uploader.start_uploading()  # synchronous, returns None
         return self.downloader.start_downloading()
 
+    @defer.inlineCallbacks
     def finish(self):
-        def foo(res, *args, **kw):
-            print("fooooooo", res, args, kw)
-            return res
-        d = self.uploader.stop()
-        d.addCallback(foo)
-        d2 = self.downloader.stop()
-        d2.addCallback(foo)
-        d.addCallback(lambda ign: d2)
-        return d
+        print("stopping downloader")
+        yield self.downloader.stop()
+        print("stopping uploader")
+        yield self.uploader.stop()
 
     def remove_service(self):
         return service.MultiService.disownServiceParent(self)
@@ -213,14 +209,16 @@ class QueueMixin(HookMixin):
                 # XXX can't we unify the "_full_scan" vs what
                 # Downloader does...
                 last_scan = self._clock.seconds()
-                yield self._when_queue_is_empty()  # (this no-op for us, only Downloader uses it...)
+                d2 = self._when_queue_is_empty()  # (this no-op for us, only Downloader uses it...)
+                self._log("awaiting when_queue_is_empty %s" % (d,))
+                yield d2
                 self._log("did scan; now %d" % last_scan)
             else:
                 self._log("skipped scan")
 
             # process anything in our queue
             d2 = self._process_deque()
-            self._log("processing, awaiting %s" % (d,))
+            self._log("processing, awaiting %s" % (d2,))
             yield d2
             self._log("one loop; call_hook iteration %r" % self)
             self._call_hook(None, 'iteration')
@@ -383,19 +381,21 @@ class Uploader(QueueMixin):
         return d
 
     def stop(self):
-        self._log("stop")
+        self._log("stop %s" % (self._notifier,))
+        self._stopped = True
+        self._clock.advance(3)  #HAXK
         self._notifier.stopReading()
         self._count('dirs_monitored', -1)
         self.periodic_callid.cancel()
         if hasattr(self._notifier, 'wait_until_stopped'):
-            print "\n\nwait_until_stopped\n"
             d = self._notifier.wait_until_stopped()
+            print "\n\nwait_until_stopped", d
         else:
             d = defer.succeed(None)
-        self._stopped = True
         # wait for processing loop to actually exit
         def boom(arg):
-            print("\n\nwaiting", arg, self._processing)
+            print("\n\nwaiting", arg, self._processing, dir(self._processing))
+            print(self._processing.callbacks)
             return arg
         d.addCallback(boom)
         d.addCallback(lambda ign: self._processing)
