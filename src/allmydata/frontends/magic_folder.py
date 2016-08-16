@@ -383,7 +383,7 @@ class Uploader(QueueMixin):
     def stop(self):
         self._log("stop %s" % (self._notifier,))
         self._stopped = True
-        self._clock.advance(3)  #HAXK
+#####        self._clock.advance(3)  #HAXK
         self._notifier.stopReading()
         self._count('dirs_monitored', -1)
         self.periodic_callid.cancel()

@@ -357,9 +357,14 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         d1 = self.bob_magicfolder.finish()
 
         for mf in [self.alice_magicfolder, self.bob_magicfolder]:
-            for loader in [mf.uploader, mf.downloader]:
+            # uploader is in here twice on purpose: for reasons as yet
+            # undiscovered, two advances are needed in case there's an
+            # error in the test.
+            for loader in [mf.uploader, mf.downloader, mf.uploader]:
                 loader._clock.advance(loader.scan_interval + 1)
 
+#        self.alice_magicfolder.uploader._clock.advance(3)
+#        self.bob_magicfolder.uploader._clock.advance(3)
         print("done advancing", self.alice_magicfolder.uploader._processing)
         print("done advancing", self.bob_magicfolder.uploader._processing)
         yield d0
@@ -400,7 +405,6 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         # now bob deletes it (bob should upload, alice download)
         bob_proc = self.bob_magicfolder.uploader.set_hook('processed')
         alice_proc = self.alice_magicfolder.downloader.set_hook('processed')
-        os.unlink(bob_fname)
         yield self.bob_fileops.delete(bob_fname)
 
         yield iterate_uploader(self.bob_magicfolder)
