@@ -527,7 +527,7 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         )
 
         # now bob updates it (bob should upload, alice download)
-        self.bob_fileops.write(bob_fname, 'bob wuz here\n')
+        yield self.bob_fileops.write(bob_fname, 'bob wuz here\n')
 
         yield iterate(self.bob_magicfolder)
         yield iterate(self.alice_magicfolder)
