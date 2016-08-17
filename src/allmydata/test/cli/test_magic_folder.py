@@ -142,7 +142,6 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin):
             clock=clock,
         )
         magicfolder.downloader._turn_delay = 0
-#        magicfolder.downloader._scan_interval = 0
 
         magicfolder.setServiceParent(self.get_client(client_num))
         magicfolder.ready()

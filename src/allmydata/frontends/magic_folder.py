@@ -467,7 +467,6 @@ class Uploader(QueueMixin):
     def _notify(self, opaque, path, events_mask):
         self._log("inotify event %r, %r, %r\n" % (opaque, path, ', '.join(self._inotify.humanReadableMask(events_mask))))
         relpath_u = self._get_relpath(path)
-        self._call_hook(path, 'inotify')
 
         # We filter out IN_CREATE events not associated with a directory.
         # Acting on IN_CREATE for files could cause us to read and upload
@@ -488,6 +487,7 @@ class Uploader(QueueMixin):
             return
 
         self._add_pending(relpath_u)
+        self._call_hook(path, 'inotify')
 
     def _process(self, item):
         # Uploader
