@@ -154,10 +154,10 @@ class FileOperationsHelper(object):
         to_fname = to_path_u
         d = self._uploader.set_hook('inotify')
         os.rename(from_fname, to_fname)
-        if self._fake_inotify:
-            # hmm? we weren't faking IN_MOVED_FROM previously .. but seems like we should have been?
-            # self._uploader._notifier.event(to_filepath(from_fname), self._inotify.IN_MOVED_FROM)
-            self._uploader._notifier.event(to_filepath(to_fname), self._inotify.IN_MOVED_TO)
+
+        self._maybe_notify(to_fname, self._inotify.IN_MOVED_TO)
+        # hmm? we weren't faking IN_MOVED_FROM previously .. but seems like we should have been?
+        # self._uploader._notifier.event(to_filepath(from_fname), self._inotify.IN_MOVED_FROM)
         return d
 
     def write(self, path_u, contents):
@@ -166,26 +166,28 @@ class FileOperationsHelper(object):
         d = self._uploader.set_hook('inotify')
         with open(fname, "wb") as f:
             f.write(contents)
-        mask = self._inotify.IN_CLOSE_WRITE if did_exist else self._inotify.IN_CREATE
-        mask = self._inotify.IN_CLOSE_WRITE
-        if self._fake_inotify:
-            print("MASK", fake_inotify.humanReadableMask(mask))
-            self._uploader._notifier.event(to_filepath(fname), mask)
+
+        self._maybe_notify(fname, self._inotify.IN_CLOSE_WRITE)
         return d
 
     def mkdir(self, path_u):
         fname = path_u
         d = self._uploader.set_hook('inotify')
         os.mkdir(fname)
-        self._uploader._notifier.event(to_filepath(fname), self._inotify.IN_CREATE | self._inotify.IN_ISDIR)
+        self._maybe_notify(fname, self._inotify.IN_CREATE | self._inotify.IN_ISDIR)
         return d
 
     def delete(self, path_u):
         fname = path_u
         d = self._uploader.set_hook('inotify')
         os.unlink(fname)
-        self._uploader._notifier.event(to_filepath(fname), self._inotify.IN_DELETE)
+
+        self._maybe_notify(fname, self._inotify.IN_DELETE)
         return d
+
+    def _maybe_notify(self, fname, mask):
+        if self._fake_inotify:
+            self._uploader._notifier.event(to_filepath(fname), self._inotify.IN_DELETE)
 
 
 class CheckerMixin(object):
@@ -363,10 +365,13 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
             for loader in [mf.uploader, mf.downloader, mf.uploader]:
                 loader._clock.advance(loader.scan_interval + 1)
 
-#        self.alice_magicfolder.uploader._clock.advance(3)
-#        self.bob_magicfolder.uploader._clock.advance(3)
+        self.alice_magicfolder.uploader._clock.advance(3)
+        self.bob_magicfolder.uploader._clock.advance(3)
+        self.alice_magicfolder.downloader._clock.advance(3)
+        self.bob_magicfolder.downloader._clock.advance(3)
         print("done advancing", self.alice_magicfolder.uploader._processing)
         print("done advancing", self.bob_magicfolder.uploader._processing)
+#        raise RuntimeError("boom")
         yield d0
         yield d1
 
@@ -375,12 +380,12 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         alice_fname = os.path.join(self.alice_magic_dir, 'blam')
         bob_fname = os.path.join(self.bob_magic_dir, 'blam')
 
-        alice_up = self.alice_magicfolder.uploader.set_hook('processed')
+        alice_proc = self.alice_magicfolder.uploader.set_hook('processed')
         yield self.alice_fileops.write(alice_fname, 'contents0\n')
 
         # alice uploads
         yield iterate_uploader(self.alice_magicfolder)
-        yield alice_up
+        yield alice_proc
 
         yield self._check_version_in_dmd(self.alice_magicfolder, u"blam", 0)
         yield self._check_version_in_local_db(self.alice_magicfolder, u"blam", 0)
@@ -407,6 +412,8 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         alice_proc = self.alice_magicfolder.downloader.set_hook('processed')
         yield self.bob_fileops.delete(bob_fname)
 
+        print("\n\nohai\n\n\n")
+
         yield iterate_uploader(self.bob_magicfolder)
         yield bob_proc
         yield iterate_downloader(self.alice_magicfolder)
@@ -419,6 +426,8 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         yield self._check_version_in_local_db(self.bob_magicfolder, u"blam", 1)
         yield self._check_version_in_dmd(self.alice_magicfolder, u"blam", 1)
         yield self._check_version_in_local_db(self.alice_magicfolder, u"blam", 1)
+
+        print("\n\nohai\n\n\n")
 
         # now alice restores it (alice should upload, bob download)
         alice_proc = self.alice_magicfolder.uploader.set_hook('processed')
@@ -591,7 +600,7 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         alice_proc = self.alice_magicfolder.uploader.set_hook('processed')
         bob_proc = self.bob_magicfolder.downloader.set_hook('processed')
 
-        self.alice_fileops.write(alice_fname, 'contents0\n')
+        yield self.alice_fileops.write(alice_fname, 'contents0\n')
 
         yield iterate_uploader(self.alice_magicfolder)
         yield alice_proc  # alice uploads
@@ -617,7 +626,7 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         # now alice deletes it (alice should upload, bob download)
         alice_proc = self.alice_magicfolder.uploader.set_hook('processed')
         bob_proc = self.bob_magicfolder.downloader.set_hook('processed')
-        self.alice_fileops.delete(alice_fname)
+        yield self.alice_fileops.delete(alice_fname)
 
         yield iterate_uploader(self.alice_magicfolder)
         yield alice_proc
@@ -634,7 +643,7 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         # now alice restores the file (with new contents)
         alice_proc = self.alice_magicfolder.uploader.set_hook('processed')
         bob_proc = self.bob_magicfolder.downloader.set_hook('processed')
-        self.alice_fileops.write(alice_fname, 'alice wuz here\n')
+        yield self.alice_fileops.write(alice_fname, 'alice wuz here\n')
 
         yield iterate_uploader(self.alice_magicfolder)
         yield iterate_downloader(self.alice_magicfolder)  #  why?
@@ -701,8 +710,10 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         def Alice_to_write_a_file():
             if _debug: print "Alice writes a file\n\n\n\n\n"
             self.file_path = abspath_expanduser_unicode(u"file1", base=self.alice_magicfolder.uploader._local_path_u)
-            yield task.deferLater(reactor, 5, lambda: None)
+            #yield task.deferLater(reactor, 5, lambda: None)
+            print("about to fileops.write\n\n")
             yield self.alice_fileops.write(self.file_path, "meow, meow meow. meow? meow meow! meow.")
+            print("okay it returned\n\n")
         d.addCallback(_wait_for, Alice_to_write_a_file)
 
         d.addCallback(lambda ign: self._check_version_in_dmd(self.alice_magicfolder, u"file1", 0))
@@ -725,8 +736,8 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         @defer.inlineCallbacks
         def Alice_to_delete_file():
             if _debug: print "Alice deletes the file!\n\n\n\n"
-            yield task.deferLater(reactor, 5, lambda: None)
-            self.alice_fileops.delete(self.file_path)
+            #yield task.deferLater(reactor, 5, lambda: None)
+            yield self.alice_fileops.delete(self.file_path)
             yield iterate(self.alice_magicfolder)
             yield iterate(self.bob_magicfolder)
         d.addCallback(_wait_for, Alice_to_delete_file)
@@ -814,7 +825,7 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
             self.file_path = abspath_expanduser_unicode(u"file1", base=self.bob_magicfolder.uploader._local_path_u)
             if _debug: print "---- bob's file is %r" % (self.file_path,)
             return self.bob_fileops.write(self.file_path, "No white rabbit to be found.")
-        d.addCallback(lambda ign: task.deferLater(reactor, 5, lambda: None))
+        #d.addCallback(lambda ign: task.deferLater(reactor, 5, lambda: None))
         d.addCallback(lambda ign: _wait_for(None, Bob_to_rewrite_file, alice=False))
 
         d.addCallback(lambda ign: self._check_version_in_dmd(self.bob_magicfolder, u"file1", 3))
@@ -861,12 +872,12 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         @defer.inlineCallbacks
         def Alice_to_write_file2():
             if _debug: print "Alice writes a file2\n"
-            yield task.deferLater(reactor, 5, lambda: None)
+#            yield task.deferLater(reactor, 5, lambda: None)
             self.file_path = abspath_expanduser_unicode(u"file2", base=self.alice_magicfolder.uploader._local_path_u)
             d = self.alice_fileops.write(self.file_path, "something")
             self.bob_clock.advance(4)
             yield d
-        d.addCallback(lambda ign: task.deferLater(reactor, 5, lambda: None))
+#        d.addCallback(lambda ign: task.deferLater(reactor, 5, lambda: None))
         d.addCallback(_wait_for, Alice_to_write_file2)
         d.addCallback(lambda ign: self._check_version_in_dmd(self.alice_magicfolder, u"file2", 0))
         d.addCallback(lambda ign: self._check_version_in_local_db(self.alice_magicfolder, u"file2", 0))
