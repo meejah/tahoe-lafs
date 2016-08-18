@@ -315,8 +315,6 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
             self.alice_magicfolder = self.init_magicfolder(0, self.alice_upload_dircap,
                                                            self.alice_collective_dircap,
                                                            self.alice_magic_dir, self.alice_clock)
-#            self.alice_magicfolder.downloader.scan_interval = 0
-#            self.alice_magicfolder.downloader._turn_delay = 0
             self.alice_fileops = FileOperationsHelper(self.alice_magicfolder.uploader, self.inject_inotify)
             d0 = self.alice_magicfolder.uploader.set_hook('iteration')
             d1 = self.alice_magicfolder.downloader.set_hook('iteration')
@@ -430,15 +428,24 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
 
         print("\n\nohai\n\n\n")
 
+        # hmmmmm....why do we need this iterate for the Real test to pass?
+
+        yield iterate(self.alice_magicfolder)
         # now alice restores it (alice should upload, bob download)
         alice_proc = self.alice_magicfolder.uploader.set_hook('processed')
         bob_proc = self.bob_magicfolder.downloader.set_hook('processed')
+        print("boom -1")
         yield self.alice_fileops.write(alice_fname, 'new contents\n')
 
+        print("boom0")
         yield iterate_uploader(self.alice_magicfolder)
+        print("boom1")
         yield alice_proc
+        print("boom2")
         yield iterate_downloader(self.bob_magicfolder)
+        print("boom3")
         yield bob_proc
+        print("boom4")
 
         # check versions
         node, metadata = yield self.alice_magicfolder.downloader._get_collective_latest_file(u'blam')
@@ -1033,7 +1040,6 @@ class SingleMagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Reall
         return d
 
     def tearDown(self):
-        print("in tearDown")
         d = super(SingleMagicFolderTestMixin, self).tearDown()
         d.addCallback(self.cleanup)
         print("cleanup:", d)
@@ -1055,7 +1061,7 @@ class SingleMagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Reall
     def _wait_until_started(self, ign):
         #print "_wait_until_started"
         self.magicfolder = self.get_client().getServiceNamed('magic-folder')
-        self.fileops = FileOperationsHelper(self.magicfolder.uploader, self.inotify)
+        self.fileops = FileOperationsHelper(self.magicfolder.uploader, self.inject_inotify)
         self.up_clock = task.Clock()
         self.down_clock = task.Clock()
         self.magicfolder.uploader._clock = self.up_clock
@@ -1471,6 +1477,7 @@ class MockTest(SingleMagicFolderTestMixin, unittest.TestCase):
 
 class RealTest(SingleMagicFolderTestMixin, unittest.TestCase):
     """This is skipped unless both Twisted and the platform support inotify."""
+    inject_inotify = False
 
     def setUp(self):
         d = super(RealTest, self).setUp()
@@ -1489,6 +1496,7 @@ class RealTest(SingleMagicFolderTestMixin, unittest.TestCase):
 
 class RealTestAliceBob(MagicFolderAliceBobTestMixin, unittest.TestCase):
     """This is skipped unless both Twisted and the platform support inotify."""
+    inject_inotify = False
 
     def setUp(self):
         d = super(RealTestAliceBob, self).setUp()
