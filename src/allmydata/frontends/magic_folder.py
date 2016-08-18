@@ -27,7 +27,6 @@ from allmydata.util.time_format import format_time
 from allmydata.immutable.upload import FileName, Data
 from allmydata import magicfolderdb, magicpath
 
-defer.setDebugging(True)
 IN_EXCL_UNLINK = 0x04000000L
 
 def get_inotify_module():
@@ -199,7 +198,6 @@ class QueueMixin(HookMixin):
         seconds.
         """
 
-        print("_do_processing")
         # we subtract here so there's a scan on the very first iteration
         last_scan = self._clock.seconds() - self.scan_interval
         while not self._stopped:
@@ -232,7 +230,6 @@ class QueueMixin(HookMixin):
                 self._log("waiting... %r" % d)
                 yield d
 
-        print("post-loop")
         self._log("stopped")
 
     def _when_queue_is_empty(self):
@@ -278,7 +275,6 @@ class QueueMixin(HookMixin):
 
     def _log(self, msg):
         s = "Magic Folder %s %s: %s" % (quote_output(self._client.nickname), self._name, msg)
-        print(s)
         self._client.log(s)
 
 
@@ -385,27 +381,18 @@ class Uploader(QueueMixin):
     def stop(self):
         self._log("stop %s" % (self._notifier,))
         self._stopped = True
-#####        self._clock.advance(3)  #HAXK
         self._notifier.stopReading()
         self._count('dirs_monitored', -1)
         self.periodic_callid.cancel()
         if hasattr(self._notifier, 'wait_until_stopped'):
             d = self._notifier.wait_until_stopped()
-            print "\n\nwait_until_stopped", d
         else:
             d = defer.succeed(None)
         # wait for processing loop to actually exit
-        def boom(arg):
-            print("\n\nwaiting", arg, self._processing, dir(self._processing))
-            print(self._processing.callbacks)
-            return arg
-        d.addCallback(boom)
         d.addCallback(lambda ign: self._processing)
-        d.addCallback(boom)
         return d
 
     def start_uploading(self):
-        print("SCAN INTERVAL", self.scan_interval, self._turn_delay)
         self._log("start_uploading")
         self.is_ready = True
 
@@ -772,7 +759,6 @@ class Downloader(QueueMixin, WriteFileMixin):
 
     @defer.inlineCallbacks
     def start_downloading(self):
-        print("SCAN INTERVAL", self.scan_interval)
         self._log("start_downloading")
         self._turn_delay = self.scan_interval
         files = self._db.get_all_relpaths()

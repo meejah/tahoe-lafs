@@ -27,7 +27,7 @@ from allmydata.util.fileutil import get_pathinfo
 from allmydata.util.fileutil import abspath_expanduser_unicode
 from allmydata.immutable.upload import Data
 
-_debug = True
+_debug = False
 
 
 class MagicFolderDbTests(unittest.TestCase):
@@ -115,14 +115,12 @@ def iterate_downloader(magic):
     # can do either of these:
     #d = magic.downloader._process_deque()
     d = magic.downloader.set_hook('iteration')
-    print("advancing clock", magic.downloader.scan_interval + 1)
     magic.downloader._clock.advance(magic.downloader.scan_interval + 1)
     return d
 
 
 def iterate_uploader(magic):
     d = magic.uploader.set_hook('iteration')
-    print("advancing clock", magic.uploader.scan_interval + 1)
     magic.uploader._clock.advance(magic.uploader.scan_interval + 1)
     return d
 
@@ -364,13 +362,11 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
             for loader in [mf.uploader, mf.downloader, mf.uploader]:
                 loader._clock.advance(loader.scan_interval + 1)
 
-        self.alice_magicfolder.uploader._clock.advance(3)
-        self.bob_magicfolder.uploader._clock.advance(3)
-        self.alice_magicfolder.downloader._clock.advance(3)
-        self.bob_magicfolder.downloader._clock.advance(3)
-        print("done advancing", self.alice_magicfolder.uploader._processing)
-        print("done advancing", self.bob_magicfolder.uploader._processing)
-#        raise RuntimeError("boom")
+        if False:
+            self.alice_magicfolder.uploader._clock.advance(3)
+            self.bob_magicfolder.uploader._clock.advance(3)
+            self.alice_magicfolder.downloader._clock.advance(3)
+            self.bob_magicfolder.downloader._clock.advance(3)
         yield d0
         yield d1
 
@@ -411,8 +407,6 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         alice_proc = self.alice_magicfolder.downloader.set_hook('processed')
         yield self.bob_fileops.delete(bob_fname)
 
-        print("\n\nohai\n\n\n")
-
         yield iterate_uploader(self.bob_magicfolder)
         yield bob_proc
         yield iterate_downloader(self.alice_magicfolder)
@@ -426,26 +420,18 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         yield self._check_version_in_dmd(self.alice_magicfolder, u"blam", 1)
         yield self._check_version_in_local_db(self.alice_magicfolder, u"blam", 1)
 
-        print("\n\nohai\n\n\n")
-
         # hmmmmm....why do we need this iterate for the Real test to pass?
 
         yield iterate(self.alice_magicfolder)
         # now alice restores it (alice should upload, bob download)
         alice_proc = self.alice_magicfolder.uploader.set_hook('processed')
         bob_proc = self.bob_magicfolder.downloader.set_hook('processed')
-        print("boom -1")
         yield self.alice_fileops.write(alice_fname, 'new contents\n')
 
-        print("boom0")
         yield iterate_uploader(self.alice_magicfolder)
-        print("boom1")
         yield alice_proc
-        print("boom2")
         yield iterate_downloader(self.bob_magicfolder)
-        print("boom3")
         yield bob_proc
-        print("boom4")
 
         # check versions
         node, metadata = yield self.alice_magicfolder.downloader._get_collective_latest_file(u'blam')
@@ -719,9 +705,7 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
             if _debug: print "Alice writes a file\n\n\n\n\n"
             self.file_path = abspath_expanduser_unicode(u"file1", base=self.alice_magicfolder.uploader._local_path_u)
             #yield task.deferLater(reactor, 5, lambda: None)
-            print("about to fileops.write\n\n")
             yield self.alice_fileops.write(self.file_path, "meow, meow meow. meow? meow meow! meow.")
-            print("okay it returned\n\n")
         d.addCallback(_wait_for, Alice_to_write_a_file)
 
         d.addCallback(lambda ign: self._check_version_in_dmd(self.alice_magicfolder, u"file1", 0))
@@ -880,7 +864,6 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         @defer.inlineCallbacks
         def Alice_to_write_file2():
             if _debug: print "Alice writes a file2\n"
-#            yield task.deferLater(reactor, 5, lambda: None)
             self.file_path = abspath_expanduser_unicode(u"file2", base=self.alice_magicfolder.uploader._local_path_u)
             d = self.alice_fileops.write(self.file_path, "something")
             self.bob_clock.advance(4)
@@ -1016,7 +999,7 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
 
         return d
 
-    test_alice_bob.timeout = 500
+    test_alice_bob.timeout = 300
 
 
 class SingleMagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, ReallyEqualMixin, NonASCIIPathMixin, CheckerMixin):
@@ -1042,7 +1025,6 @@ class SingleMagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Reall
     def tearDown(self):
         d = super(SingleMagicFolderTestMixin, self).tearDown()
         d.addCallback(self.cleanup)
-        print("cleanup:", d)
         return d
 
     def _createdb(self):
