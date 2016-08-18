@@ -197,7 +197,6 @@ class QueueMixin(HookMixin):
         (processing each item). After that we yield for _turn_deque
         seconds.
         """
-
         # we subtract here so there's a scan on the very first iteration
         last_scan = self._clock.seconds() - self.scan_interval
         while not self._stopped:
@@ -375,7 +374,7 @@ class Uploader(QueueMixin):
         return d
 
     def stop(self):
-        self._log("stop %s" % (self._notifier,))
+        self._log("stop")
         self._stopped = True
         self._notifier.stopReading()
         self._count('dirs_monitored', -1)
