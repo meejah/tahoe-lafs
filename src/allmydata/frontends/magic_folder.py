@@ -200,9 +200,8 @@ class QueueMixin(HookMixin):
         # we subtract here so there's a scan on the very first iteration
         last_scan = self._clock.seconds() - self.scan_interval
         while not self._stopped:
-            self._log("doing iteration; delay %f" % (self._turn_delay,))
+            self._log("doing iteration")
             d = task.deferLater(self._clock, self._turn_delay, lambda: None)
-            self._log("made deferlater with %s %s %s" % (self._clock, self._turn_delay, d))
             # ">=" is important here if scan scan_interval is 0
             if self._clock.seconds() - last_scan >= self.scan_interval:
                 # XXX can't we unify the "_full_scan" vs what

@@ -353,17 +353,9 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         d1 = self.bob_magicfolder.finish()
 
         for mf in [self.alice_magicfolder, self.bob_magicfolder]:
-            # uploader is in here twice on purpose: for reasons as yet
-            # undiscovered, two advances are needed in case there's an
-            # error in the test.
             for loader in [mf.uploader, mf.downloader, mf.uploader]:
                 loader._clock.advance(loader.scan_interval + 1)
 
-        if False:
-            self.alice_magicfolder.uploader._clock.advance(3)
-            self.bob_magicfolder.uploader._clock.advance(3)
-            self.alice_magicfolder.downloader._clock.advance(3)
-            self.bob_magicfolder.downloader._clock.advance(3)
         yield d0
         yield d1
 
