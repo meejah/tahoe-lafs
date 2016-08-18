@@ -694,7 +694,6 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         def Alice_to_write_a_file():
             if _debug: print "Alice writes a file\n\n\n\n\n"
             self.file_path = abspath_expanduser_unicode(u"file1", base=self.alice_magicfolder.uploader._local_path_u)
-            #yield task.deferLater(reactor, 5, lambda: None)
             yield self.alice_fileops.write(self.file_path, "meow, meow meow. meow? meow meow! meow.")
         d.addCallback(_wait_for, Alice_to_write_a_file)
 
@@ -718,7 +717,6 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         @defer.inlineCallbacks
         def Alice_to_delete_file():
             if _debug: print "Alice deletes the file!\n\n\n\n"
-            #yield task.deferLater(reactor, 5, lambda: None)
             yield self.alice_fileops.delete(self.file_path)
             yield iterate(self.alice_magicfolder)
             yield iterate(self.bob_magicfolder)
@@ -807,7 +805,6 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
             self.file_path = abspath_expanduser_unicode(u"file1", base=self.bob_magicfolder.uploader._local_path_u)
             if _debug: print "---- bob's file is %r" % (self.file_path,)
             return self.bob_fileops.write(self.file_path, "No white rabbit to be found.")
-        #d.addCallback(lambda ign: task.deferLater(reactor, 5, lambda: None))
         d.addCallback(lambda ign: _wait_for(None, Bob_to_rewrite_file, alice=False))
 
         d.addCallback(lambda ign: self._check_version_in_dmd(self.bob_magicfolder, u"file1", 3))
@@ -858,7 +855,6 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
             d = self.alice_fileops.write(self.file_path, "something")
             self.bob_clock.advance(4)
             yield d
-#        d.addCallback(lambda ign: task.deferLater(reactor, 5, lambda: None))
         d.addCallback(_wait_for, Alice_to_write_file2)
         d.addCallback(lambda ign: self._check_version_in_dmd(self.alice_magicfolder, u"file2", 0))
         d.addCallback(lambda ign: self._check_version_in_local_db(self.alice_magicfolder, u"file2", 0))
