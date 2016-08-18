@@ -409,9 +409,10 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         yield self._check_version_in_dmd(self.alice_magicfolder, u"blam", 1)
         yield self._check_version_in_local_db(self.alice_magicfolder, u"blam", 1)
 
-        # hmmmmm....why do we need this iterate for the Real test to pass?
-
+        # not *entirely* sure why we need to iterate Alice for the
+        # real test here. But, we do.
         yield iterate(self.alice_magicfolder)
+
         # now alice restores it (alice should upload, bob download)
         alice_proc = self.alice_magicfolder.uploader.set_hook('processed')
         bob_proc = self.bob_magicfolder.downloader.set_hook('processed')
