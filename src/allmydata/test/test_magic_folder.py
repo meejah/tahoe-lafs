@@ -353,7 +353,7 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         d1 = self.bob_magicfolder.finish()
 
         for mf in [self.alice_magicfolder, self.bob_magicfolder]:
-            for loader in [mf.uploader, mf.downloader, mf.uploader]:
+            for loader in [mf.uploader, mf.downloader]:
                 loader._clock.advance(loader.scan_interval + 1)
 
         yield d0
