@@ -223,6 +223,7 @@ class CheckerMixin(object):
             # is renamed into place, which causes events that the test is not expecting.
             yield self.fileops.write(path_u, data)
             if temporary:
+                yield iterate(self.magicfolder)
                 yield self.fileops.delete(path_u)
 
         yield iterate(self.magicfolder)
