@@ -189,7 +189,6 @@ class FileOperationsHelper(object):
 
 
 class CheckerMixin(object):
-
     """
     Factored out of one of the many test classes.
 
@@ -337,8 +336,6 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
             self.bob_magicfolder = self.init_magicfolder(1, self.bob_upload_dircap,
                                                          self.bob_collective_dircap,
                                                          self.bob_magic_dir, self.bob_clock)
-#            self.bob_magicfolder.downloader.scan_interval = 0
-#            self.bob_magicfolder.downloader._turn_delay = 0
             self.bob_fileops = FileOperationsHelper(self.bob_magicfolder.uploader, self.inject_inotify)
             d0 = self.bob_magicfolder.uploader.set_hook('iteration')
             d1 = self.bob_magicfolder.downloader.set_hook('iteration')
@@ -1466,15 +1463,6 @@ class RealTest(SingleMagicFolderTestMixin, unittest.TestCase):
         self.inotify = magic_folder.get_inotify_module()
         return d
 
-    def notify(self, path, mask, magic=None, flush=True):
-        # hmm, actually not as easy as having an 'inotify' hook -- we need a "twiddle filesystem" method instead of "notify()" to override :/
-        d = magic.set_hook('inotify')
-        # Writing to the filesystem causes the notification.
-        # Actually, there's no way to know when the actual
-        # notification will occur, and anyway we're not waiting for
-        # them in any case...so we'll just fudge it and hope 100ms is enough.
-        return d
-
 
 class RealTestAliceBob(MagicFolderAliceBobTestMixin, unittest.TestCase):
     """This is skipped unless both Twisted and the platform support inotify."""
@@ -1484,15 +1472,6 @@ class RealTestAliceBob(MagicFolderAliceBobTestMixin, unittest.TestCase):
         d = super(RealTestAliceBob, self).setUp()
         self.inotify = magic_folder.get_inotify_module()
         return d
-
-    # XXX flush doesn't do anything (anymore?)
-    def notify(self, path, mask, magic=None, flush=True):
-        # Writing to the filesystem causes the notification.
-        # Actually, there's no way to know when the actual
-        # notification will occur, and anyway we're not waiting for
-        # them in any case...so we'll just fudge it and hope 100ms is enough.
-        delay = 0.1 if sys.platform == "win32" else 0.1
-        return task.deferLater(reactor, delay, lambda: None)
 
 
 try:
