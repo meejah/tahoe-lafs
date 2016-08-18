@@ -111,10 +111,12 @@ class MagicFolder(service.MultiService):
 
     @defer.inlineCallbacks
     def finish(self):
-        print("stopping downloader")
-        yield self.downloader.stop()
-        print("stopping uploader")
-        yield self.uploader.stop()
+        # must stop these concurrently so that the clock.advance()s
+        # work correctly in the tests. Also, it's arguably
+        # most-correct.
+        d0 = self.downloader.stop()
+        d1 = self.uploader.stop()
+        yield defer.DeferredList([d0, d1])
 
     def remove_service(self):
         return service.MultiService.disownServiceParent(self)
