@@ -209,17 +209,13 @@ class QueueMixin(HookMixin):
                 # XXX can't we unify the "_full_scan" vs what
                 # Downloader does...
                 last_scan = self._clock.seconds()
-                d2 = self._when_queue_is_empty()  # (this no-op for us, only Downloader uses it...)
-                self._log("awaiting when_queue_is_empty %s" % (d,))
-                yield d2
+                yield self._when_queue_is_empty()  # (this no-op for us, only Downloader uses it...)
                 self._log("did scan; now %d" % last_scan)
             else:
                 self._log("skipped scan")
 
             # process anything in our queue
-            d2 = self._process_deque()
-            self._log("processing, awaiting %s" % (d2,))
-            yield d2
+            yield self._process_deque()
             self._log("one loop; call_hook iteration %r" % self)
             self._call_hook(None, 'iteration')
             # we want to have our callLater queued in the reactor
