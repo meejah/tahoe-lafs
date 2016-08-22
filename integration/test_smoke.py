@@ -1,5 +1,5 @@
 
 
 
-def test_alice_writes_bob_gets(introducer, storage_nodes):
+def test_alice_writes_bob_gets(introducer, storage_nodes, alice):
     print("setup", introducer)

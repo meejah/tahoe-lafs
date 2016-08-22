@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import sys
+from os import mkdir, listdir, unlink
 from os.path import join, abspath, curdir, exists
 
 from twisted.internet.defer import Deferred
@@ -56,7 +57,7 @@ web.port = 4560
     print("making introducer", intro_dir)
     
     if not exists(intro_dir):
-        done_proto = _process_exited_protocol(),
+        done_proto = _process_exited_protocol()
         reactor.spawnProcess(
             done_proto,
             tahoe_binary,
@@ -76,7 +77,7 @@ web.port = 4560
             sys.stdout.write(data)
             sys.stdout.flush()
             if 'introducer running' in data:
-                print("Saw website startup in the logs")
+                print("Saw 'introducer running' in the logs")
                 done.callback(None)
         def errReceived(self, data):
             sys.stdout.write(data)
@@ -117,7 +118,7 @@ def introducer_furl(introducer, smoke_dir):
     return furl
 
 
-def _create_node(reactor, request, smoke_dir, tahoe_binary, name, web_port, storage=True):
+def _create_node(reactor, request, smoke_dir, tahoe_binary, introducer_furl, name, web_port, storage=True):
     """
     Helper to create a single node, run it and return the process
     instance (IProcessProtocol)
@@ -126,23 +127,26 @@ def _create_node(reactor, request, smoke_dir, tahoe_binary, name, web_port, stor
     if web_port is None:
         web_port = ''
     if not exists(node_dir):
-        done_proto = _process_exited_protocol(),
-        args = ['tahoe']
-        if not storage:
-            args.append('--no-storage')
-        args.extend(
+        print("creating", node_dir)
+        mkdir(node_dir)
+        done_proto = _process_exited_protocol()
+        args = [
+            'tahoe',
             'create-node',
             '--nickname', name,
             '--introducer', introducer_furl,
-            node_dir,
-        )
+        ]
+        if not storage:
+            args.append('--no-storage')
+        args.append(node_dir)
 
+        print("doing the thing", args)
         reactor.spawnProcess(
             done_proto,
             tahoe_binary,
             args,
         )
-        pytest.blockon(done)
+        pytest.blockon(done_proto.done)
 
         with open(join(node_dir, 'tahoe.cfg'), 'w') as f:
             f.write('''
@@ -160,8 +164,10 @@ shares.total = 4
 ''' % {
     'name': name,
     'furl': introducer_furl,
-    'tub_port': tub_port,
+    'web_port': web_port,
 })
+    else:
+        print("re-using alice")
 
     daemon_d = Deferred()
 
@@ -206,12 +212,13 @@ def storage_nodes(reactor, smoke_dir, tahoe_binary, introducer, introducer_furl,
     for x in range(5):
         name = 'node{}'.format(x)
         # tub_port = 9900 + x
-        process = _create_node(reactor, request, smoke_dir, tahoe_binary, name, web_port=None, storage=True)
+        process = _create_node(reactor, request, smoke_dir, tahoe_binary, introducer_furl, name, web_port=None, storage=True)
         nodes.append(process)
     return nodes
 
 
 @pytest.fixture(scope='session')
 def alice(reactor, smoke_dir, tahoe_binary, introducer_furl, storage_nodes, request):
-    process = _create_node(reactor, request, smoke_dir, tahoe_binary, "alice", 
+    process = _create_node(reactor, request, smoke_dir, tahoe_binary, introducer_furl, "alice", 
                            web_port="tcp:9980:interface=localhost", storage=False)
+    print("alice", process)
