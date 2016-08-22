@@ -1,0 +1,7 @@
+Install:
+
+   pip install pytest pytest-twisted
+
+run:
+
+   py.test -s -v test/
