@@ -29,7 +29,7 @@ the foolscap-based server implemented in src/allmydata/storage/*.py .
 # 6: implement other sorts of IStorageClient classes: S3, etc
 
 
-import re, time
+import re, time, six
 from zope.interface import implements
 from twisted.internet import defer
 from twisted.application import service
@@ -129,7 +129,7 @@ class StorageFarmBroker(service.MultiService):
 
     def _got_announcement(self, key_s, ann):
         if key_s is not None:
-            precondition(isinstance(key_s, str), key_s)
+            precondition(isinstance(key_s, (str, six.text_type)), key_s)
             precondition(key_s.startswith("v0-"), key_s)
         assert ann["service-name"] == "storage"
         s = NativeStorageServer(key_s, ann, self._tub_options, self._tub_handlers)
