@@ -51,7 +51,7 @@ def smoke_dir(request):
     def cleanup():
         print("cleaning the things", tmp)
         try:
-            shutil.rmtree(tmp)
+            shutil.rmtree(tmp, ignore_errors=True)
         except Exception as e:
             print("Failed to remove tmpdir: {}".format(e))
     request.addfinalizer(cleanup)
@@ -116,23 +116,24 @@ class _MagicTextProtocol(ProcessProtocol):
     """
 
     def __init__(self, magic_text):
-        self.done = Deferred()
+        self.magic_seen = Deferred()
+        self.exited = Deferred()
         self._magic_text = magic_text
         self._output = StringIO()
 
     def processEnded(self, reason):
-        if not self.done.called:
-            self.done.errback(reason)
+        self.exited.callback(None)
 
     def outReceived(self, data):
         sys.stdout.write(data)
         self._output.write(data)
-        if self._magic_text in self._output.getvalue():
+        if not self.magic_seen.called and self._magic_text in self._output.getvalue():
             print("Saw '{}' in the logs".format(self._magic_text))
-            self.done.callback(None)
+            self.magic_seen.callback(None)
 
     def errReceived(self, data):
         sys.stdout.write(data)
+
 
 @pytest.fixture(scope='session')
 def introducer(reactor, smoke_dir, tahoe_binary, request):
@@ -171,11 +172,12 @@ web.port = 4560
     def cleanup():
         try:
             process.signalProcess('TERM')
+            pytest.blockon(protocol.exited)
         except ProcessExitedAlready:
             pass
     request.addfinalizer(cleanup)
     
-    pytest.blockon(protocol.done)
+    pytest.blockon(protocol.magic_seen)
     return process
 
 
@@ -206,14 +208,16 @@ def _run_node(reactor, tahoe_binary, node_dir, request, magic_text):
     def cleanup():
         try:
             process.signalProcess('TERM')
+            pytest.blockon(protocol.exited)
         except ProcessExitedAlready:
             pass
     request.addfinalizer(cleanup)
 
     # we return the 'process' ITransport instance
-    protocol.done.addCallback(lambda _: process)
-    return protocol.done
-    
+    # XXX abusing the Deferred; should use .when_magic_seen() or something?
+    protocol.magic_seen.addCallback(lambda _: process)
+    return protocol.magic_seen
+
 
 def _create_node(reactor, request, smoke_dir, tahoe_binary, introducer_furl, name, web_port, storage=True, magic_text=None):
     """
