@@ -1,7 +1,7 @@
 import time
 import shutil
-from os import mkdir, unlink
-from os.path import join
+from os import mkdir, unlink, listdir
+from os.path import join, exists
 
 import util
 
@@ -81,3 +81,37 @@ def test_bob_creates_sub_directory(magic_folder):
     # i *think* it's by design that the subdir won't disappear,
     # because a "a_file.backup" should appear...
     util.await_file_contents(join(alice_dir, "subdir", "a_file.backup"), "bob wuz here")
+
+
+def test_bob_creates_alice_deletes_bob_restores(magic_folder):
+    alice_dir, bob_dir = magic_folder
+
+    # bob creates a file
+    with open(join(bob_dir, "boom"), "w") as f:
+        f.write("bob wrote this")
+
+    util.await_file_contents(
+        join(alice_dir, "boom"),
+        "bob wrote this"
+    )
+
+    # alice deletes it (so bob should as well
+    unlink(join(alice_dir, "boom"))
+    util.await_file_vanishes(join(bob_dir, "boom"))
+
+    # bob restore it, with new contents
+    with open(join(bob_dir, "boom"), "w") as f:
+        f.write("bob wrote this again, because reasons")
+
+    # XXX double-check this behavior is correct!
+
+    # alice sees bob's update, but marks it as a conflict (because
+    # .. she previously deleted it? does that really make sense)
+
+    util.await_file_contents(
+        join(alice_dir, "boom.conflict"),
+        "bob wrote this again, because reasons",
+    )
+
+    # fix the conflict
+    shutil.move(join(alice_dir, "boom.conflict"), join(alice_dir, "boom"))
