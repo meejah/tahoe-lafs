@@ -261,6 +261,8 @@ setup(name="tahoe-lafs", # also set in __init__.py
               "coverage",
               "mock",
               "tox",
+              "pytest",
+              "pytest-twisted",
           ],
       },
       package_data={"allmydata.web": ["*.xhtml",
