@@ -1,16 +1,36 @@
 from __future__ import print_function
 
 import sys
+from sys import stdout as _stdout
 from os import mkdir, listdir, unlink
 from os.path import join, abspath, curdir, exists
+from StringIO import StringIO
 
 from twisted.internet.defer import Deferred
+from twisted.internet.task import deferLater
 from twisted.internet.protocol import ProcessProtocol
-from twisted.internet.error import ProcessExitedAlready
+from twisted.internet.error import ProcessExitedAlready, ProcessDone
 
 import pytest
 
 pytest_plugins = 'pytest_twisted'
+
+if False:
+    # can't get pytest_fixture_setup to run? wanted to try to produce
+    # *some* kind of "progress of setting up the grid" ...
+    def pytest_fixture_post_finalizer(fixturedef):
+        print("FINALIZER", fixturedef)
+
+    def pytest_fixture_setup(fixturedef, request):
+        print("fixture: {}\n".format(request))
+        yield
+        print("ASDFAWET")
+
+    @pytest.hookimpl(hookwrapper=True)
+    def pytest_runtest_setup(item):
+        print("BEFORE", item)
+        yield
+        print("AFTER", item)
 
 
 @pytest.fixture(scope='session')
@@ -18,7 +38,9 @@ def reactor():
     # this is a fixture in case we might want to try different
     # reactors for some reason.
     from twisted.internet import reactor as _reactor
+    #pytest.blockon(deferLater(_reactor, 2, lambda: None))
     return _reactor
+
 
 @pytest.fixture(scope='session')
 def smoke_dir():
@@ -41,10 +63,37 @@ def tahoe_binary():
 
 def _process_exited_protocol():
     class Exited(ProcessProtocol):
-        done = Deferred()
+
+        def __init__(self):
+            self.done = Deferred()
+
         def processEnded(self, reason):
             self.done.callback(None)
     return Exited()
+
+
+def _collect_output_protocol():
+    class Collector(ProcessProtocol):
+        def __init__(self):
+            self.done = Deferred()
+            self.output = StringIO()
+            
+        def processEnded(self, reason):
+            self.done.callback(None)
+
+        def processExited(self, reason):
+            if not isinstance(reason.value, ProcessDone):
+                print("EXIT", reason.value)
+
+        def outReceived(self, data):
+            self.output.write(data)
+
+        def errReceived(self, data):
+            print("ERR", data)
+            self.output.write(data)
+
+    return Collector()
+
 
 @pytest.fixture(scope='session')
 def introducer(reactor, smoke_dir, tahoe_binary, request):
@@ -118,7 +167,47 @@ def introducer_furl(introducer, smoke_dir):
     return furl
 
 
-def _create_node(reactor, request, smoke_dir, tahoe_binary, introducer_furl, name, web_port, storage=True):
+def _run_node(reactor, tahoe_binary, node_dir, request, magic_text):
+    daemon_d = Deferred()
+
+    if magic_text is None:
+        magic_text = "client running"
+
+    class Daemon(ProcessProtocol):
+        def processEnded(self, reason):
+            if not daemon_d.called:
+                daemon_d.errback(reason)
+        def outReceived(self, data):
+            sys.stdout.write(data)
+            sys.stdout.flush()
+            if magic_text in data:
+                print("Saw '{}' in logs".format(magic_text))
+                daemon_d.callback(None)
+        def errReceived(self, data):
+            sys.stdout.write(data)
+            sys.stdout.flush()
+
+    # on windows, "tahoe start" means: run forever in the foreground,
+    # but on linux it means daemonize. "tahoe run" is consistent
+    # between platforms.
+    process = reactor.spawnProcess(
+        Daemon(),
+        tahoe_binary,
+        ('tahoe', 'run', node_dir),
+    )
+
+    def cleanup():
+        try:
+            process.signalProcess('TERM')
+        except ProcessExitedAlready:
+            pass
+    request.addfinalizer(cleanup)
+    
+    daemon_d.addCallback(lambda _: process)
+    return daemon_d
+    
+
+def _create_node(reactor, request, smoke_dir, tahoe_binary, introducer_furl, name, web_port, storage=True, magic_text=None):
     """
     Helper to create a single node, run it and return the process
     instance (IProcessProtocol)
@@ -166,42 +255,8 @@ shares.total = 4
     'furl': introducer_furl,
     'web_port': web_port,
 })
-    else:
-        print("re-using alice")
 
-    daemon_d = Deferred()
-
-    class Daemon(ProcessProtocol):
-        def processEnded(self, reason):
-            daemon_d.errback(reason)
-        def outReceived(self, data):
-            sys.stdout.write(data)
-            sys.stdout.flush()
-            if 'client running' in data:
-                print("Saw 'client running' in logs")
-                daemon_d.callback(None)
-        def errReceived(self, data):
-            sys.stdout.write(data)
-            sys.stdout.flush()
-
-    # on windows, "tahoe start" means: run forever in the foreground,
-    # but on linux it means daemonize. "tahoe run" is consistent
-    # between platforms.
-    process = reactor.spawnProcess(
-        Daemon(),
-        tahoe_binary,
-        ('tahoe', 'run', node_dir),
-    )
-
-    def cleanup():
-        try:
-            process.signalProcess('TERM')
-        except ProcessExitedAlready:
-            pass
-    request.addfinalizer(cleanup)
-    
-    pytest.blockon(daemon_d)
-    
+    process = pytest.blockon(_run_node(reactor, tahoe_binary, node_dir, request, magic_text))
     return process
     
 
@@ -221,4 +276,109 @@ def storage_nodes(reactor, smoke_dir, tahoe_binary, introducer, introducer_furl,
 def alice(reactor, smoke_dir, tahoe_binary, introducer_furl, storage_nodes, request):
     process = _create_node(reactor, request, smoke_dir, tahoe_binary, introducer_furl, "alice", 
                            web_port="tcp:9980:interface=localhost", storage=False)
-    print("alice", process)
+    try:
+        mkdir(join(smoke_dir, 'magic-alice'))
+    except OSError:
+        pass
+    return process
+
+
+@pytest.fixture(scope='session')
+def bob(reactor, smoke_dir, tahoe_binary, introducer_furl, storage_nodes, request):
+    process = _create_node(reactor, request, smoke_dir, tahoe_binary, introducer_furl, "bob", 
+                           web_port="tcp:9981:interface=localhost", storage=False)
+    try:
+        mkdir(join(smoke_dir, 'magic-bob'))
+    except OSError:
+        pass
+    return process
+
+
+@pytest.fixture(scope='session')
+def alice_invite(reactor, alice, tahoe_binary, smoke_dir, request):
+    node_dir = join(smoke_dir, 'alice')
+
+    # XXX need some way to find out "is grid ready for action" at this
+    # point ...
+
+    # XXX hmm, maybe we can just nuke alice's process and it'll get
+    # re-started next time we ask for "alice" fixture...?
+
+    print("creating magicfolder\n\n\n")
+    proto = _collect_output_protocol()
+    transport = reactor.spawnProcess(
+        proto,
+        tahoe_binary,
+        [
+            'tahoe', 'magic-folder', 'create',
+            '--basedir', node_dir, 'magik:', 'alice',
+            join(smoke_dir, 'magic-alice'),
+        ]
+    )
+    pytest.blockon(proto.done)
+
+    print("making invite\n\n\n")
+    proto = _collect_output_protocol()
+    transport = reactor.spawnProcess(
+        proto,
+        tahoe_binary,
+        [
+            'tahoe', 'magic-folder', 'invite',
+            '--basedir', node_dir, 'magik:', 'bob',
+        ]
+    )
+    pytest.blockon(proto.done)
+    invite = proto.output.getvalue()
+    print("invite from alice", invite)
+
+    # before magic-folder works, we have to stop and restart (this is
+    # crappy for the tests -- can we fix it in magic-folder?)
+    proto = _collect_output_protocol()
+    transport = reactor.spawnProcess(
+        proto,
+        tahoe_binary,
+        [
+            'tahoe', 'stop', node_dir
+        ]
+    )
+    pytest.blockon(proto.done)
+
+    magic_text = 'Completed initial Magic Folder scan successfully'
+    pytest.blockon(_run_node(reactor, tahoe_binary, node_dir, request, magic_text))
+    return invite
+
+
+@pytest.fixture(scope='session')
+def magic_folder(reactor, alice_invite, alice, bob, tahoe_binary, smoke_dir, request):
+    print("pairing magic-folder")
+    bob_dir = join(smoke_dir, 'bob')
+    proto = _collect_output_protocol()
+    transport = reactor.spawnProcess(
+        proto,
+        tahoe_binary,
+        [
+            'tahoe', 'magic-folder', 'join',
+            '--basedir', bob_dir,
+            alice_invite,
+            join(smoke_dir, 'magic-bob'),
+        ]
+    )
+    pytest.blockon(proto.done)
+
+    # before magic-folder works, we have to stop and restart (this is
+    # crappy for the tests -- can we fix it in magic-folder?)
+    proto = _collect_output_protocol()
+    transport = reactor.spawnProcess(
+        proto,
+        tahoe_binary,
+        [
+            'tahoe', 'stop', bob_dir
+        ]
+    )
+    pytest.blockon(proto.done)
+    
+    magic_text = 'Completed initial Magic Folder scan successfully'
+    pytest.blockon(_run_node(reactor, tahoe_binary, bob_dir, request, magic_text))
+
+    print("joined and shit")
+    return (join(smoke_dir, 'magic-alice'), join(smoke_dir, 'magic-bob'))
