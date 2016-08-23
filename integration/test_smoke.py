@@ -5,21 +5,6 @@ from os.path import join
 
 import util
 
-# XXX FIXME just putting these here as a cheap hack at getting some
-# sort of "progress of creating the fixtures". So these dummy tests
-# run first and instantiate the pre-requisites first (e.g. introducer)
-# and therefore print "something" on the console as we go (a . or the
-# test-name in "-v"/verbose mode)
-def test_create_introducer(introducer):
-    print("Created introducer")
-
-def test_create_storage(storage_nodes):
-    print("Created {} storage nodes".format(len(storage_nodes)))
-
-def test_create_alice_bob_magicfolder(magic_folder):
-    print("Alice and Bob have paired magic-folders")
-
-    
 # tests converted from check_magicfolder_smoke.py
 
 
