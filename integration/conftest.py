@@ -1,9 +1,11 @@
 from __future__ import print_function
 
 import sys
+import shutil
 from sys import stdout as _stdout
 from os import mkdir, listdir, unlink
 from os.path import join, abspath, curdir, exists
+from tempfile import mkdtemp
 from StringIO import StringIO
 
 from twisted.internet.defer import Deferred, DeferredList
@@ -43,12 +45,19 @@ def reactor():
 
 
 @pytest.fixture(scope='session')
-def smoke_dir():
-    tahoe_base = abspath(curdir)
-    magic_base = join(tahoe_base, 'smoke_magicfolder')
-    if not exists(magic_base):
-        print("Creating", magic_base)
-        mkdir(magic_base)
+def smoke_dir(request):
+    tmp = mkdtemp(prefix="tahoe")
+
+    def cleanup():
+        print("cleaning the things", tmp)
+        try:
+            shutil.rmtree(tmp)
+        except Exception as e:
+            print("Failed to remove tmpdir: {}".format(e))
+    request.addfinalizer(cleanup)
+
+    magic_base = join(tmp, 'magicfolder')
+    mkdir(magic_base)
     return magic_base
 
 
@@ -57,7 +66,7 @@ def tahoe_binary():
     """
     Finds the 'tahoe' binary, yields complete path
     """
-    # FIXME
+    # FIXME: must be absolute path to tahoe binary
     return '/home/mike/work-lafs/src/tahoe-lafs/venv/bin/tahoe'
 
 
@@ -74,7 +83,7 @@ class _ProcessExitedProtocol(ProcessProtocol):
         self.done.callback(None)
 
 
-class CollectOutputProtocol(ProcessProtocol):
+class _CollectOutputProtocol(ProcessProtocol):
     """
     Internal helper. Collects all output (stdout + stderr) into
     self.output, and callback's on done with all of it after the
@@ -90,6 +99,7 @@ class CollectOutputProtocol(ProcessProtocol):
     def processExited(self, reason):
         if not isinstance(reason.value, ProcessDone):
             print("EXIT", reason.value)
+            self.done.errback(reason)
 
     def outReceived(self, data):
         self.output.write(data)
@@ -99,7 +109,7 @@ class CollectOutputProtocol(ProcessProtocol):
         self.output.write(data)
 
 
-class MagicTextProtocol(ProcessProtocol):
+class _MagicTextProtocol(ProcessProtocol):
     """
     Internal helper. Monitors all stdout looking for a magic string,
     and then .callback()s on self.done and .errback's if the process exits
@@ -111,7 +121,8 @@ class MagicTextProtocol(ProcessProtocol):
         self._output = StringIO()
 
     def processEnded(self, reason):
-        self.done.errback(reason)
+        if not self.done.called:
+            self.done.errback(reason)
 
     def outReceived(self, data):
         sys.stdout.write(data)
@@ -134,7 +145,7 @@ web.port = 4560
     print("making introducer", intro_dir)
     
     if not exists(intro_dir):
-        done_proto = _process_exited_protocol()
+        done_proto = _ProcessExitedProtocol()
         reactor.spawnProcess(
             done_proto,
             tahoe_binary,
@@ -150,7 +161,7 @@ web.port = 4560
     # on windows, "tahoe start" means: run forever in the foreground,
     # but on linux it means daemonize. "tahoe run" is consistent
     # between platforms.
-    protocol = MagicTextProtocol('introducer running')
+    protocol = _MagicTextProtocol('introducer running')
     process = reactor.spawnProcess(
         protocol,
         tahoe_binary,
@@ -181,7 +192,7 @@ def introducer_furl(introducer, smoke_dir):
 def _run_node(reactor, tahoe_binary, node_dir, request, magic_text):
     if magic_text is None:
         magic_text = "client running"
-    protocol = MagicTextProtocol(magic_text)
+    protocol = _MagicTextProtocol(magic_text)
 
     # on windows, "tahoe start" means: run forever in the foreground,
     # but on linux it means daemonize. "tahoe run" is consistent
@@ -215,7 +226,7 @@ def _create_node(reactor, request, smoke_dir, tahoe_binary, introducer_furl, nam
     if not exists(node_dir):
         print("creating", node_dir)
         mkdir(node_dir)
-        done_proto = _process_exited_protocol()
+        done_proto = _ProcessExitedProtocol()
         args = [
             'tahoe',
             'create-node',
@@ -263,22 +274,26 @@ def storage_nodes(reactor, smoke_dir, tahoe_binary, introducer, introducer_furl,
         name = 'node{}'.format(x)
         # tub_port = 9900 + x
         nodes.append(
-            _create_node(
-                reactor, request, smoke_dir, tahoe_binary, introducer_furl, name,
-                web_port=None, storage=True,
+            pytest.blockon(
+                _create_node(
+                    reactor, request, smoke_dir, tahoe_binary, introducer_furl, name,
+                    web_port=None, storage=True,
+                )
             )
         )
-    nodes = pytest.blockon(DeferredList(nodes))
+    #nodes = pytest.blockon(DeferredList(nodes))
     return nodes
 
 
 @pytest.fixture(scope='session')
 def alice(reactor, smoke_dir, tahoe_binary, introducer_furl, storage_nodes, request):
+    import time ; time.sleep(1)
     process = pytest.blockon(
         _create_node(
             reactor, request, smoke_dir, tahoe_binary, introducer_furl, "alice",
             web_port="tcp:9980:interface=localhost",
             storage=False,
+#            magic_text='Completed initial Magic Folder scan successfully',
         )
     )
     try:
@@ -290,11 +305,13 @@ def alice(reactor, smoke_dir, tahoe_binary, introducer_furl, storage_nodes, requ
 
 @pytest.fixture(scope='session')
 def bob(reactor, smoke_dir, tahoe_binary, introducer_furl, storage_nodes, request):
+    import time ; time.sleep(1)
     process = pytest.blockon(
         _create_node(
             reactor, request, smoke_dir, tahoe_binary, introducer_furl, "bob",
             web_port="tcp:9981:interface=localhost",
             storage=False,
+#            magic_text='Completed initial Magic Folder scan successfully',
         )
     )
     try:
@@ -314,8 +331,13 @@ def alice_invite(reactor, alice, tahoe_binary, smoke_dir, request):
     # XXX hmm, maybe we can just nuke alice's process and it'll get
     # re-started next time we ask for "alice" fixture...?
 
+    # hmm, looks like we're still "sometimes"/often not waiting long
+    # enough until the grid is really-ready .. maybe re-try this
+    # command a couple times automagically? or figureout what's up w/
+    # the storage nodes?
+    import time ; time.sleep(5)
     print("creating magicfolder\n\n\n")
-    proto = CollectOutputProtocol()
+    proto = _CollectOutputProtocol()
     transport = reactor.spawnProcess(
         proto,
         tahoe_binary,
@@ -328,7 +350,7 @@ def alice_invite(reactor, alice, tahoe_binary, smoke_dir, request):
     pytest.blockon(proto.done)
 
     print("making invite\n\n\n")
-    proto = CollectOutputProtocol()
+    proto = _CollectOutputProtocol()
     transport = reactor.spawnProcess(
         proto,
         tahoe_binary,
@@ -343,7 +365,7 @@ def alice_invite(reactor, alice, tahoe_binary, smoke_dir, request):
 
     # before magic-folder works, we have to stop and restart (this is
     # crappy for the tests -- can we fix it in magic-folder?)
-    proto = CollectOutputProtocol()
+    proto = _CollectOutputProtocol()
     transport = reactor.spawnProcess(
         proto,
         tahoe_binary,
@@ -362,7 +384,7 @@ def alice_invite(reactor, alice, tahoe_binary, smoke_dir, request):
 def magic_folder(reactor, alice_invite, alice, bob, tahoe_binary, smoke_dir, request):
     print("pairing magic-folder")
     bob_dir = join(smoke_dir, 'bob')
-    proto = CollectOutputProtocol()
+    proto = _CollectOutputProtocol()
     transport = reactor.spawnProcess(
         proto,
         tahoe_binary,
@@ -377,7 +399,7 @@ def magic_folder(reactor, alice_invite, alice, bob, tahoe_binary, smoke_dir, req
 
     # before magic-folder works, we have to stop and restart (this is
     # crappy for the tests -- can we fix it in magic-folder?)
-    proto = CollectOutputProtocol()
+    proto = _CollectOutputProtocol()
     transport = reactor.spawnProcess(
         proto,
         tahoe_binary,
