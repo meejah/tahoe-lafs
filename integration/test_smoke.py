@@ -117,4 +117,6 @@ def test_bob_creates_sub_directory(magic_folder):
 
     # alice should delete it as well
     await_file_vanishes(join(alice_dir, "subdir", "a_file"))
-    await_file_vanishes(join(alice_dir, "subdir"))
+    # i *think* it's by design that the subdir won't disappear,
+    # because a "a_file.backup" should appear...
+    await_file_contents(join(alice_dir, "subdir", "a_file.backup"), "bob wuz here")
