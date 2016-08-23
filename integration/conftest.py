@@ -17,22 +17,11 @@ import pytest
 
 pytest_plugins = 'pytest_twisted'
 
-if False:
-    # can't get pytest_fixture_setup to run? wanted to try to produce
-    # *some* kind of "progress of setting up the grid" ...
-    def pytest_fixture_post_finalizer(fixturedef):
-        print("FINALIZER", fixturedef)
-
-    def pytest_fixture_setup(fixturedef, request):
-        print("fixture: {}\n".format(request))
-        yield
-        print("ASDFAWET")
-
-    @pytest.hookimpl(hookwrapper=True)
-    def pytest_runtest_setup(item):
-        print("BEFORE", item)
-        yield
-        print("AFTER", item)
+def pytest_addoption(parser):
+    parser.addoption(
+        "--keep-tempdir", action="store_true", dest="keep",
+        help="Keep the tmpdir with the client directories (introducer, etc)",
+    )
 
 
 @pytest.fixture(scope='session')
@@ -46,19 +35,26 @@ def reactor():
 
 @pytest.fixture(scope='session')
 def smoke_dir(request):
+    """
+    Invoke like 'py.test --keep ...' to avoid deleting the temp-dir
+    """
     tmp = mkdtemp(prefix="tahoe")
+    if request.config.getoption('keep', True):
+        print("Will retain tempdir '{}'".format(tmp))
 
+    # I'm leaving this in and always calling it so that the tempdir
+    # path is (also) printed out near the end of the run
     def cleanup():
-        print("cleaning the things", tmp)
-        try:
-            shutil.rmtree(tmp, ignore_errors=True)
-        except Exception as e:
-            print("Failed to remove tmpdir: {}".format(e))
+        if request.config.getoption('keep', True):
+            print("Keeping tempdir '{}'".format(tmp))
+        else:
+            try:
+                shutil.rmtree(tmp, ignore_errors=True)
+            except Exception as e:
+                print("Failed to remove tmpdir: {}".format(e))
     request.addfinalizer(cleanup)
 
-    magic_base = join(tmp, 'magicfolder')
-    mkdir(magic_base)
-    return magic_base
+    return tmp
 
 
 @pytest.fixture(scope='session')
