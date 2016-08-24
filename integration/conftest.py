@@ -17,11 +17,19 @@ import pytest
 
 pytest_plugins = 'pytest_twisted'
 
+# pytest customization hooks
+
 def pytest_addoption(parser):
     parser.addoption(
         "--keep-tempdir", action="store_true", dest="keep",
         help="Keep the tmpdir with the client directories (introducer, etc)",
     )
+
+# I've mostly defined these fixtures from "easiest" to "most
+# complicated", and the dependencies basically go "down the
+# page". They're all session-scoped which has the "pro" that we only
+# set up the grid once, but the "con" that each test has to be a
+# little careful they're not stepping on toes etc :/
 
 
 @pytest.fixture(scope='session')
@@ -29,12 +37,11 @@ def reactor():
     # this is a fixture in case we might want to try different
     # reactors for some reason.
     from twisted.internet import reactor as _reactor
-    #pytest.blockon(deferLater(_reactor, 2, lambda: None))
     return _reactor
 
 
 @pytest.fixture(scope='session')
-def smoke_dir(request):
+def temp_dir(request):
     """
     Invoke like 'py.test --keep ...' to avoid deleting the temp-dir
     """
@@ -62,8 +69,15 @@ def tahoe_binary():
     """
     Finds the 'tahoe' binary, yields complete path
     """
+    # should we just run 'which'?! this seems ... 
     # FIXME: must be absolute path to tahoe binary
     return '/home/mike/work-lafs/src/tahoe-lafs/venv/bin/tahoe'
+
+
+@pytest.fixture(scope='session')
+def flog_binary():
+    # FIXME: must be absolute path to tahoe binary
+    return '/home/mike/work-lafs/src/tahoe-lafs/venv/bin/flogtool'
 
 
 class _ProcessExitedProtocol(ProcessProtocol):
@@ -132,13 +146,58 @@ class _MagicTextProtocol(ProcessProtocol):
 
 
 @pytest.fixture(scope='session')
-def introducer(reactor, smoke_dir, tahoe_binary, request):
+def flog_gatherer(reactor, temp_dir, flog_binary, request):
+    protocol = _CollectOutputProtocol()
+    gather_dir = join(temp_dir, 'flog_gather')
+    process = reactor.spawnProcess(
+        protocol,
+        flog_binary,
+        (
+            'flogtool', 'create-gatherer',
+            '--location', 'tcp:localhost:3117',
+            '--port', '3117',
+            gather_dir,
+        )
+    )
+    pytest.blockon(protocol.done)
+
+    protocol = _MagicTextProtocol("Gatherer waiting at")
+    process = reactor.spawnProcess(
+        protocol,
+        '/home/mike/work-lafs/src/tahoe-lafs/venv/bin/twistd', # FIXME
+        (
+            'twistd', '--nodaemon', '--python',
+            join(gather_dir, 'gatherer.tac'),
+        ),
+        path=gather_dir,
+    )
+    pytest.blockon(protocol.magic_seen)
+
+    def cleanup():
+        try:
+            process.signalProcess('TERM')
+            pytest.blockon(protocol.exited)
+        except ProcessExitedAlready:
+            pass
+    request.addfinalizer(cleanup)
+
+    with open(join(gather_dir, 'log_gatherer.furl'), 'r') as f:
+        furl = f.read().strip()
+    return furl
+
+
+@pytest.fixture(scope='session')
+def introducer(reactor, temp_dir, tahoe_binary, flog_gatherer, request):
     config = '''
 [node]
 nickname = introducer0
 web.port = 4560
-'''
-    intro_dir = join(smoke_dir, 'introducer')
+
+[log_gatherer]
+furl = {log_furl}
+'''.format(log_furl=flog_gatherer)
+
+    intro_dir = join(temp_dir, 'introducer')
     print("making introducer", intro_dir)
     
     if not exists(intro_dir):
@@ -178,8 +237,8 @@ web.port = 4560
 
 
 @pytest.fixture(scope='session')
-def introducer_furl(introducer, smoke_dir):
-    furl_fname = join(smoke_dir, 'introducer', 'private', 'introducer.furl')
+def introducer_furl(introducer, temp_dir):
+    furl_fname = join(temp_dir, 'introducer', 'private', 'introducer.furl')
     while not exists(furl_fname):
         print("Don't see {} yet".format(furl_fname))
         time.sleep(.1)
@@ -215,12 +274,12 @@ def _run_node(reactor, tahoe_binary, node_dir, request, magic_text):
     return protocol.magic_seen
 
 
-def _create_node(reactor, request, smoke_dir, tahoe_binary, introducer_furl, name, web_port, storage=True, magic_text=None):
+def _create_node(reactor, request, temp_dir, tahoe_binary, introducer_furl, flog_gatherer, name, web_port, storage=True, magic_text=None):
     """
     Helper to create a single node, run it and return the instance
     spawnProcess returned (ITransport)
     """
-    node_dir = join(smoke_dir, name)
+    node_dir = join(temp_dir, name)
     if web_port is None:
         web_port = ''
     if not exists(node_dir):
@@ -257,17 +316,21 @@ introducer.furl = %(furl)s
 shares.needed = 2
 shares.happy = 3
 shares.total = 4
+
+[log_gatherer]
+furl = %(log_furl)s
 ''' % {
     'name': name,
     'furl': introducer_furl,
     'web_port': web_port,
+    'log_furl': flog_gatherer,
 })
 
     return _run_node(reactor, tahoe_binary, node_dir, request, magic_text)
     
 
 @pytest.fixture(scope='session')
-def storage_nodes(reactor, smoke_dir, tahoe_binary, introducer, introducer_furl, request):
+def storage_nodes(reactor, temp_dir, tahoe_binary, introducer, introducer_furl, flog_gatherer, request):
     nodes = []
     # start all 5 nodes in parallel
     for x in range(5):
@@ -276,7 +339,7 @@ def storage_nodes(reactor, smoke_dir, tahoe_binary, introducer, introducer_furl,
         nodes.append(
             pytest.blockon(
                 _create_node(
-                    reactor, request, smoke_dir, tahoe_binary, introducer_furl, name,
+                    reactor, request, temp_dir, tahoe_binary, introducer_furl, flog_gatherer, name,
                     web_port=None, storage=True,
                 )
             )
@@ -286,44 +349,44 @@ def storage_nodes(reactor, smoke_dir, tahoe_binary, introducer, introducer_furl,
 
 
 @pytest.fixture(scope='session')
-def alice(reactor, smoke_dir, tahoe_binary, introducer_furl, storage_nodes, request):
+def alice(reactor, temp_dir, tahoe_binary, introducer_furl, flog_gatherer, storage_nodes, request):
     import time ; time.sleep(1)
     process = pytest.blockon(
         _create_node(
-            reactor, request, smoke_dir, tahoe_binary, introducer_furl, "alice",
+            reactor, request, temp_dir, tahoe_binary, introducer_furl, flog_gatherer, "alice",
             web_port="tcp:9980:interface=localhost",
             storage=False,
 #            magic_text='Completed initial Magic Folder scan successfully',
         )
     )
     try:
-        mkdir(join(smoke_dir, 'magic-alice'))
+        mkdir(join(temp_dir, 'magic-alice'))
     except OSError:
         pass
     return process
 
 
 @pytest.fixture(scope='session')
-def bob(reactor, smoke_dir, tahoe_binary, introducer_furl, storage_nodes, request):
+def bob(reactor, temp_dir, tahoe_binary, introducer_furl, flog_gatherer, storage_nodes, request):
     import time ; time.sleep(1)
     process = pytest.blockon(
         _create_node(
-            reactor, request, smoke_dir, tahoe_binary, introducer_furl, "bob",
+            reactor, request, temp_dir, tahoe_binary, introducer_furl, flog_gatherer, "bob",
             web_port="tcp:9981:interface=localhost",
             storage=False,
 #            magic_text='Completed initial Magic Folder scan successfully',
         )
     )
     try:
-        mkdir(join(smoke_dir, 'magic-bob'))
+        mkdir(join(temp_dir, 'magic-bob'))
     except OSError:
         pass
     return process
 
 
 @pytest.fixture(scope='session')
-def alice_invite(reactor, alice, tahoe_binary, smoke_dir, request):
-    node_dir = join(smoke_dir, 'alice')
+def alice_invite(reactor, alice, tahoe_binary, temp_dir, request):
+    node_dir = join(temp_dir, 'alice')
 
     # XXX need some way to find out "is grid ready for action" at this
     # point ...
@@ -344,7 +407,7 @@ def alice_invite(reactor, alice, tahoe_binary, smoke_dir, request):
         [
             'tahoe', 'magic-folder', 'create',
             '--basedir', node_dir, 'magik:', 'alice',
-            join(smoke_dir, 'magic-alice'),
+            join(temp_dir, 'magic-alice'),
         ]
     )
     pytest.blockon(proto.done)
@@ -381,9 +444,9 @@ def alice_invite(reactor, alice, tahoe_binary, smoke_dir, request):
 
 
 @pytest.fixture(scope='session')
-def magic_folder(reactor, alice_invite, alice, bob, tahoe_binary, smoke_dir, request):
+def magic_folder(reactor, alice_invite, alice, bob, tahoe_binary, temp_dir, request):
     print("pairing magic-folder")
-    bob_dir = join(smoke_dir, 'bob')
+    bob_dir = join(temp_dir, 'bob')
     proto = _CollectOutputProtocol()
     transport = reactor.spawnProcess(
         proto,
@@ -392,7 +455,7 @@ def magic_folder(reactor, alice_invite, alice, bob, tahoe_binary, smoke_dir, req
             'tahoe', 'magic-folder', 'join',
             '--basedir', bob_dir,
             alice_invite,
-            join(smoke_dir, 'magic-bob'),
+            join(temp_dir, 'magic-bob'),
         ]
     )
     pytest.blockon(proto.done)
@@ -413,4 +476,4 @@ def magic_folder(reactor, alice_invite, alice, bob, tahoe_binary, smoke_dir, req
     pytest.blockon(_run_node(reactor, tahoe_binary, bob_dir, request, magic_text))
 
     print("joined and shit")
-    return (join(smoke_dir, 'magic-alice'), join(smoke_dir, 'magic-bob'))
+    return (join(temp_dir, 'magic-alice'), join(temp_dir, 'magic-bob'))
