@@ -6,6 +6,7 @@ from os.path import join, exists
 import util
 
 # tests converted from check_magicfolder_smoke.py
+# see "conftest.py" for the fixtures (e.g. "magic_folder")
 
 
 def test_alice_writes_bob_receives(magic_folder):
@@ -115,3 +116,22 @@ def test_bob_creates_alice_deletes_bob_restores(magic_folder):
 
     # fix the conflict
     shutil.move(join(alice_dir, "boom.conflict"), join(alice_dir, "boom"))
+
+def test_bob_conflicts_with_alice(magic_folder):
+    # both alice and bob make a file at "the same time".
+    alice_dir, bob_dir = magic_folder
+
+    # really, we fudge this a little: in reality, either alice or bob
+    # "wins" by uploading to the DMD first. So we make sure bob wins
+    # this one by giving him a massive 0.1s head start
+    with open(join(bob_dir, 'alpha'), 'w') as f:
+        f.write("this is bob's alpha\n")
+    time.sleep(0.2)
+    with open(join(alice_dir, 'alpha'), 'w') as f:
+        f.write("this is alice's alpha\n")
+
+    # since bob uploaded first, alice should see a backup
+    util.await_file_contents(join(alice_dir, 'alpha'), "this is bob's alpha\n")
+    util.await_file_contents(join(bob_dir, 'alpha'), "this is bob's alpha\n")
+    util.await_file_contents(join(alice_dir, 'alpha.backup'), "this is alice's alpha\n")
+    
