@@ -104,7 +104,8 @@ class _CollectOutputProtocol(ProcessProtocol):
         self.output = StringIO()
 
     def processEnded(self, reason):
-        self.done.callback(self.output.getvalue())
+        if not self.done.called:
+            self.done.callback(self.output.getvalue())
 
     def processExited(self, reason):
         if not isinstance(reason.value, ProcessDone):
@@ -117,6 +118,28 @@ class _CollectOutputProtocol(ProcessProtocol):
     def errReceived(self, data):
         print("ERR", data)
         self.output.write(data)
+
+
+class _DumpOutputProtocol(ProcessProtocol):
+    """
+    Internal helper.
+    """
+    def __init__(self):
+        self.done = Deferred()
+
+    def processEnded(self, reason):
+        if not self.done.called:
+            self.done.callback(None)
+
+    def processExited(self, reason):
+        if not isinstance(reason.value, ProcessDone):
+            self.done.errback(reason)
+
+    def outReceived(self, data):
+        sys.stdout.write(data)
+
+    def errReceived(self, data):
+        sys.stderr.write(data)
 
 
 class _MagicTextProtocol(ProcessProtocol):
@@ -147,10 +170,10 @@ class _MagicTextProtocol(ProcessProtocol):
 
 @pytest.fixture(scope='session')
 def flog_gatherer(reactor, temp_dir, flog_binary, request):
-    protocol = _CollectOutputProtocol()
+    out_protocol = _CollectOutputProtocol()
     gather_dir = join(temp_dir, 'flog_gather')
     process = reactor.spawnProcess(
-        protocol,
+        out_protocol,
         flog_binary,
         (
             'flogtool', 'create-gatherer',
@@ -159,11 +182,11 @@ def flog_gatherer(reactor, temp_dir, flog_binary, request):
             gather_dir,
         )
     )
-    pytest.blockon(protocol.done)
+    pytest.blockon(out_protocol.done)
 
-    protocol = _MagicTextProtocol("Gatherer waiting at")
-    process = reactor.spawnProcess(
-        protocol,
+    twistd_protocol = _MagicTextProtocol("Gatherer waiting at")
+    twistd_process = reactor.spawnProcess(
+        twistd_protocol,
         '/home/mike/work-lafs/src/tahoe-lafs/venv/bin/twistd', # FIXME
         (
             'twistd', '--nodaemon', '--python',
@@ -171,14 +194,27 @@ def flog_gatherer(reactor, temp_dir, flog_binary, request):
         ),
         path=gather_dir,
     )
-    pytest.blockon(protocol.magic_seen)
+    pytest.blockon(twistd_protocol.magic_seen)
 
     def cleanup():
         try:
-            process.signalProcess('TERM')
-            pytest.blockon(protocol.exited)
+            twistd_process.signalProcess('TERM')
+            pytest.blockon(twistd_protocol.exited)
         except ProcessExitedAlready:
             pass
+
+        flog_protocol = _DumpOutputProtocol()
+        flog_dir = join(temp_dir, 'flog_gather')
+        flogs = [x for x in listdir(flog_dir) if x.endswith('.flog')]
+        reactor.spawnProcess(
+            flog_protocol,
+            flog_binary,
+            (
+                'flogtool', 'dump', join(temp_dir, 'flog_gather', flogs[0])
+            ),
+        )
+        pytest.blockon(flog_protocol.done)
+
     request.addfinalizer(cleanup)
 
     with open(join(gather_dir, 'log_gatherer.furl'), 'r') as f:
@@ -192,9 +228,7 @@ def introducer(reactor, temp_dir, tahoe_binary, flog_gatherer, request):
 [node]
 nickname = introducer0
 web.port = 4560
-
-[log_gatherer]
-furl = {log_furl}
+log_gatherer.furl = {log_furl}
 '''.format(log_furl=flog_gatherer)
 
     intro_dir = join(temp_dir, 'introducer')
@@ -309,6 +343,7 @@ def _create_node(reactor, request, temp_dir, tahoe_binary, introducer_furl, flog
 nickname = %(name)s
 web.port = %(web_port)s
 web.static = public_html
+log_gatherer.furl = %(log_furl)s
 
 [client]
 # Which services should this client connect to?
@@ -317,8 +352,6 @@ shares.needed = 2
 shares.happy = 3
 shares.total = 4
 
-[log_gatherer]
-furl = %(log_furl)s
 ''' % {
     'name': name,
     'furl': introducer_furl,
