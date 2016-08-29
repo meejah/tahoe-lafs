@@ -15,6 +15,8 @@ def await_file_contents(path, contents, timeout=10):
             print("  wanted: {}".format(contents.replace('\n', ' ')))
             print("     got: {}".format(current.replace('\n', ' ')))
         time.sleep(1)
+    if exists(path):
+        raise Exception("Contents of '{}' mismatched after {}s".format(path, timeout))
     raise Exception("Didn't find '{}' after {}s".format(path, timeout))
 
 
