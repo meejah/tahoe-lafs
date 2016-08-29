@@ -117,13 +117,52 @@ def test_bob_creates_alice_deletes_bob_restores(magic_folder):
     # fix the conflict
     shutil.move(join(alice_dir, "boom.conflict"), join(alice_dir, "boom"))
 
-def test_bob_conflicts_with_alice(magic_folder):
+
+def test_bob_creates_alice_deletes_alice_restores(magic_folder):
+    alice_dir, bob_dir = magic_folder
+
+    # bob creates a file
+    with open(join(bob_dir, "boom2"), "w") as f:
+        f.write("bob wrote this")
+
+    util.await_file_contents(
+        join(alice_dir, "boom2"),
+        "bob wrote this"
+    )
+
+    # alice deletes it (so bob should as well
+    unlink(join(alice_dir, "boom2"))
+    util.await_file_vanishes(join(bob_dir, "boom2"))
+
+    # alice restore it, with new contents
+    with open(join(alice_dir, "boom2"), "w") as f:
+        f.write("alice re-wrote this again, because reasons")
+
+    # XXX double-check this behavior is correct!
+
+    # alice sees bob's update, but marks it as a conflict (because
+    # .. she previously deleted it? does that really make sense)
+
+    util.await_file_contents(
+        join(bob_dir, "boom2.conflict"),
+        "alice re-wrote this again, because reasons",
+    )
+
+    # fix the conflict
+    shutil.move(join(alice_dir, "boom2.conflict"), join(alice_dir, "boom2"))
+
+
+# XXX I think this is a legit bug? If Bob and Alice both create a new
+# file at "the same time" (i.e. before either of them as uploaded
+# anything) then they both put a "version 0" entry in their database
+# and upload a new DMD
+def _test_bob_conflicts_with_alice_fresh(magic_folder):
     # both alice and bob make a file at "the same time".
     alice_dir, bob_dir = magic_folder
 
     # really, we fudge this a little: in reality, either alice or bob
     # "wins" by uploading to the DMD first. So we make sure bob wins
-    # this one by giving him a massive 0.1s head start
+    # this one by giving him a massive head start
     with open(join(bob_dir, 'alpha'), 'w') as f:
         f.write("this is bob's alpha\n")
     time.sleep(0.2)
@@ -134,4 +173,31 @@ def test_bob_conflicts_with_alice(magic_folder):
     util.await_file_contents(join(alice_dir, 'alpha'), "this is bob's alpha\n")
     util.await_file_contents(join(bob_dir, 'alpha'), "this is bob's alpha\n")
     util.await_file_contents(join(alice_dir, 'alpha.backup'), "this is alice's alpha\n")
+
+
+def _test_bob_conflicts_with_alice_preexisting(magic_folder):
+    # both alice and bob edit a file at "the same time" (similar to
+    # above, but the file already exists in the)
+    alice_dir, bob_dir = magic_folder
+
+    # have bob create the file
+    with open(join(bob_dir, 'beta'), 'w') as f:
+        f.write("original beta (from bob)\n")
+    util.await_file_contents(join(alice_dir, 'beta'), "original beta (from bob)\n")
+
+    # both alice and bob now have a "beta" file, at version 0
+
+    # really, we fudge this a little: in reality, either alice or bob
+    # "wins" by uploading to the DMD first. So we make sure bob wins
+    # this one by giving him a massive head start
+    with open(join(bob_dir, 'beta'), 'w') as f:
+        f.write("this is bob's beta\n")
+    time.sleep(0.2)
+    with open(join(alice_dir, 'beta'), 'w') as f:
+        f.write("this is alice's beta\n")
+
+    # since bob uploaded first, alice should see a backup
+    util.await_file_contents(join(bob_dir, 'beta'), "this is bob's beta\n")
+    util.await_file_contents(join(alice_dir, 'beta'), "this is bob's beta\n")
+    util.await_file_contents(join(alice_dir, 'beta.backup'), "this is alice's beta\n")
     
