@@ -138,19 +138,6 @@ def test_bob_creates_alice_deletes_alice_restores(magic_folder):
     with open(join(alice_dir, "boom2"), "w") as f:
         f.write("alice re-wrote this again, because reasons")
 
-    # XXX double-check this behavior is correct!
-
-    # alice sees bob's update, but marks it as a conflict (because
-    # .. she previously deleted it? does that really make sense)
-
-    util.await_file_contents(
-        join(bob_dir, "boom2.conflict"),
-        "alice re-wrote this again, because reasons",
-    )
-
-    # fix the conflict
-    shutil.move(join(alice_dir, "boom2.conflict"), join(alice_dir, "boom2"))
-
 
 # XXX I think this is a legit bug? If Bob and Alice both create a new
 # file at "the same time" (i.e. before either of them as uploaded

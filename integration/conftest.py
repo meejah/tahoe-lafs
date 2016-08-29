@@ -238,6 +238,7 @@ log_gatherer.furl = {log_furl}
     print("making introducer", intro_dir)
     
     if not exists(intro_dir):
+        mkdir(intro_dir)
         done_proto = _ProcessExitedProtocol()
         reactor.spawnProcess(
             done_proto,
