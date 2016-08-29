@@ -5,7 +5,7 @@ import shutil
 from sys import stdout as _stdout
 from os import mkdir, listdir, unlink
 from os.path import join, abspath, curdir, exists
-from tempfile import mkdtemp
+from tempfile import mkdtemp, mktemp
 from StringIO import StringIO
 
 from twisted.internet.defer import Deferred, DeferredList
@@ -123,8 +123,9 @@ class _DumpOutputProtocol(ProcessProtocol):
     """
     Internal helper.
     """
-    def __init__(self):
+    def __init__(self, f):
         self.done = Deferred()
+        self._out = f if f is not None else sys.stdout
 
     def processEnded(self, reason):
         if not self.done.called:
@@ -135,10 +136,10 @@ class _DumpOutputProtocol(ProcessProtocol):
             self.done.errback(reason)
 
     def outReceived(self, data):
-        sys.stdout.write(data)
+        self._out.write(data)
 
     def errReceived(self, data):
-        sys.stderr.write(data)
+        self._out.write(data)
 
 
 class _MagicTextProtocol(ProcessProtocol):
@@ -202,9 +203,12 @@ def flog_gatherer(reactor, temp_dir, flog_binary, request):
         except ProcessExitedAlready:
             pass
 
-        flog_protocol = _DumpOutputProtocol()
+        flog_file = mktemp('.flog_dump')
+        flog_protocol = _DumpOutputProtocol(open(flog_file, 'w'))
         flog_dir = join(temp_dir, 'flog_gather')
         flogs = [x for x in listdir(flog_dir) if x.endswith('.flog')]
+        # XXX should key doing this off --keep-tempdir?
+        print("Dumping {} flogtool logfiles to '{}'".format(len(flogs), flog_file))
         reactor.spawnProcess(
             flog_protocol,
             flog_binary,
@@ -503,6 +507,4 @@ def magic_folder(reactor, alice_invite, alice, bob, tahoe_binary, temp_dir, requ
     
     magic_text = 'Completed initial Magic Folder scan successfully'
     pytest.blockon(_run_node(reactor, tahoe_binary, bob_dir, request, magic_text))
-
-    print("joined and shit")
     return (join(temp_dir, 'magic-alice'), join(temp_dir, 'magic-bob'))
