@@ -109,7 +109,6 @@ class _CollectOutputProtocol(ProcessProtocol):
 
     def processExited(self, reason):
         if not isinstance(reason.value, ProcessDone):
-            print("EXIT", reason.value)
             self.done.errback(reason)
 
     def outReceived(self, data):
@@ -242,7 +241,6 @@ log_gatherer.furl = {log_furl}
             ('tahoe', 'create-introducer', intro_dir),
         )
         pytest.blockon(done_proto.done)
-        print("created")
 
     # over-write the config file with our stuff
     with open(join(intro_dir, 'tahoe.cfg'), 'w') as f:
@@ -432,7 +430,6 @@ def alice_invite(reactor, alice, tahoe_binary, temp_dir, request):
     # command a couple times automagically? or figureout what's up w/
     # the storage nodes?
     import time ; time.sleep(5)
-    print("creating magicfolder\n\n\n")
     proto = _CollectOutputProtocol()
     transport = reactor.spawnProcess(
         proto,
@@ -445,7 +442,6 @@ def alice_invite(reactor, alice, tahoe_binary, temp_dir, request):
     )
     pytest.blockon(proto.done)
 
-    print("making invite\n\n\n")
     proto = _CollectOutputProtocol()
     transport = reactor.spawnProcess(
         proto,
