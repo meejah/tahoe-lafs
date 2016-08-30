@@ -7,6 +7,7 @@ from os import mkdir, listdir, unlink
 from os.path import join, abspath, curdir, exists
 from tempfile import mkdtemp, mktemp
 from StringIO import StringIO
+from shutilwhich import which
 
 from twisted.internet.defer import Deferred, DeferredList
 from twisted.internet.task import deferLater
@@ -69,15 +70,12 @@ def tahoe_binary():
     """
     Finds the 'tahoe' binary, yields complete path
     """
-    # should we just run 'which'?! this seems ... 
-    # FIXME: must be absolute path to tahoe binary
-    return '/home/mike/work-lafs/src/tahoe-lafs/venv/bin/tahoe'
+    return which('tahoe')
 
 
 @pytest.fixture(scope='session')
 def flog_binary():
-    # FIXME: must be absolute path to tahoe binary
-    return '/home/mike/work-lafs/src/tahoe-lafs/venv/bin/flogtool'
+    return which('flogtool')
 
 
 class _ProcessExitedProtocol(ProcessProtocol):
