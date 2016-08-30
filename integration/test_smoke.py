@@ -143,7 +143,7 @@ def test_bob_creates_alice_deletes_alice_restores(magic_folder):
 # file at "the same time" (i.e. before either of them as uploaded
 # anything) then they both put a "version 0" entry in their database
 # and upload a new DMD
-def _test_bob_conflicts_with_alice_fresh(magic_folder):
+def test_bob_conflicts_with_alice_fresh(magic_folder):
     # both alice and bob make a file at "the same time".
     alice_dir, bob_dir = magic_folder
 
@@ -158,11 +158,13 @@ def _test_bob_conflicts_with_alice_fresh(magic_folder):
 
     # since bob uploaded first, alice should see a backup
     util.await_file_contents(join(alice_dir, 'alpha'), "this is bob's alpha\n")
-    util.await_file_contents(join(bob_dir, 'alpha'), "this is bob's alpha\n")
     util.await_file_contents(join(alice_dir, 'alpha.backup'), "this is alice's alpha\n")
 
+    util.await_file_contents(join(bob_dir, 'alpha'), "this is alice's alpha\n")
+    util.await_file_contents(join(bob_dir, 'alpha.backup'), "this is bob's alpha\n")
 
-def _test_bob_conflicts_with_alice_preexisting(magic_folder):
+
+def test_bob_conflicts_with_alice_preexisting(magic_folder):
     # both alice and bob edit a file at "the same time" (similar to
     # above, but the file already exists in the)
     alice_dir, bob_dir = magic_folder
