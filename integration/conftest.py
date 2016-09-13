@@ -294,6 +294,7 @@ def _run_node(reactor, tahoe_binary, node_dir, request, magic_text):
         tahoe_binary,
         ('tahoe', 'run', node_dir),
     )
+    process.done = protocol.exited  # XXX think?
 
     def cleanup():
         try:
@@ -453,15 +454,8 @@ def alice_invite(reactor, alice, tahoe_binary, temp_dir, request):
 
     # before magic-folder works, we have to stop and restart (this is
     # crappy for the tests -- can we fix it in magic-folder?)
-    proto = _CollectOutputProtocol()
-    transport = reactor.spawnProcess(
-        proto,
-        tahoe_binary,
-        [
-            'tahoe', 'stop', node_dir
-        ]
-    )
-    pytest.blockon(proto.done)
+    alice.signalProcess('TERM')
+    pytest.blockon(alice.done)
 
     magic_text = 'Completed initial Magic Folder scan successfully'
     pytest.blockon(_run_node(reactor, tahoe_binary, node_dir, request, magic_text))
@@ -487,15 +481,8 @@ def magic_folder(reactor, alice_invite, alice, bob, tahoe_binary, temp_dir, requ
 
     # before magic-folder works, we have to stop and restart (this is
     # crappy for the tests -- can we fix it in magic-folder?)
-    proto = _CollectOutputProtocol()
-    transport = reactor.spawnProcess(
-        proto,
-        tahoe_binary,
-        [
-            'tahoe', 'stop', bob_dir
-        ]
-    )
-    pytest.blockon(proto.done)
+    bob.signalProcess('TERM')
+    pytest.blockon(bob.done)
 
     magic_text = 'Completed initial Magic Folder scan successfully'
     pytest.blockon(_run_node(reactor, tahoe_binary, bob_dir, request, magic_text))
