@@ -260,35 +260,21 @@ class Root(rend.Page):
 
     # In case we configure multiple introducers
     def data_introducers(self, ctx, data):
-        connection_statuses = self.client.introducer_connection_statuses()
-        s = []
-        furls = self.client.introducer_furls
-        for furl in furls:
-            if connection_statuses:
-                display_furl = furl
-                # trim off the secret swissnum
-                (prefix, _, swissnum) = furl.rpartition("/")
-                if swissnum != "introducer":
-                    display_furl = "%s/[censored]" % (prefix,)
-                i = furls.index(furl)
-                ic = self.client.introducer_clients[i]
-                s.append((display_furl, bool(connection_statuses[i]), ic))
-        s.sort()
-        return s
+        return self.client.introducer_connection_statuses()
 
     def render_introducers_row(self, ctx, s):
-        (furl, connected, ic) = s
-        service_connection_status = "yes" if connected else "no"
+        service_connection_status = "yes" if s.is_connected() else "no"
 
-        since = ic.get_since()
+        since = s.when_established()
         service_connection_status_rel_time = render_time_delta(since, self.now_fn())
         service_connection_status_abs_time = render_time_attr(since)
 
-        last_received_data_time = ic.get_last_received_data_time()
+        last_received_data_time = s.last_received()
         last_received_data_rel_time = render_time_delta(last_received_data_time, self.now_fn())
         last_received_data_abs_time = render_time_attr(last_received_data_time)
 
-        ctx.fillSlots("introducer_furl", "%s" % (furl))
+        s.describe_last_connection()
+        ctx.fillSlots("description", "%s" % s.description())
         ctx.fillSlots("service_connection_status", "%s" % (service_connection_status,))
         ctx.fillSlots("service_connection_status_alt",
             self._connectedalts[service_connection_status])
