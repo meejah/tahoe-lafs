@@ -69,6 +69,7 @@ def _launch_tor(reactor, tor_executable, private_dir, txtorcon):
     # need to worry about it.
     tor_config = txtorcon.TorConfig()
     tor_config.DataDirectory = data_directory(private_dir)
+    tor_config.SOCKSPort = allocate_tcp_port() # avoid overlap with system tor
 
     if True: # unix-domain control socket
         tor_config.ControlPort = os.path.join(private_dir, "tor.control")
@@ -116,7 +117,7 @@ def create_onion(reactor, cli_config):
         raise ValueError("Cannot create onion without txtorcon. "
                          "Please 'pip install tahoe-lafs[tor]' to fix this.")
     tahoe_config_tor = {} # written into tahoe.cfg:[tor]
-    private_dir = os.path.join(cli_config["basedir"], "private")
+    private_dir = os.path.abspath(os.path.join(cli_config["basedir"], "private"))
     stdout = cli_config.stdout
     if cli_config["tor-launch"]:
         tahoe_config_tor["launch"] = "true"
