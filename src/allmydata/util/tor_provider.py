@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, print_function, with_statement
 import os
+import sys
+
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet.endpoints import clientFromString
 from twisted.internet.error import ConnectionRefusedError, ConnectError
 from twisted.application import service
+
 from .observer import OneShotObserverList
 from .iputil import allocate_tcp_port
 
@@ -72,15 +75,21 @@ def _launch_tor(reactor, tor_executable, private_dir, txtorcon):
     tor_config.SOCKSPort = allocate_tcp_port() # avoid overlap with system tor
 
     if True: # unix-domain control socket
-        tor_config.ControlPort = os.path.join(private_dir, "tor.control")
-        tor_control_endpoint_desc = "unix:%s" % tor_config.ControlPort
+        tor_config.ControlPort = "unix:" + os.path.join(private_dir, "tor.control")
+        tor_control_endpoint_desc = tor_config.ControlPort
     else:
         # we allocate a new TCP control port each time
         tor_config.ControlPort = allocate_tcp_port()
         tor_control_endpoint_desc = "tcp:127.0.0.1:%d" % tor_config.ControlPort
 
-    tpp = yield txtorcon.launch_tor(tor_config, reactor,
-                                    tor_binary=tor_executable)
+    tpp = yield txtorcon.launch_tor(
+        tor_config, reactor,
+        tor_binary=tor_executable,
+        # can be useful when debugging; mirror Tor's output to ours
+        # stdout=sys.stdout,
+        # stderr=sys.stderr,
+    )
+
     # now tor is launched and ready to be spoken to
     # as a side effect, we've got an ITorControlProtocol ready to go
     tor_control_proto = tpp.tor_protocol
@@ -89,6 +98,10 @@ def _launch_tor(reactor, tor_executable, private_dir, txtorcon):
     # tor will exit when it notices its parent (us) quit. Unit tests will
     # mock out txtorcon.launch_tor(), so there will never be a real Tor
     # process. So I guess we don't need to track the process.
+
+    # If we do want to do anything with it, we can call tpp.quit()
+    # (because it's a TorProcessProtocol) which returns a Deferred
+    # that fires when Tor has actually exited.
 
     returnValue((tor_control_endpoint_desc, tor_control_proto))
 
@@ -138,8 +151,9 @@ def create_onion(reactor, cli_config):
     external_port = 3457 # TODO: pick this randomly? there's no contention.
 
     local_port = allocate_tcp_port()
-    ehs = txtorcon.EphemeralHiddenService("%d 127.0.0.1:%d" %
-                                          (local_port, external_port))
+    ehs = txtorcon.EphemeralHiddenService(
+        "%d 127.0.0.1:%d" % (external_port, local_port)
+    )
     print("allocating .onion address (takes ~40s)..", file=stdout)
     yield ehs.add_to_tor(tor_control_proto)
     print(".onion address allocated", file=stdout)
@@ -284,7 +298,7 @@ class Provider(service.MultiService):
         with open(privkeyfile, "rb") as f:
             privkey = f.read()
         ehs = self._txtorcon.EphemeralHiddenService(
-            "%d 127.0.0.1:%d" % (local_port, external_port), privkey)
+            "%d 127.0.0.1:%d" % (external_port, local_port), privkey)
         yield ehs.add_to_tor(tor_control_proto)
         self._onion_ehs = ehs
         self._onion_tor_control_proto = tor_control_proto
