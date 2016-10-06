@@ -16,113 +16,61 @@ import util
 
 # see "conftest.py" for the fixtures (e.g. "magic_folder")
 
-class _ProcessExitedProtocol(ProcessProtocol):
-    """
-    Internal helper that .callback()s on self.done when the process
-    exits (for any reason).
-    """
+@pytest.inlineCallbacks
+def test_onion_service_storage(reactor, request, temp_dir, flog_gatherer, tor_network, introducer_furl):
+    yield _create_anonymous_node(reactor, 'carol', 8008, request, temp_dir, flog_gatherer, tor_network, introducer_furl)
+    yield _create_anonymous_node(reactor, 'dave', 8009, request, temp_dir, flog_gatherer, tor_network, introducer_furl)
+    # ensure both nodes are connected to "a grid" by uploading
+    # something via carol, and retrieve it using dave.
+    gold_path = join(temp_dir, "gold")
+    with open(gold_path, "w") as f:
+        f.write(
+            "The object-capability model is a computer security model. A "
+            "capability describes a transferable right to perform one (or "
+            "more) operations on a given object."
+        )
+    # XXX could use treq or similar to POST these to their respective
+    # WUIs instead ...
 
-    def __init__(self):
-        self.done = Deferred()
-
-    def processEnded(self, reason):
-        self.done.callback(None)
-
-
-class _DumpOutputProtocol(ProcessProtocol):
-    """
-    Internal helper.
-    """
-    def __init__(self, f):
-        self.done = Deferred()
-        self._out = f if f is not None else sys.stdout
-
-    def processEnded(self, reason):
-        if not self.done.called:
-            self.done.callback(None)
-
-    def processExited(self, reason):
-        if not isinstance(reason.value, ProcessDone):
-            self.done.errback(reason)
-
-    def outReceived(self, data):
-        self._out.write(data)
-
-    def errReceived(self, data):
-        self._out.write(data)
-
-
-class _MagicTextProtocol(ProcessProtocol):
-    """
-    Internal helper. Monitors all stdout looking for a magic string,
-    and then .callback()s on self.done and .errback's if the process exits
-    """
-
-    def __init__(self, magic_text):
-        self.magic_seen = Deferred()
-        self.exited = Deferred()
-        self._magic_text = magic_text
-        self._output = StringIO()
-
-    def processEnded(self, reason):
-        self.exited.callback(None)
-
-    def outReceived(self, data):
-        sys.stdout.write(data)
-        self._output.write(data)
-        if not self.magic_seen.called and self._magic_text in self._output.getvalue():
-            print("Saw '{}' in the logs".format(self._magic_text))
-            self.magic_seen.callback(None)
-
-    def errReceived(self, data):
-        sys.stdout.write(data)
-
-
-def _run_node(reactor, node_dir, request, magic_text):
-    if magic_text is None:
-        magic_text = "client running"
-    protocol = _MagicTextProtocol(magic_text)
-
-    # on windows, "tahoe start" means: run forever in the foreground,
-    # but on linux it means daemonize. "tahoe run" is consistent
-    # between platforms.
-    process = reactor.spawnProcess(
-        protocol,
+    proto = util._CollectOutputProtocol()
+    reactor.spawnProcess(
+        proto,
         sys.executable,
         (
             sys.executable, '-m', 'allmydata.scripts.runner',
-            'run',
-            node_dir,
-        ),
+            '-d', join(temp_dir, 'carol'),
+            'put', gold_path,
+        )
     )
-    process.exited = protocol.exited
+    yield proto.done
+    cap = proto.output.getvalue().strip().split()[-1]
+    print("TEH CAP!", cap)
 
-    def cleanup():
-        try:
-            process.signalProcess('TERM')
-            pytest.blockon(protocol.exited)
-        except ProcessExitedAlready:
-            pass
-    request.addfinalizer(cleanup)
+    proto = util._CollectOutputProtocol()
+    reactor.spawnProcess(
+        proto,
+        sys.executable,
+        (
+            sys.executable, '-m', 'allmydata.scripts.runner',
+            '-d', join(temp_dir, 'dave'),
+            'get', cap,
+        )
+    )
+    yield proto.done
 
-    # we return the 'process' ITransport instance
-    # XXX abusing the Deferred; should use .when_magic_seen() or something?
-    protocol.magic_seen.addCallback(lambda _: process)
-    return protocol.magic_seen
-
+    dave_got = proto.output.getvalue().strip()
+    assert dave_got == open(gold_path, 'r').read().strip()
 
 
 @pytest.inlineCallbacks
-def test_onion_service_storage(reactor, request, temp_dir, flog_gatherer, tor_network, introducer_furl):
-
-    name = 'carol'
+def _create_anonymous_node(reactor, name, control_port, request, temp_dir, flog_gatherer, tor_network, introducer_furl):
     node_dir = join(temp_dir, name)
-    web_port = ''
+    web_port = "tcp:{}:interface=localhost".format(control_port + 2000)
 
     if True:
         print("creating", node_dir)
         mkdir(node_dir)
-        proto = _DumpOutputProtocol(None)
+        proto = util._DumpOutputProtocol(None)
         reactor.spawnProcess(
             proto,
             sys.executable,
@@ -132,7 +80,7 @@ def test_onion_service_storage(reactor, request, temp_dir, flog_gatherer, tor_ne
                 '--nickname', name,
                 '--introducer', introducer_furl,
                 '--hide-ip',
-                '--tor-control-port', 'tcp:localhost:8008',
+                '--tor-control-port', 'tcp:localhost:{}'.format(control_port),
                 '--listen', 'tor',
                 node_dir,
             )
@@ -148,9 +96,9 @@ web.static = public_html
 log_gatherer.furl = %(log_furl)s
 
 [tor]
-control.port = tcp:localhost:8008
+control.port = tcp:localhost:%(control_port)d
 onion.external_port = 3457
-onion.local_port = 55767
+onion.local_port = %(local_port)d
 onion = true
 onion.private_key_file = private/tor_onion.privkey
 
@@ -166,7 +114,10 @@ shares.total = 2
     'furl': introducer_furl,
     'web_port': web_port,
     'log_furl': flog_gatherer,
+    'control_port': control_port,
+    'local_port': control_port + 1000,
 })
 
-    _run_node(reactor, node_dir, request, None)
-    yield Deferred()
+    print("running")
+    yield util._run_node(reactor, node_dir, request, None)
+    print("okay, launched")

@@ -7,6 +7,8 @@ from twisted.internet.defer import Deferred
 from twisted.internet.protocol import ProcessProtocol
 from twisted.internet.error import ProcessExitedAlready, ProcessDone
 
+import pytest
+
 
 class _ProcessExitedProtocol(ProcessProtocol):
     """

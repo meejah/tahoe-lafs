@@ -323,6 +323,7 @@ class Provider(service.MultiService):
             private_key=privkey,
         )
         self._onion_ehs = ehs
+        self._tor_instance = tor
 
     def startService(self):
         service.MultiService.startService(self)
@@ -334,6 +335,6 @@ class Provider(service.MultiService):
     def stopService(self):
         if self._onion_ehs:
             yield self._onion_ehs.remove()
-        if self._tor:
-            yield self._tor.quit()
+        if hasattr(self, '_tor_instance'):
+            yield self._tor_instance.quit()
         yield service.MultiService.stopService(self)
