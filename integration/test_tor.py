@@ -1,12 +1,20 @@
+from __future__ import print_function
+
 import sys
 import time
-from os.path import exists
+import shutil
+from os import mkdir, unlink, listdir
+from os.path import join, exists
 from StringIO import StringIO
 
-from twisted.internet.defer import Deferred
 from twisted.internet.protocol import ProcessProtocol
 from twisted.internet.error import ProcessExitedAlready, ProcessDone
+from twisted.internet.defer import inlineCallbacks, Deferred
+import pytest
 
+import util
+
+# see "conftest.py" for the fixtures (e.g. "magic_folder")
 
 class _ProcessExitedProtocol(ProcessProtocol):
     """
@@ -19,32 +27,6 @@ class _ProcessExitedProtocol(ProcessProtocol):
 
     def processEnded(self, reason):
         self.done.callback(None)
-
-
-class _CollectOutputProtocol(ProcessProtocol):
-    """
-    Internal helper. Collects all output (stdout + stderr) into
-    self.output, and callback's on done with all of it after the
-    process exits (for any reason).
-    """
-    def __init__(self):
-        self.done = Deferred()
-        self.output = StringIO()
-
-    def processEnded(self, reason):
-        if not self.done.called:
-            self.done.callback(self.output.getvalue())
-
-    def processExited(self, reason):
-        if not isinstance(reason.value, ProcessDone):
-            self.done.errback(reason)
-
-    def outReceived(self, data):
-        self.output.write(data)
-
-    def errReceived(self, data):
-        print("ERR", data)
-        self.output.write(data)
 
 
 class _DumpOutputProtocol(ProcessProtocol):
@@ -129,51 +111,55 @@ def _run_node(reactor, node_dir, request, magic_text):
     return protocol.magic_seen
 
 
-def _create_node(reactor, request, temp_dir, introducer_furl, flog_gatherer, name, web_port, storage=True, magic_text=None):
-    """
-    Helper to create a single node, run it and return the instance
-    spawnProcess returned (ITransport)
-    """
+
+@pytest.inlineCallbacks
+def test_onion_service_storage(reactor, request, temp_dir, flog_gatherer, tor_network, introducer_furl):
+
+    name = 'carol'
     node_dir = join(temp_dir, name)
-    if web_port is None:
-        web_port = ''
-    if not exists(node_dir):
+    web_port = ''
+
+    if True:
         print("creating", node_dir)
         mkdir(node_dir)
-        done_proto = _ProcessExitedProtocol()
-        args = [
-            sys.executable, '-m', 'allmydata.scripts.runner',
-            'create-node',
-            '--nickname', name,
-            '--introducer', introducer_furl,
-            '--hostname', 'localhost',
-            '--listen', 'tcp',
-        ]
-        if not storage:
-            args.append('--no-storage')
-        args.append(node_dir)
-
+        proto = _DumpOutputProtocol(None)
         reactor.spawnProcess(
-            done_proto,
+            proto,
             sys.executable,
-            args,
+            (
+                sys.executable, '-m', 'allmydata.scripts.runner',
+                'create-node',
+                '--nickname', name,
+                '--introducer', introducer_furl,
+                '--hide-ip',
+                '--tor-control-port', 'tcp:localhost:8008',
+                '--listen', 'tor',
+                node_dir,
+            )
         )
-        pytest.blockon(done_proto.done)
+        yield proto.done
 
-        with open(join(node_dir, 'tahoe.cfg'), 'w') as f:
-            f.write('''
+    with open(join(node_dir, 'tahoe.cfg'), 'w') as f:
+        f.write('''
 [node]
 nickname = %(name)s
 web.port = %(web_port)s
 web.static = public_html
 log_gatherer.furl = %(log_furl)s
 
+[tor]
+control.port = tcp:localhost:8008
+onion.external_port = 3457
+onion.local_port = 55767
+onion = true
+onion.private_key_file = private/tor_onion.privkey
+
 [client]
 # Which services should this client connect to?
 introducer.furl = %(furl)s
-shares.needed = 2
-shares.happy = 3
-shares.total = 4
+shares.needed = 1
+shares.happy = 1
+shares.total = 2
 
 ''' % {
     'name': name,
@@ -182,38 +168,5 @@ shares.total = 4
     'log_furl': flog_gatherer,
 })
 
-    return _run_node(reactor, node_dir, request, magic_text)
-
-
-def await_file_contents(path, contents, timeout=15):
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        print("  waiting for '{}'".format(path))
-        if exists(path):
-            try:
-                with open(path, 'r') as f:
-                    current = f.read()
-            except IOError:
-                print("IOError; trying again")
-            else:
-                if current == contents:
-                    return True
-                print("  file contents still mismatched")
-                print("  wanted: {}".format(contents.replace('\n', ' ')))
-                print("     got: {}".format(current.replace('\n', ' ')))
-        time.sleep(1)
-    if exists(path):
-        raise Exception("Contents of '{}' mismatched after {}s".format(path, timeout))
-    raise Exception("Didn't find '{}' after {}s".format(path, timeout))
-
-
-def await_file_vanishes(path, timeout=10):
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        print("  waiting for '{}' to vanish".format(path))
-        if not exists(path):
-            return
-        time.sleep(1)
-    raise Exception("'{}' still exists after {}s".format(path, timeout))
-
-
+    _run_node(reactor, node_dir, request, None)
+    yield Deferred()
