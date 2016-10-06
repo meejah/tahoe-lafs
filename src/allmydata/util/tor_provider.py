@@ -108,10 +108,11 @@ def _launch_tor(reactor, tor_executable, private_dir, txtorcon):
 @inlineCallbacks
 def _connect_to_tor(reactor, cli_config, txtorcon):
     # we assume tor is already running
-    ports_to_try = ["unix:/var/run/tor/control",
-                    "tcp:127.0.0.1:9051",
-                    "tcp:127.0.0.1:9151", # TorBrowserBundle
-                    ]
+    ports_to_try = [
+        "unix:/var/run/tor/control",
+        "tcp:127.0.0.1:9051",
+        "tcp:127.0.0.1:9151", # TorBrowserBundle
+    ]
     if cli_config["tor-control-port"]:
         ports_to_try = [cli_config["tor-control-port"]]
     for port in ports_to_try:
@@ -138,29 +139,44 @@ def create_onion(reactor, cli_config):
         if tor_executable:
             tahoe_config_tor["tor.executable"] = tor_executable
         print("launching Tor (to allocate .onion address)..", file=stdout)
-        (_, tor_control_proto) = yield _launch_tor(
-            reactor, tor_executable, private_dir, txtorcon)
+        tor = yield txtorcon.launch(
+            reactor,
+            control_port=control_proto,
+            tor_binary=tor_executable,
+            data_directory=private_dir,
+            stdout=stdout,
+        )
         print("Tor launched", file=stdout)
+        tahoe_config_tor["control.port"] = tor.config.ControlPort
     else:
         print("connecting to Tor (to allocate .onion address)..", file=stdout)
-        (port, tor_control_proto) = yield _connect_to_tor(
-            reactor, cli_config, txtorcon)
+        try:
+            control_ep = clientFromString(reactor, cli_config['tor-control-port'])
+        except KeyError:
+            control_ep = None
+        tor = yield txtorcon.connect(reactor, control_ep)
         print("Tor connection established", file=stdout)
-        tahoe_config_tor["control.port"] = port
+        tahoe_config_tor["control.port"] = tor.config.ControlPort
 
     external_port = 3457 # TODO: pick this randomly? there's no contention.
 
+    # XXX use .create_*() APIs instead
     local_port = allocate_tcp_port()
-    ehs = txtorcon.EphemeralHiddenService(
-        "%d 127.0.0.1:%d" % (external_port, local_port)
-    )
     print("allocating .onion address (takes ~40s)..", file=stdout)
-    yield ehs.add_to_tor(tor_control_proto)
+    
+    ehs = yield txtorcon.EphemeralHiddenService.create(
+        tor.config,
+        [
+            "%d 127.0.0.1:%d" % (external_port, local_port),
+        ]
+    )
+    print("ONION SERV", ehs)
+#    yield ehs.add_to_tor(tor_control_proto)
     print(".onion address allocated", file=stdout)
     tor_port = "tcp:%d:interface=127.0.0.1" % local_port
     tor_location = "tor:%s:%d" % (ehs.hostname, external_port)
     privkey = ehs.private_key
-    yield ehs.remove_from_tor(tor_control_proto)
+    yield ehs.remove()
 
     # in addition to the "how to launch/connect-to tor" keys above, we also
     # record information about the onion service into tahoe.cfg.
@@ -283,12 +299,14 @@ class Provider(service.MultiService):
     def _start_onion(self, reactor):
         # launch tor, if necessary
         if self._get_tor_config("launch", False, boolean=True):
-            (_, tor_control_proto) = yield self._get_launched_tor(reactor)
+            tor = yield self._tor.launch(
+                reactor,
+                control_port=self._get_tor_cnfig("control.port", None),
+            )
         else:
             controlport = self._get_tor_config("control.port", None)
             tcep = clientFromString(reactor, controlport)
-            tor_state = yield self._txtorcon.build_tor_connection(tcep)
-            tor_control_proto = tor_state.protocol
+            tor = yield self._txtorcon.connect(reactor, tcep)
 
         local_port = int(self._get_tor_config("onion.local_port"))
         external_port = int(self._get_tor_config("onion.external_port"))
@@ -297,12 +315,15 @@ class Provider(service.MultiService):
         privkeyfile = os.path.join(self._basedir, fn)
         with open(privkeyfile, "rb") as f:
             privkey = f.read()
-        ehs = self._txtorcon.EphemeralHiddenService(
-            "%d 127.0.0.1:%d" % (external_port, local_port), privkey)
-        yield ehs.add_to_tor(tor_control_proto)
+        ehs = yield self._txtorcon.EphemeralHiddenService.create(
+            tor.config,
+            [
+                "%d 127.0.0.1:%d" % (external_port, local_port),
+            ],
+            private_key=privkey,
+        )
         self._onion_ehs = ehs
-        self._onion_tor_control_proto = tor_control_proto
-
+        self._tor_instance = tor
 
     def startService(self):
         service.MultiService.startService(self)
@@ -312,7 +333,8 @@ class Provider(service.MultiService):
 
     @inlineCallbacks
     def stopService(self):
-        if self._onion_ehs and self._onion_tor_control_proto:
-            yield self._onion_ehs.remove_from_tor(self._onion_tor_control_proto)
-        # TODO: can we also stop tor?
+        if self._onion_ehs:
+            yield self._onion_ehs.remove()
+        if hasattr(self, '_tor_instance'):
+            yield self._tor_instance.quit()
         yield service.MultiService.stopService(self)
