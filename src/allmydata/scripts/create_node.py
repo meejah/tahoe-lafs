@@ -109,6 +109,9 @@ class CreateClientOptions(_CreateBaseOptions):
          "Specify which TCP port to run the HTTP interface on. Use 'none' to disable."),
         ("basedir", "C", None, "Specify which Tahoe base directory should be used. This has the same effect as the global --node-directory option. [default: %s]"
          % quote_local_unicode_path(_default_nodedir)),
+        ("total", "t", None, "Total shares required for uploaded files."),
+        ("needed", "N", None, "Needed shares required for uploaded files."),
+        ("happy", "H", None, "How many servers new files must be placed on."),
         ]
 
     # This is overridden in order to ensure we get a "Wrong number of
@@ -230,9 +233,12 @@ def write_client_config(c, config):
     c.write("# This can be changed at any time: the encoding is saved in\n")
     c.write("# each filecap, and we can download old files with any encoding\n")
     c.write("# settings\n")
-    c.write("#shares.needed = 3\n")
-    c.write("#shares.happy = 7\n")
-    c.write("#shares.total = 10\n")
+    for verb, default in [('needed', 3), ('happy', 7), ('total', 10)]:
+        value = config.get(verb, None)
+        if value is None:
+            c.write("#shares.{} = {}\n".format(verb, default))
+        else:
+            c.write("shares.{} = {}\n".format(verb, value))
     c.write("\n")
 
     boolstr = {True:"true", False:"false"}
