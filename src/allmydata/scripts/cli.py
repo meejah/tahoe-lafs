@@ -3,6 +3,7 @@ from twisted.python import usage
 from allmydata.scripts.common import get_aliases, get_default_nodedir, \
      DEFAULT_ALIAS, BaseOptions
 from allmydata.util.encodingutil import argv_to_unicode, argv_to_abspath, quote_local_unicode_path
+from .tahoe_status import TahoeStatusCommand
 
 NODEURL_RE=re.compile("http(s?)://([^:]*)(:([1-9][0-9]*))?")
 
@@ -469,6 +470,7 @@ subCommands = [
     ["stats", None, StatsOptions, "Print statistics about all files/directories in a subtree."],
     ["check", None, CheckOptions, "Check a single file or directory."],
     ["deep-check", None, DeepCheckOptions, "Check all files/directories reachable from a starting point."],
+    ["status", None, TahoeStatusCommand, "Various status information."],
     ]
 
 def mkdir(options):
@@ -568,6 +570,11 @@ def deepcheck(options):
     rc = tahoe_check.deepcheck(options)
     return rc
 
+def status(options):
+    from allmydata.scripts import tahoe_status
+    rc = tahoe_status.do_status(options)
+    return rc
+
 dispatch = {
     "mkdir": mkdir,
     "add-alias": add_alias,
@@ -587,4 +594,5 @@ dispatch = {
     "stats": stats,
     "check": check,
     "deep-check": deepcheck,
+    "status": status,
     }
