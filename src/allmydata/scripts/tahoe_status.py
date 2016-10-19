@@ -113,8 +113,7 @@ def do_status(options):
         print >>stderr, "failed to retrieve data: %s" % str(e)
         return 2
 
-    import click
-    if 'active' in status_data:
+    if status_data.get('active', None):
         print("Active operations:")
         for op in status_data['active']:
             hash_prog = int(op['progress-hash'] * 5.0)
@@ -144,6 +143,9 @@ def do_status(options):
                     **op
                 )
             )
+    else:
+        print("No active operations.")
+        return 1  # hmmm...
             
     return 0
 
