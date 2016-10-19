@@ -592,16 +592,22 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         alice_proc = self.alice_magicfolder.uploader.set_hook('processed')
         bob_proc = self.bob_magicfolder.downloader.set_hook('processed')
 
+        print("A")
         yield self.alice_fileops.write(alice_fname, 'contents0\n')
         yield iterate(self.alice_magicfolder)  # for windows
 
+        print("B")
         yield iterate_uploader(self.alice_magicfolder)
         yield alice_proc  # alice uploads
 
+        print("C")
+        print("iterating bob")
         yield iterate_downloader(self.bob_magicfolder)
+        print("iterated; await proc")
         yield bob_proc    # bob downloads
 
         # check the state
+        print("D")
         yield self._check_version_in_dmd(self.alice_magicfolder, u"blam", 0)
         yield self._check_version_in_local_db(self.alice_magicfolder, u"blam", 0)
         yield self._check_version_in_dmd(self.bob_magicfolder, u"blam", 0)
@@ -616,6 +622,7 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         )
         self.failUnless(os.path.exists(bob_fname))
 
+        print("delete")
         # now alice deletes it (alice should upload, bob download)
         alice_proc = self.alice_magicfolder.uploader.set_hook('processed')
         bob_proc = self.bob_magicfolder.downloader.set_hook('processed')

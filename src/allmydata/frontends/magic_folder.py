@@ -273,6 +273,7 @@ class QueueMixin(HookMixin):
 
     def _log(self, msg):
         s = "Magic Folder %s %s: %s" % (quote_output(self._client.nickname), self._name, msg)
+#        print(s)
         self._client.log(s)
 
 
@@ -412,6 +413,7 @@ class Uploader(QueueMixin):
         return self._begin_processing(None)
 
     def _full_scan(self):
+        print("fullscan")
         self._periodic_callid = self._clock.callLater(self._periodic_full_scan_duration, self._full_scan)
         self._log("FULL SCAN")
         self._log("_pending %r" % (self._pending))
@@ -859,6 +861,7 @@ class Downloader(QueueMixin, WriteFileMixin):
 
     def _scan_remote_dmd(self, nickname, dirnode, scan_batch):
         self._log("_scan_remote_dmd nickname %r" % (nickname,))
+        print("SCAN", nickname, self._client.nickname)
         d = dirnode.list()
         def scan_listing(listing_map):
             for encoded_relpath_u in listing_map.keys():
@@ -909,6 +912,8 @@ class Downloader(QueueMixin, WriteFileMixin):
                         self._log("failed to scan DMD for client %r: %s" % (dir_name, f))
                         # XXX what should we do to make this failure more visible to users?
                     d2.addErrback(_err)
+                else:
+                    print("ignore", dir_name, self._client.nickname)
 
             return d2
         d.addCallback(scan_collective)
