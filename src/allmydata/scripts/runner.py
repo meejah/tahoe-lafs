@@ -122,6 +122,7 @@ def dispatch(config,
     so.stdout = stdout
     so.stderr = stderr
     so.stdin = stdin
+    so.global_options = config
 
     if command in create_dispatch:
         f = create_dispatch[command]
