@@ -201,9 +201,11 @@ class QueueMixin(HookMixin):
         while not self._stopped:
             self._log("doing iteration")
             # gather any new items for the queue
+            print("perform scan")
             yield self._perform_scan()
 
             # process anything in our queue
+            print("process deque", self._deque)
             yield self._process_deque()
 
             # we want to have our callLater queued in the reactor
@@ -211,6 +213,7 @@ class QueueMixin(HookMixin):
             # can successfully advance the Clock and bypass the delay
             # if required (e.g. in the tests).
             d = task.deferLater(self._clock, self._processing_delay(), lambda: None)
+            print("waiting", self._processing_delay())
             self._log("one loop; call_hook iteration %r" % self)
             self._call_hook(None, 'iteration')
             if not self._stopped:
@@ -450,6 +453,7 @@ class Uploader(QueueMixin):
         for child in children:
             self._log("   scan; child %r" % (child,))
             _assert(isinstance(child, unicode), child=child)
+            print("addpending", reldir_u, child)
             self._add_pending("%s/%s" % (reldir_u, child) if reldir_u != u"" else child)
 
     def is_pending(self, relpath_u):
@@ -500,6 +504,7 @@ class Uploader(QueueMixin):
                 now = time.time()
             fp = self._get_filepath(relpath_u)
             pathinfo = get_pathinfo(unicode_from_filepath(fp))
+            print("PROCESSING", fp, pathinfo)
 
             self._log("about to remove %r from pending set %r" %
                       (relpath_u, self._pending))
@@ -544,6 +549,7 @@ class Uploader(QueueMixin):
                 )
 
                 def _add_db_entry(filenode):
+                    print("ADD DB ENTRY", filenode)
                     filecap = filenode.get_uri()
                     last_downloaded_uri = metadata.get('last_downloaded_uri', None)
                     self._db.did_upload_version(relpath_u, new_version, filecap,
