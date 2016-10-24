@@ -210,7 +210,7 @@ class QueueMixin(HookMixin):
                 # XXX can't we unify the "_full_scan" vs what
                 # Downloader does...
                 last_scan = self._clock.seconds()
-                yield self._when_queue_is_empty()  # (this no-op for us, only Downloader uses it...)
+                yield self._perform_scan()
                 self._log("did scan; now %d" % last_scan)
             else:
                 self._log("skipped scan")
@@ -231,8 +231,8 @@ class QueueMixin(HookMixin):
 
         self._log("stopped")
 
-    def _when_queue_is_empty(self):
-        return
+    def _perform_scan(self):
+        return defer.succeed(None)
 
     @defer.inlineCallbacks
     def _process_deque(self):
@@ -943,12 +943,10 @@ class Downloader(QueueMixin, WriteFileMixin):
         return d
 
     @defer.inlineCallbacks
-    def _when_queue_is_empty(self):
-        # XXX can we amalgamate all the "scan" stuff and just call it
-        # directly from QueueMixin?
+    def _perform_scan(self):
         x = None
         try:
-            x = yield self._scan(None)
+            x = yield self._scan_remote_collective()
             self._status_reporter(
                 True, 'Magic folder is working',
                 'Last scan: %s' % self.nice_current_time(),
@@ -961,9 +959,6 @@ class Downloader(QueueMixin, WriteFileMixin):
                 'Last attempted at %s' % self.nice_current_time(),
             )
         defer.returnValue(x)
-
-    def _scan(self, ign):
-        return self._scan_remote_collective()
 
     def _process(self, item):
         # Downloader
