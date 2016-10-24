@@ -128,7 +128,7 @@ class MagicFolder(service.MultiService):
 class QueueMixin(HookMixin):
     scan_interval = 0
 
-    def __init__(self, client, local_path_u, db, name, clock, delay=0):
+    def __init__(self, client, local_path_u, db, name, clock):
         self._client = client
         self._local_path_u = local_path_u
         self._local_filepath = to_filepath(local_path_u)
@@ -156,9 +156,6 @@ class QueueMixin(HookMixin):
         # do we also want to bound on "maximum age"?
         self._process_history = deque(maxlen=20)
         self._stopped = False
-        # XXX pass in an initial value for this; it seems like .10 broke this and it's always 0
-        self._turn_delay = delay
-        self._log('delay is %f' % self._turn_delay)
 
         # a Deferred to wait for the _do_processing() loop to exit
         # (gets set to the return from _do_processing() if we get that
@@ -229,6 +226,9 @@ class QueueMixin(HookMixin):
                 yield d
 
         self._log("stopped")
+
+    def _processing_delay(self):
+        raise NotImplementedError
 
     def _perform_scan(self):
         return defer.succeed(None)
@@ -335,7 +335,7 @@ class UploadItem(QueuedItem):
 class Uploader(QueueMixin):
 
     def __init__(self, client, local_path_u, db, upload_dirnode, pending_delay, clock):
-        QueueMixin.__init__(self, client, local_path_u, db, 'uploader', clock, delay=pending_delay)
+        QueueMixin.__init__(self, client, local_path_u, db, 'uploader', clock)
 
         self.is_ready = False
 
@@ -356,6 +356,7 @@ class Uploader(QueueMixin):
 
         if hasattr(self._notifier, 'set_pending_delay'):
             self._notifier.set_pending_delay(pending_delay)
+        self._pending_delay = pending_delay
 
         # TODO: what about IN_MOVE_SELF and IN_UNMOUNT?
         #
@@ -369,6 +370,9 @@ class Uploader(QueueMixin):
                     )
         self._notifier.watch(self._local_filepath, mask=self.mask, callbacks=[self._notify],
                              recursive=False)#True)
+
+    def _processing_delay(self):
+        return self._pending_delay
 
     def start_monitoring(self):
         self._log("start_monitoring")
@@ -748,7 +752,7 @@ class Downloader(QueueMixin, WriteFileMixin):
     def __init__(self, client, local_path_u, db, collective_dirnode,
                  upload_readonly_dircap, clock, is_upload_pending, umask,
                  status_reporter):
-        QueueMixin.__init__(self, client, local_path_u, db, 'downloader', clock, delay=self.scan_interval)
+        QueueMixin.__init__(self, client, local_path_u, db, 'downloader', clock)
 
         if not IDirectoryNode.providedBy(collective_dirnode):
             raise AssertionError("The URI in '%s' does not refer to a directory."
@@ -766,7 +770,6 @@ class Downloader(QueueMixin, WriteFileMixin):
     @defer.inlineCallbacks
     def start_downloading(self):
         self._log("start_downloading")
-        self._turn_delay = self.scan_interval
         files = self._db.get_all_relpaths()
         self._log("all files %s" % files)
 
@@ -785,6 +788,10 @@ class Downloader(QueueMixin, WriteFileMixin):
                 )
                 twlog.msg("Magic Folder failed initial scan: %s" % (e,))
                 yield task.deferLater(self._clock, self.scan_interval, lambda: None)
+
+    def _processing_delay(self):
+        # fixme, should be based on last_scan time?
+        return self.scan_interval
 
     def nice_current_time(self):
         return format_time(datetime.fromtimestamp(self._clock.seconds()).timetuple())
