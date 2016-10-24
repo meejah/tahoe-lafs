@@ -205,7 +205,6 @@ class QueueMixin(HookMixin):
         last_scan = self._clock.seconds() - self.scan_interval
         while not self._stopped:
             self._log("doing iteration")
-            d = task.deferLater(self._clock, self._turn_delay, lambda: None)
             # ">=" is important here if scan scan_interval is 0
             if self._clock.seconds() - last_scan >= self.scan_interval:
                 # XXX can't we unify the "_full_scan" vs what
@@ -218,12 +217,14 @@ class QueueMixin(HookMixin):
 
             # process anything in our queue
             yield self._process_deque()
-            self._log("one loop; call_hook iteration %r" % self)
-            self._call_hook(None, 'iteration')
+
             # we want to have our callLater queued in the reactor
             # *before* we trigger the 'iteration' hook, so that hook
             # can successfully advance the Clock and bypass the delay
             # if required (e.g. in the tests).
+            d = task.deferLater(self._clock, self._turn_delay, lambda: None)
+            self._log("one loop; call_hook iteration %r" % self)
+            self._call_hook(None, 'iteration')
             if not self._stopped:
                 self._log("waiting... %r" % d)
                 yield d
