@@ -350,8 +350,8 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         d1 = self.bob_magicfolder.finish()
 
         for mf in [self.alice_magicfolder, self.bob_magicfolder]:
-            for loader in [mf.uploader, mf.downloader]:
-                loader._clock.advance(loader._turn_delay + 1)
+            mf.uploader._clock.advance(mf.uploader._pending_delay + 1)
+            mf.downloader._clock.advance(mf.downloader._poll_interval + 1)
 
         yield d0
         yield d1
@@ -545,7 +545,7 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         # now, we ONLY want to do the scan, not a full iteration of
         # the process loop. So we do just the scan part "by hand" in
         # Bob's downloader
-        yield self.bob_magicfolder.downloader._when_queue_is_empty()
+        yield self.bob_magicfolder.downloader._perform_scan()
         # while we're delving into internals, I guess we might as well
         # confirm that we did queue up an item to download
         self.assertEqual(1, len(self.bob_magicfolder.downloader._deque))
