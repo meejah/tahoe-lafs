@@ -198,8 +198,6 @@ class QueueMixin(HookMixin):
         (processing each item). After that we yield for _turn_deque
         seconds.
         """
-        # we subtract here so there's a scan on the very first iteration
-        last_scan = self._clock.seconds() - self.scan_interval
         while not self._stopped:
             self._log("doing iteration")
             d = task.deferLater(self._clock, self._turn_delay, lambda: None)
@@ -766,6 +764,8 @@ class Downloader(QueueMixin, WriteFileMixin):
         self._is_upload_pending = is_upload_pending
         self._umask = umask
         self._status_reporter = status_reporter
+        # we subtract here so there's a scan on the very first iteration
+        self._last_scan = self._clock.seconds() - self.scan_interval
 
     @defer.inlineCallbacks
     def start_downloading(self):
@@ -788,10 +788,6 @@ class Downloader(QueueMixin, WriteFileMixin):
                 )
                 twlog.msg("Magic Folder failed initial scan: %s" % (e,))
                 yield task.deferLater(self._clock, self.scan_interval, lambda: None)
-
-    def _processing_delay(self):
-        # fixme, should be based on last_scan time?
-        return self.scan_interval
 
     def nice_current_time(self):
         return format_time(datetime.fromtimestamp(self._clock.seconds()).timetuple())
@@ -948,8 +944,17 @@ class Downloader(QueueMixin, WriteFileMixin):
         d.addCallback(_filter_batch_to_deque)
         return d
 
+    def _processing_delay(self):
+        # scan "should" occur at:
+        want = self._last_scan + self.scan_interval
+        # ...but we possibly took some time to process the last loop,
+        # so we calculate the delay from now until when we wanted to
+        # iterate (but we can't "wait" less than 0 seconds)
+        return max(0, want - self._clock.seconds())
+
     @defer.inlineCallbacks
     def _perform_scan(self):
+        self._last_scan = self._clock.seconds()
         x = None
         try:
             x = yield self._scan_remote_collective()
