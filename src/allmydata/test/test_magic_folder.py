@@ -1441,6 +1441,7 @@ class MockTest(SingleMagicFolderTestMixin, unittest.TestCase):
         d.addCallback(_create_file_without_event)
         def _advance_clock(res):
             processed_d = self.magicfolder.uploader.set_hook('processed')
+            print("advance clock")
             self.magicfolder.uploader._clock.advance(4)
             return processed_d
         d.addCallback(_advance_clock)
