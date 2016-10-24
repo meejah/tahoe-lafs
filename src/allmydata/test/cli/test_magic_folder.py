@@ -122,8 +122,8 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         d = defer.succeed(None)
         def _clean(ign):
             d = self.magicfolder.finish()
-            self.magicfolder.uploader._clock.advance(self.magicfolder.uploader._turn_delay + 1)
-            self.magicfolder.downloader._clock.advance(self.magicfolder.downloader._turn_delay + 1)
+            self.magicfolder.uploader._clock.advance(self.magicfolder.uploader._pending_delay + 1)
+            self.magicfolder.downloader._clock.advance(self.magicfolder.downloader._poll_interval + 1)
             return d
 
         d.addCallback(_clean)
@@ -142,7 +142,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
             pending_delay=0.2,
             clock=clock,
         )
-        magicfolder.downloader._turn_delay = 0
+        magicfolder.downloader._poll_interval = 0
 
         magicfolder.setServiceParent(self.get_client(client_num))
         magicfolder.ready()
