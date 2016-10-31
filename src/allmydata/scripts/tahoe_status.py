@@ -114,31 +114,32 @@ def do_status(options):
         return 2
 
     if status_data.get('active', None):
-        print("Active operations:")
+        print(u"Active operations:")
+        print(
+            u"\u2551 {:<26} \u2551 {:<17} \u2551 {}".format(
+                "storage index",
+                "progress",
+                "status message",
+            )
+        )
+        print(u"\u255f\u2500{}\u2500\u256b\u2500{}\u2500\u256b\u2500{}".format(u'\u2500' * 26, u'\u2500' * 17, u'\u2500' * 20))
         for op in status_data['active']:
-            hash_prog = int(op['progress-hash'] * 5.0)
-            hash_prog_str = ('H' * hash_prog) + ((5 - hash_prog) * '.')
-            cipher_prog = int(op['progress-ciphertext'] * 10)
-            cipher_prog_str = ('X' * cipher_prog) + ((10 - cipher_prog) * '.')
-            push_prog = int(op['progress-encode-push'] * 10)
-            push_prog_str = ('U' * push_prog) + ((10 - push_prog) * '.')
-            total = (op['progress-hash'] + op['progress-ciphertext'] + op['progress-encode-push']) / 3.0
+            if True:
+                total = op['progress']
+            else:
+                # WTF? when i made this command, these were here --
+                # now it's just "progress" (which is, arguably?
+                # better)
+                hash_prog = int(op['progress-hash'] * 5.0)
+                hash_prog_str = ('H' * hash_prog) + ((5 - hash_prog) * '.')
+                cipher_prog = int(op['progress-ciphertext'] * 10)
+                cipher_prog_str = ('X' * cipher_prog) + ((10 - cipher_prog) * '.')
+                push_prog = int(op['progress-encode-push'] * 10)
+                push_prog_str = ('U' * push_prog) + ((10 - push_prog) * '.')
+                total = (op['progress-hash'] + op['progress-ciphertext'] + op['progress-encode-push']) / 3.0
             print(
-                " * {storage-index-string}: {progress} ({total:3}%) {status}".format(
-                    progress='[{}|{}|{}]'.format(
-                        # click.style(
-                        #     pretty_progress(op['progress-hash'] * 100.0, size=5).encode('utf8'), fg='red',
-                        # ),
-                        # click.style(
-                        #     pretty_progress(op['progress-ciphertext'] * 100.0, size=10).encode('utf8'), fg='green',
-                        # ),
-                        # click.style(
-                        #     pretty_progress(op['progress-encode-push'] * 100.0, size=10).encode('utf8'), fg='magenta',
-                        # ),
-                        hash_prog_str,
-                        cipher_prog_str,
-                        push_prog_str
-                    ),
+                u"\u2551 {storage-index-string} \u2551 {progress_bar} ({total:3}%) \u2551 {status}".format(
+                    progress_bar=pretty_progress(op['progress'] * 100.0, size=10),
                     total=int(total * 100.0),
                     **op
                 )
