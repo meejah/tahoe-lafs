@@ -966,9 +966,12 @@ class Status(rend.Page):
         return rend.Page.renderHTTP(self, ctx)
 
     def json(self, req):
+        # XXX why not "application/json"?
         req.setHeader("content-type", "text/plain")
         data = {}
         data["active"] = active = []
+        data["recent"] = recent = []
+
         for s in self._get_active_operations():
             si_s = base32.b2a_or_none(s.get_storage_index())
             size = s.get_size()
@@ -990,6 +993,27 @@ class Status(rend.Page):
                                "status": status,
                                "progress": s.get_progress(),
                                })
+
+        for s in self._get_recent_operations():
+            # common item data
+            item = {
+                "storage-index-string": base32.b2a_or_none(s.get_storage_index()),
+                "total-size": s.get_size(),
+                "status": s.get_status(),
+            }
+            recent.append(item)
+
+            # type-specific item date
+            if IUploadStatus.providedBy(s):
+                h,c,e = s.get_progress()
+                item["type"] = "upload"
+                item["progress-hash"] = h
+                item["progress-ciphertext"] = c
+                item["progress-encode-push"] = e
+
+            elif IDownloadStatus.providedBy(s):
+                item["type"] = "download"
+                item["progress"] = s.get_progress()
 
         return simplejson.dumps(data, indent=1) + "\n"
 
