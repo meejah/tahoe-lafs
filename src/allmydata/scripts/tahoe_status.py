@@ -116,20 +116,22 @@ def do_status(options):
     if status_data.get('active', None):
         print(u"Active operations:")
         print(
-            u"\u2551 {:<26} \u2551 {:<17} \u2551 {}".format(
+            u"\u2553 {:<4} \u2565 {:<26} \u2565 {:<22} \u2565 {}".format(
+                "type",
                 "storage index",
-                "progress",
+                "hash/enc./push prog.",
                 "status message",
             )
         )
-        print(u"\u255f\u2500{}\u2500\u256b\u2500{}\u2500\u256b\u2500{}".format(u'\u2500' * 26, u'\u2500' * 17, u'\u2500' * 20))
+        print(u"\u255f\u2500{}\u2500\u256b\u2500{}\u2500\u256b\u2500{}\u2500\u256b\u2500{}".format(u'\u2500' * 4, u'\u2500' * 26, u'\u2500' * 22, u'\u2500' * 20))
         for op in status_data['active']:
-            if True:
-                total = op['progress']
-            else:
+            op_type = 'UKN '
+            if 'progress-hash' in op:
+                op_type = 'put '
                 # WTF? when i made this command, these were here --
                 # now it's just "progress" (which is, arguably?
-                # better)
+                # better) -> oh, maybe that's upload (hash_progress
+                # etc) vs. download (only "progress")
                 hash_prog = int(op['progress-hash'] * 5.0)
                 hash_prog_str = ('H' * hash_prog) + ((5 - hash_prog) * '.')
                 cipher_prog = int(op['progress-ciphertext'] * 10)
@@ -137,17 +139,55 @@ def do_status(options):
                 push_prog = int(op['progress-encode-push'] * 10)
                 push_prog_str = ('U' * push_prog) + ((10 - push_prog) * '.')
                 total = (op['progress-hash'] + op['progress-ciphertext'] + op['progress-encode-push']) / 3.0
+                progress_bar = u"{}{}{}".format(
+                    click.style(pretty_progress(op['progress-hash'] * 100.0, size=5), fg='cyan'),
+                    click.style(pretty_progress(op['progress-ciphertext'] * 100.0, size=5), fg='blue'),
+                    click.style(pretty_progress(op['progress-encode-push']* 100.0, size=5), fg='green'),
+                )
+            else:
+                op_type = 'get '
+                total = op['progress']
+                progress_bar = u"{}".format(pretty_progress(op['progress'] * 100.0, size=15))
             print(
-                u"\u2551 {storage-index-string} \u2551 {progress_bar} ({total:3}%) \u2551 {status}".format(
-                    progress_bar=pretty_progress(op['progress'] * 100.0, size=10),
+                u"\u2551 {op_type} \u2551 {storage-index-string} \u2551 {progress_bar} ({total:3}%) \u2551 {status}".format(
+                    op_type=op_type,
+                    progress_bar=progress_bar,
                     total=int(total * 100.0),
                     **op
                 )
             )
+
+        print(u"\u2559\u2500{}\u2500\u2568\u2500{}\u2500\u2568\u2500{}\u2500\u2568\u2500{}".format(u'\u2500' * 4, u'\u2500' * 26, u'\u2500' * 22, u'\u2500' * 20))
     else:
         print("No active operations.")
-        return 1  # hmmm...
             
+    if status_data.get('recent', None):
+        print(u"\nRecent operations:")
+        print(
+            u"\u2553 {:<4} \u2565 {:<26} \u2565 {:<10} \u2565 {}".format(
+                "type",
+                "storage index",
+                "size",
+                "status message",
+            )
+        )
+
+        for op in status_data['recent']:
+            op_type = 'put ' if op['type'] == 'upload' else 'get '
+            print(
+                u"\u2551 {op_type} \u2551 {storage-index-string} \u2551 {nice_size:<10} \u2551 {status}".format(
+                    op_type=op_type,
+                    nice_size=abbreviate_space(op['total-size']),
+                    **op
+                )
+            )
+
+        print(u"\u2559\u2500{}\u2500\u2568\u2500{}\u2500\u2568\u2500{}\u2500\u2568\u2500{}".format(u'\u2500' * 4, u'\u2500' * 26, u'\u2500' * 10, u'\u2500' * 20))
+    else:
+        print("No recent operations.")
+
+    # open question: should we return non-zero if there were no
+    # operations at all to display?
     return 0
 
 
