@@ -240,18 +240,14 @@ class Root(rend.Page):
             return "%s introducers connected" % (connected_count,)
 
     def data_total_introducers(self, ctx, data):
-        return len(self.client.introducer_furls)
+        return len(self.client.introducer_connection_statuses())
 
     def data_connected_introducers(self, ctx, data):
-        return self.client.introducer_connection_statuses().count(True)
-
-    def data_connected_to_introducer(self, ctx, data):
-        if self.client.connected_to_introducer():
-            return "yes"
-        return "no"
+        return len([1 for cs in self.client.introducer_connection_statuses()
+                    if cs.is_connected()])
 
     def data_connected_to_at_least_one_introducer(self, ctx, data):
-        if True in self.client.introducer_connection_statuses():
+        if self.data_connected_introducers(ctx, data):
             return "yes"
         return "no"
 
@@ -281,7 +277,8 @@ class Root(rend.Page):
                       render_time_attr(last_received_data_time))
         ctx.fillSlots("last_received_data_rel_time",
                       render_time_delta(last_received_data_time, self.now_fn()))
-        ctx.fillSlots("description", "%s" % cs.describe_last_connection())
+        ctx.fillSlots("summary", "%s" % cs.summarize_last_connection())
+        ctx.fillSlots("details", "%s" % cs.describe_last_connection())
         return ctx.tag
 
     def data_helper_furl_prefix(self, ctx, data):

@@ -2857,6 +2857,14 @@ class IConnectionStatus(Interface):
         subsequent negotiation was successful. Otherwise it returns None.
         """
 
+    def summarize_last_connection():
+        """
+        Returns a (unicode) string with a brief summary of the current
+        status, suitable for display on an informational page. The more
+        complete text from describe_last_connection() would be appropriate
+        for a tool-tip popup.
+        """
+
     def describe_last_connection():
         """
         Returns a (unicode) string with a description of the results of

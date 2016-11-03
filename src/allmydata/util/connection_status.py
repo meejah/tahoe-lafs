@@ -1,18 +1,22 @@
-from zope.interfaces import implementer
+import time
+from zope.interface import implementer
 from ..interfaces import IConnectionStatus
 
 @implementer(IConnectionStatus)
 class ConnectionStatus:
-    def __init__(self, connected,
+    def __init__(self, connected, summary,
                  last_connection_description, last_connection_time,
                  last_received):
         self._connected = connected
+        self._summary = summary
         self._last_connection = last_connection_description
         self._last_connection_time = last_connection_time
         self._last_received = last_received
 
     def is_connected(self):
         return self._connected
+    def summarize_last_connection(self):
+        return self._summary
     def when_established(self):
         return self._last_connection_time
     def describe_last_connection(self):
@@ -26,16 +30,16 @@ def _describe_statuses(hints, handlers, statuses):
         handler = handlers.get(hint)
         handler_dsc = " via %s" % handler if handler else ""
         status = statuses[hint]
-        descriptions.append("%s%s: %s" % (hint, handler_dsc, status))
-    return ", ".join(descriptions)
+        descriptions.append(" %s%s: %s\n" % (hint, handler_dsc, status))
+    return "".join(descriptions)
 
 def from_foolscap_reconnector(rc, last_received):
-    state = rc.getState()
+    ri = rc.getReconnectionInfo()
+    state = ri.getState()
     # the Reconnector shouldn't even be exposed until it is started, so we
     # should never see "unstarted"
     assert state in ("connected", "connecting", "waiting"), state
-    ci = rc.getConnectionInfo()
-    when_established = ci.connectionEstablishedAt()
+    ci = ri.getConnectionInfo()
 
     if state == "connected":
         connected = True
@@ -53,11 +57,12 @@ def from_foolscap_reconnector(rc, last_received):
         else:
             winning_dsc = "via listener %s" % ci.listenerStatus()[0]
         if others:
-            other_dsc = " (other hints: %s)" % \
+            other_dsc = "\nother hints:\n%s" % \
                         _describe_statuses(others, handlers, statuses)
         else:
             other_dsc = ""
-        dsc = "Connection successful " + winning_dsc + other_dsc
+        details = "Connection successful " + winning_dsc + other_dsc
+        summary = "Connected %s" % winning_dsc
         last_connected = ci.connectionEstablishedAt()
     elif state == "connecting":
         connected = False
@@ -65,20 +70,23 @@ def from_foolscap_reconnector(rc, last_received):
         statuses = ci.connectorStatuses()
         current = _describe_statuses(sorted(statuses.keys()),
                                      ci.connectionHandlers(), statuses)
-        dsc = "Trying to connect: %s" % current
+        details = "Trying to connect:\n%s" % current
+        summary = "Trying to connect"
         last_connected = None
     elif state == "waiting":
         connected = False
         now = time.time()
-        elapsed = now - rc.lastAttempt()
-        delay = rc.nextAttempt() - now
+        elapsed = now - ri.lastAttempt()
+        delay = ri.nextAttempt() - now
         # ci describes the previous (failed) attempt
         statuses = ci.connectorStatuses()
         last = _describe_statuses(sorted(statuses.keys()),
                                   ci.connectionHandlers(), statuses)
-        dsc = "Reconnecting in %d seconds (last connection %ds ago: %s)" % (
-            delay, elapsed, last)
+        details = "Reconnecting in %d seconds\nLast connection %ds ago:\n%s" \
+                  % (delay, elapsed, last)
+        summary = "Reconnecting in %d seconds" % delay
         last_connected = None
 
-    cs = ConnectionStatus(connected, dsc, last_connected, last_received)
+    cs = ConnectionStatus(connected, summary, details,
+                          last_connected, last_received)
     return cs
