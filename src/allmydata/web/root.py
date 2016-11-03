@@ -262,26 +262,26 @@ class Root(rend.Page):
     def data_introducers(self, ctx, data):
         return self.client.introducer_connection_statuses()
 
-    def render_introducers_row(self, ctx, s):
-        service_connection_status = "yes" if s.is_connected() else "no"
-
-        since = s.when_established()
-        service_connection_status_rel_time = render_time_delta(since, self.now_fn())
-        service_connection_status_abs_time = render_time_attr(since)
-
-        last_received_data_time = s.last_received()
-        last_received_data_rel_time = render_time_delta(last_received_data_time, self.now_fn())
-        last_received_data_abs_time = render_time_attr(last_received_data_time)
-
-        s.describe_last_connection()
-        ctx.fillSlots("description", "%s" % s.description())
-        ctx.fillSlots("service_connection_status", "%s" % (service_connection_status,))
+    def render_introducers_row(self, ctx, cs):
+        connected = "yes" if cs.is_connected() else "no"
+        ctx.fillSlots("service_connection_status", connected)
         ctx.fillSlots("service_connection_status_alt",
-            self._connectedalts[service_connection_status])
-        ctx.fillSlots("service_connection_status_abs_time", service_connection_status_abs_time)
-        ctx.fillSlots("service_connection_status_rel_time", service_connection_status_rel_time)
-        ctx.fillSlots("last_received_data_abs_time", last_received_data_abs_time)
-        ctx.fillSlots("last_received_data_rel_time", last_received_data_rel_time)
+                      self._connectedalts[connected])
+
+        since = cs.when_established()
+        # TODO: what if None?
+        ctx.fillSlots("service_connection_status_rel_time",
+                      render_time_delta(since, self.now_fn()))
+        ctx.fillSlots("service_connection_status_abs_time",
+                      render_time_attr(since))
+
+        last_received_data_time = cs.last_received()
+        # TODO: what if None?
+        ctx.fillSlots("last_received_data_abs_time",
+                      render_time_attr(last_received_data_time))
+        ctx.fillSlots("last_received_data_rel_time",
+                      render_time_delta(last_received_data_time, self.now_fn()))
+        ctx.fillSlots("description", "%s" % cs.describe_last_connection())
         return ctx.tag
 
     def data_helper_furl_prefix(self, ctx, data):

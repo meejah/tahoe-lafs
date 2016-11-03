@@ -8,31 +8,10 @@ from allmydata.introducer.interfaces import IIntroducerClient, \
      RIIntroducerSubscriberClient_v2
 from allmydata.introducer.common import sign_to_foolscap, unsign_from_foolscap,\
      get_tubid_string_from_ann
-from allmydata.util import log, yamlutil
+from allmydata.util import log, yamlutil, connection_status
 from allmydata.util.rrefutil import add_version_to_remote_reference
 from allmydata.util.keyutil import BadSignatureError
 from allmydata.util.assertutil import precondition
-
-# implements IConnectionStatus
-class ConnectionStatus:
-    def __init__(self, description, connected,
-                 last_connection_description, last_connection_time,
-                 last_received):
-        self._description = description
-        self._connected = connected
-        self._last_connection = last_connection_description
-        self._last_connection_time = last_connection_time
-        self._last_received = last_received
-    def description(self):
-        return self._description
-    def is_connected(self):
-        return self._connected
-    def when_established(self):
-        return self._last_connection_time
-    def describe_last_connection(self):
-        return self._last_connection
-    def last_received(self):
-        return self._last_received
 
 class InvalidCacheError(Exception):
     pass
@@ -348,18 +327,12 @@ class IntroducerClient(service.Service, Referenceable):
                 eventually(cb, key_s, ann, *args, **kwargs)
 
     def connection_status(self):
-        last_connection = self._introducer_reconnector.describeLastConnection()
-        description = self.introducer_furl
-        # trim off the secret swissnum
-        (prefix, _, swissnum) = description.rpartition("/")
-        if swissnum != "introducer":
-            description = "%s/[censored]" % (prefix,)
-        s = ConnectionStatus(description, bool(self._publisher),
-                             last_connection, self._since,
-                             self._publisher.getDataLastReceivedAt()
-                             if self._publisher
-                             else None)
-        return s
+        assert self.running # staerService builds _introducer_reconnector
+        irc = self._introducer_reconnector
+        last_received = (self._publisher.getDataLastReceivedAt()
+                         if self._publisher
+                         else None)
+        return connection_status.from_foolscap_reconnector(irc, last_received)
 
     def connected_to_introducer(self):
         return bool(self._publisher)

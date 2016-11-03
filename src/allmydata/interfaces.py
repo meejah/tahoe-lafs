@@ -2832,7 +2832,8 @@ class EmptyPathnameComponentError(Exception):
     """The webapi disallows empty pathname components."""
 
 class IConnectionStatus(Interface):
-    """I hold information about the 'connectedness' for some reference.
+    """
+    I hold information about the 'connectedness' for some reference.
     Connections are an illusion, of course: only messages hold any meaning,
     and they are fleeting. But for status displays, it is useful to pretend
     that 'recently contacted' means a connection is established, and
@@ -2840,53 +2841,41 @@ class IConnectionStatus(Interface):
 
     This object is not 'live': it is created and populated when requested
     from the connection manager, and it does not change after that point.
-
     """
 
     def is_connected():
-        """Returns True if we appear to be connected: we've been successful
+        """
+        Returns True if we appear to be connected: we've been successful
         in communicating with our target at some point in the past, and we
         haven't experienced any errors since then."""
-        pass
 
     def when_established():
-        pass
-
-    def last_received():
-        pass
-
-    def OFFconnection_details():
-        """If we are 'connected', this returns a tuple of three values:
-        * when_established (number, seconds since epoch)
-        * connection_description (unicode)
-        * last_received (number, seconds since epoch)
-
-        'when_established' describes when we last transitioned from 'not
-        connected' to 'connected', such as when a TCP connect() operation
-        completed and subsequent negotiation was successful.
-
-        'connection_description' explains how the connection was made. For
-        Foolscap connections, this indicates the winning hint and the
-        connection handler which used it, e.g. 'tcp(tcp:HOST:PORT)' or
-        'tor(tor:HOST.onion:PORT)'.
-
-        'last_received' describes when we last heard anything (including
-        low-level keep-alives or inbound requests) from the other side.
-
-        If we are not connected, this raises ValueError.
         """
-        pass
+        If is_connected() is True, this returns a number
+        (seconds-since-epoch) when we last transitioned from 'not connected'
+        to 'connected', such as when a TCP connect() operation completed and
+        subsequent negotiation was successful. Otherwise it returns None.
+        """
 
     def describe_last_connection():
-        """Returns a (unicode) string with a description of the results of
-        the most recent connection attempt:
+        """
+        Returns a (unicode) string with a description of the results of
+        the most recent connection attempt. For Foolscap connections, this
+        indicates the winning hint and the connection handler which used it,
+        e.g. 'tcp:HOST:PORT via tcp' or 'tor:HOST.onion:PORT via tor':
 
-        * 'Connection successful: HINT->HANDLER'
+        * 'Connection successful: HINT via HANDLER (other hints: ..)'
         * 'Connection failed: HINT->HANDLER->FAILURE, ...'
 
         Note that this describes the last *completed* connection attempt. If
         a connection attempt is currently in progress, this method will
         describe the results of the previous attempt.
         """
-        pass
+
+    def last_received():
+        """
+        Returns a number (seconds-since-epoch) describing the last time we
+        heard anything (including low-level keep-alives or inbound requests)
+        from the other side.
+        """
 
