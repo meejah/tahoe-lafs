@@ -356,13 +356,19 @@ class Root(rend.Page):
                 rhost_s = "%s:%d" % (rhost.host, rhost.port)
             else:
                 rhost_s = str(rhost)
-            addr = rhost_s
+
+            status  = server.rref.getConnectionInfo()
+            addr = repr(status.winningHint()) + str(status.connectionHandlers())
+            addr = str(status.winningHint())
+            handler = str(status.connectionHandlers()[status.winningHint()])
+            
             service_connection_status = "yes"
             last_connect_time = server.get_last_connect_time()
             service_connection_status_rel_time = render_time_delta(last_connect_time, self.now_fn())
             service_connection_status_abs_time = render_time_attr(last_connect_time)
         else:
-            addr = "N/A"
+            addr = "disconnected"
+            handler = "N/A"
             service_connection_status = "no"
             last_loss_time = server.get_last_loss_time()
             service_connection_status_rel_time = render_time_delta(last_loss_time, self.now_fn())
@@ -380,6 +386,7 @@ class Root(rend.Page):
         else:
             available_space = abbreviate_size(available_space)
         ctx.fillSlots("address", addr)
+        ctx.fillSlots("handler", handler)
         ctx.fillSlots("service_connection_status", service_connection_status)
         ctx.fillSlots("service_connection_status_alt",
                       self._connectedalts[service_connection_status])
