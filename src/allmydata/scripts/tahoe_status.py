@@ -92,11 +92,19 @@ def pretty_progress(percent, size=10, ascii=False):
 
 
 def do_status(options):
-    nodedir = options.global_options["node-directory"]
-    with open(os.path.join(nodedir, u'private', u'api_auth_token'), 'rb') as f:
-        token = f.read()
-    with open(os.path.join(nodedir, u'node.url'), 'r') as f:
-        options['node-url'] = f.read().strip()
+    nodedir = options["node-directory"]
+    token_fname = os.path.join(nodedir, u'private', u'api_auth_token')
+    url_fname = os.path.join(nodedir, u'node.url')
+    try:
+        with open(token_fname, 'rb') as f:
+            token = f.read()
+        with open(url_fname, 'r') as f:
+            options['node-url'] = f.read().strip()
+    except IOError:
+        print("Can't find '{}' or '{}'".format(token_fname, url_fname))
+        if os.path.exists(nodedir) and os.path.exists(os.path.join(nodedir, 'tahoe.cfg')):
+            print("This could mean you've not yet started this tahoe instance")
+        return
 
     # do *all* our data-retrievals first in case there's an error
     try:
@@ -191,7 +199,7 @@ def do_status(options):
     return 0
 
 
-class TahoeStatusCommand(BaseOptions):
+class TahoeStatusCommand(BasedirOptions):
 
     optFlags = [
         ["debug", "d", "Print full stack-traces"],
