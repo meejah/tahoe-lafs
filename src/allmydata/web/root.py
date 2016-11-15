@@ -1,6 +1,5 @@
 import time, os
 
-from twisted.internet import address
 from twisted.web import http
 from nevow import rend, url, tags as T
 from nevow.inevow import IRequest
@@ -327,33 +326,34 @@ class Root(rend.Page):
         return sorted(sb.get_known_servers(), key=lambda s: s.get_serverid())
 
     def render_service_row(self, ctx, server):
-        server_id = server.get_serverid()
+        #server_id = server.get_serverid()
+        cs = server.get_connection_status()
 
         ctx.fillSlots("peerid", server.get_longname())
         ctx.fillSlots("nickname", server.get_nickname())
-        rhost = server.get_remote_host()
-        if server.is_connected():
-            if server_id == self.client.get_long_nodeid():
-                rhost_s = "(loopback)"
-            elif isinstance(rhost, address.IPv4Address):
-                rhost_s = "%s:%d" % (rhost.host, rhost.port)
-            else:
-                rhost_s = str(rhost)
-            addr = rhost_s
-            service_connection_status = "yes"
-            last_connect_time = server.get_last_connect_time()
-            service_connection_status_rel_time = render_time_delta(last_connect_time, self.now_fn())
-            service_connection_status_abs_time = render_time_attr(last_connect_time)
-        else:
-            addr = "N/A"
-            service_connection_status = "no"
-            last_loss_time = server.get_last_loss_time()
-            service_connection_status_rel_time = render_time_delta(last_loss_time, self.now_fn())
-            service_connection_status_abs_time = render_time_attr(last_loss_time)
 
-        last_received_data_time = server.get_last_received_data_time()
-        last_received_data_rel_time = render_time_delta(last_received_data_time, self.now_fn())
-        last_received_data_abs_time = render_time_attr(last_received_data_time)
+        #ctx.fillSlots("address", addr)
+        connected = "yes" if cs.is_connected() else "no"
+        ctx.fillSlots("service_connection_status", connected)
+        ctx.fillSlots("service_connection_status_alt",
+                      self._connectedalts[connected])
+
+        since = cs.when_established()
+        # TODO: what if None?
+        ctx.fillSlots("service_connection_status_rel_time",
+                      render_time_delta(since, self.now_fn()))
+        ctx.fillSlots("service_connection_status_abs_time",
+                      render_time_attr(since))
+
+        last_received_data_time = cs.last_received()
+        # TODO: what if None?
+        ctx.fillSlots("last_received_data_abs_time",
+                      render_time_attr(last_received_data_time))
+        ctx.fillSlots("last_received_data_rel_time",
+                      render_time_delta(last_received_data_time, self.now_fn()))
+
+        ctx.fillSlots("summary", "%s" % cs.summarize_last_connection())
+        ctx.fillSlots("details", "%s" % cs.describe_last_connection())
 
         announcement = server.get_announcement()
         version = announcement.get("my-version", "")
@@ -362,14 +362,6 @@ class Root(rend.Page):
             available_space = "N/A"
         else:
             available_space = abbreviate_size(available_space)
-        ctx.fillSlots("address", addr)
-        ctx.fillSlots("service_connection_status", service_connection_status)
-        ctx.fillSlots("service_connection_status_alt",
-                      self._connectedalts[service_connection_status])
-        ctx.fillSlots("service_connection_status_abs_time", service_connection_status_abs_time)
-        ctx.fillSlots("service_connection_status_rel_time", service_connection_status_rel_time)
-        ctx.fillSlots("last_received_data_abs_time", last_received_data_abs_time)
-        ctx.fillSlots("last_received_data_rel_time", last_received_data_rel_time)
         ctx.fillSlots("version", version)
         ctx.fillSlots("available_space", available_space)
 
