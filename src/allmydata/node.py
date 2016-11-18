@@ -1,7 +1,7 @@
 import datetime, os.path, re, types, ConfigParser, tempfile
 from base64 import b32decode, b32encode
 
-from twisted.internet import reactor, endpoints
+from twisted.internet import reactor
 from twisted.python import log as twlog
 from twisted.application import service
 from foolscap.api import Tub, app_versions
@@ -13,21 +13,7 @@ from allmydata.util.assertutil import _assert
 from allmydata.util.fileutil import abspath_expanduser_unicode
 from allmydata.util.encodingutil import get_filesystem_encoding, quote_output
 from allmydata.util import configutil
-
-def _import_tor():
-    # this exists to be overridden by unit tests
-    try:
-        from foolscap.connections import tor
-        return tor
-    except ImportError: # pragma: no cover
-        return None
-
-def _import_i2p():
-    try:
-        from foolscap.connections import i2p
-        return i2p
-    except ImportError: # pragma: no cover
-        return None
+from allmydata.util import i2p_provider, tor_provider
 
 def _common_config_sections():
     return {
@@ -52,6 +38,9 @@ def _common_config_sections():
             "i2p.executable",
             "launch",
             "sam.port",
+            "dest",
+            "dest.port",
+            "dest.private_key_file",
         ),
         "tor": (
             "control.port",
@@ -59,6 +48,10 @@ def _common_config_sections():
             "launch",
             "socks.port",
             "tor.executable",
+            "onion",
+            "onion.local_port",
+            "onion.external_port",
+            "onion.private_key_file",
         ),
     }
 
@@ -138,14 +131,18 @@ class Node(service.MultiService):
 
         self.init_tempdir()
         self.check_privacy()
+
+        self.create_log_tub()
+        self.logSource="Node"
+        self.setup_logging()
+
+        self.create_i2p_provider()
+        self.create_tor_provider()
         self.init_connections()
         self.set_tub_options()
         self.create_main_tub()
         self.create_control_tub()
-        self.create_log_tub()
-        self.logSource="Node"
 
-        self.setup_logging()
         self.log("Node constructed. " + get_package_versions_string())
         iputil.increase_rlimits()
 
@@ -222,6 +219,15 @@ class Node(service.MultiService):
     def check_privacy(self):
         self._reveal_ip = self.get_config("node", "reveal-IP-address", True,
                                           boolean=True)
+    def create_i2p_provider(self):
+        self._i2p_provider = i2p_provider.Provider(self.basedir, self, reactor)
+        self._i2p_provider.check_dest_config()
+        self._i2p_provider.setServiceParent(self)
+
+    def create_tor_provider(self):
+        self._tor_provider = tor_provider.Provider(self.basedir, self, reactor)
+        self._tor_provider.check_onion_config()
+        self._tor_provider.setServiceParent(self)
 
     def _make_tcp_handler(self):
         # this is always available
@@ -229,57 +235,10 @@ class Node(service.MultiService):
         return default()
 
     def _make_tor_handler(self):
-        enabled = self.get_config("tor", "enabled", True, boolean=True)
-        if not enabled:
-            return None
-        tor = _import_tor()
-        if not tor:
-            return None
-
-        if self.get_config("tor", "launch", False, boolean=True):
-            executable = self.get_config("tor", "tor.executable", None)
-            datadir = os.path.join(self.basedir, "private", "tor-statedir")
-            return tor.launch(data_directory=datadir, tor_binary=executable)
-
-        socks_endpoint_desc = self.get_config("tor", "socks.port", None)
-        if socks_endpoint_desc:
-            socks_ep = endpoints.clientFromString(reactor, socks_endpoint_desc)
-            return tor.socks_endpoint(socks_ep)
-
-        controlport = self.get_config("tor", "control.port", None)
-        if controlport:
-            ep = endpoints.clientFromString(reactor, controlport)
-            return tor.control_endpoint(ep)
-
-        return tor.default_socks()
+        return self._tor_provider.get_tor_handler()
 
     def _make_i2p_handler(self):
-        enabled = self.get_config("i2p", "enabled", True, boolean=True)
-        if not enabled:
-            return None
-        i2p = _import_i2p()
-        if not i2p:
-            return None
-
-        samport = self.get_config("i2p", "sam.port", None)
-        launch = self.get_config("i2p", "launch", False, boolean=True)
-        configdir = self.get_config("i2p", "i2p.configdir", None)
-
-        if samport:
-            if launch:
-                raise ValueError("tahoe.cfg [i2p] must not set both "
-                                 "sam.port and launch")
-            ep = endpoints.clientFromString(reactor, samport)
-            return i2p.sam_endpoint(ep)
-
-        if launch:
-            executable = self.get_config("i2p", "i2p.executable", None)
-            return i2p.launch(i2p_configdir=configdir, i2p_binary=executable)
-
-        if configdir:
-            return i2p.local_i2p(configdir)
-
-        return i2p.default(reactor)
+        return self._i2p_provider.get_i2p_handler()
 
     def init_connections(self):
         # We store handlers for everything. None means we were unable to
@@ -289,7 +248,7 @@ class Node(service.MultiService):
             "tor": self._make_tor_handler(),
             "i2p": self._make_i2p_handler(),
             }
-        self.log("built Foolscap connection handlers for: %(known_handlers)s",
+        self.log(format="built Foolscap connection handlers for: %(known_handlers)s",
                  known_handlers=sorted([k for k,v in handlers.items() if v]),
                  facility="tahoe.node", umid="PuLh8g")
 
@@ -312,7 +271,7 @@ class Node(service.MultiService):
 
         if not self._reveal_ip:
             if self._default_connection_handlers.get("tcp") == "tcp":
-                raise PrivacyError("tcp = tcp, must be set to 'tor'")
+                raise PrivacyError("tcp = tcp, must be set to 'tor' or 'disabled'")
 
     def set_tub_options(self):
         self.tub_options = {
@@ -438,9 +397,10 @@ class Node(service.MultiService):
         portlocation = self.get_tub_portlocation(cfg_tubport, cfg_location)
         if portlocation:
             tubport, location = portlocation
-            if tubport in ("0", "tcp:0"):
-                raise ValueError("tub.port cannot be 0: you must choose")
-            self.tub.listenOn(tubport)
+            for port in tubport.split(","):
+                if port in ("0", "tcp:0"):
+                    raise ValueError("tub.port cannot be 0: you must choose")
+                self.tub.listenOn(port)
             self.tub.setLocation(location)
             self._tub_is_listening = True
             self.log("Tub location set to %s" % (location,))

@@ -11,6 +11,7 @@ from allmydata.util import fileutil
 from allmydata.scripts.common import get_aliases
 from ..no_network import GridTestMixin
 from .common import CLITestMixin
+from allmydata.test.common_util import NonASCIIPathMixin
 from allmydata.scripts import magic_folder_cli
 from allmydata.util.fileutil import abspath_expanduser_unicode
 from allmydata.util.encodingutil import unicode_to_argv
@@ -18,7 +19,12 @@ from allmydata.frontends.magic_folder import MagicFolder
 from allmydata import uri
 
 
-class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin):
+class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
+    def setUp(self):
+        GridTestMixin.setUp(self)
+        self.alice_nickname = self.unicode_or_fallback(u"Alice\u00F8", u"Alice", io_as_well=True)
+        self.bob_nickname = self.unicode_or_fallback(u"Bob\u00F8", u"Bob", io_as_well=True)
+
     def do_create_magic_folder(self, client_num):
         d = self.do_cli("magic-folder", "create", "magic:", client_num=client_num)
         def _done((rc,stdout,stderr)):
@@ -116,8 +122,8 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin):
         d = defer.succeed(None)
         def _clean(ign):
             d = self.magicfolder.finish()
-            self.magicfolder.uploader._clock.advance(self.magicfolder.uploader.scan_interval + 1)
-            self.magicfolder.downloader._clock.advance(self.magicfolder.downloader.scan_interval + 1)
+            self.magicfolder.uploader._clock.advance(self.magicfolder.uploader._pending_delay + 1)
+            self.magicfolder.downloader._clock.advance(self.magicfolder.downloader._poll_interval + 1)
             return d
 
         d.addCallback(_clean)
@@ -133,10 +139,10 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin):
             local_path_u=local_magic_dir,
             dbfile=dbfile,
             umask=0o077,
-            pending_delay=0.2,
             clock=clock,
+            uploader_delay=0.2,
+            downloader_delay=0,
         )
-        magicfolder.downloader._turn_delay = 0
 
         magicfolder.setServiceParent(self.get_client(client_num))
         magicfolder.ready()
@@ -153,10 +159,9 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin):
         bob_magic_dir = abspath_expanduser_unicode(u"Bob-magic", base=self.basedir)
         self.mkdir_nonascii(bob_magic_dir)
 
-        # Alice creates a Magic Folder,
-        # invites herself then and joins.
+        # Alice creates a Magic Folder, invites herself and joins.
         d = self.do_create_magic_folder(0)
-        d.addCallback(lambda ign: self.do_invite(0, u"Alice\u00F8"))
+        d.addCallback(lambda ign: self.do_invite(0, self.alice_nickname))
         def get_invite_code(result):
             self.invite_code = result[1].strip()
         d.addCallback(get_invite_code)
@@ -174,7 +179,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin):
         d.addCallback(get_Alice_magicfolder)
 
         # Alice invites Bob. Bob joins.
-        d.addCallback(lambda ign: self.do_invite(0, u"Bob\u00F8"))
+        d.addCallback(lambda ign: self.do_invite(0, self.bob_nickname))
         def get_invite_code(result):
             self.invite_code = result[1].strip()
         d.addCallback(get_invite_code)
@@ -201,7 +206,7 @@ class CreateMagicFolder(MagicFolderCLITestMixin, unittest.TestCase):
         abs_local_dir_u = abspath_expanduser_unicode(unicode(local_dir), long_path=False)
 
         d = self.do_create_magic_folder(0)
-        d.addCallback(lambda ign: self.do_invite(0, u"Alice"))
+        d.addCallback(lambda ign: self.do_invite(0, self.alice_nickname))
         def get_invite_code_and_join((rc, stdout, stderr)):
             invite_code = stdout.strip()
             return self.do_join(0, unicode(local_dir), invite_code)
@@ -275,7 +280,7 @@ class CreateMagicFolder(MagicFolderCLITestMixin, unittest.TestCase):
         abs_local_dir_u = abspath_expanduser_unicode(unicode(local_dir), long_path=False)
 
         d = self.do_create_magic_folder(0)
-        d.addCallback(lambda ign: self.do_invite(0, u"Alice"))
+        d.addCallback(lambda ign: self.do_invite(0, self.alice_nickname))
         def get_invite_code_and_join((rc, stdout, stderr)):
             self.invite_code = stdout.strip()
             return self.do_join(0, unicode(local_dir), self.invite_code)
@@ -306,7 +311,7 @@ class CreateMagicFolder(MagicFolderCLITestMixin, unittest.TestCase):
 
         self.invite_code = None
         d = self.do_create_magic_folder(0)
-        d.addCallback(lambda ign: self.do_invite(0, u"Alice"))
+        d.addCallback(lambda ign: self.do_invite(0, self.alice_nickname))
         def get_invite_code_and_join((rc, stdout, stderr)):
             self.failUnlessEqual(rc, 0)
             self.invite_code = stdout.strip()
@@ -337,7 +342,7 @@ class CreateMagicFolder(MagicFolderCLITestMixin, unittest.TestCase):
 
         self.invite_code = None
         d = self.do_create_magic_folder(0)
-        d.addCallback(lambda ign: self.do_invite(0, u"Alice"))
+        d.addCallback(lambda ign: self.do_invite(0, self.alice_nickname))
         def get_invite_code_and_join((rc, stdout, stderr)):
             self.failUnlessEqual(rc, 0)
             self.invite_code = stdout.strip()

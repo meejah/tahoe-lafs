@@ -43,8 +43,9 @@ Use cases
 
 There are three potential use-cases for Tahoe-LAFS on the client side:
 
-1. User does not care to protect their anonymity or to connect to anonymous
-   storage servers. This document is not useful to you... so stop reading.
+1. User wishes to always use an anonymizing network (Tor, I2P) to protect
+   their anonymity when connecting to Tahoe-LAFS storage grids (whether or
+   not the storage servers are anonymous).
 
 2. User does not care to protect their anonymity but they wish to connect to
    Tahoe-LAFS storage servers which are accessible only via Tor Hidden Services or I2P.
@@ -54,16 +55,14 @@ There are three potential use-cases for Tahoe-LAFS on the client side:
    * I2P is only used if a server connection hint uses ``i2p:``. These hints
      generally have a ``.i2p`` address.
 
-3. User wishes to always use an anonymizing network (Tor, I2P) to protect
-   their anonymity when connecting to Tahoe-LAFS storage grids (whether or
-   not the storage servers are anonymous).
+3. User does not care to protect their anonymity or to connect to anonymous
+   storage servers. This document is not useful to you... so stop reading.
 
 
 For Tahoe-LAFS storage servers there are three use-cases:
 
-1. Storage server operator does not care to protect their own anonymity nor
-   to help the clients protect theirs. Stop reading this document and run
-   your Tahoe-LAFS storage server using publicly routed TCP/IP.
+1. The operator wishes to protect their anonymity by making their Tahoe
+   server accessible only over I2P, via Tor Hidden Services, or both.
 
 2. The operator does not *require* anonymity for the storage server, but they
    want it to be available over both publicly routed TCP/IP and through an
@@ -76,31 +75,16 @@ For Tahoe-LAFS storage servers there are three use-cases:
    clients who themselves use that anonymizing network to protect their
    anonymity.
 
+3. Storage server operator does not care to protect their own anonymity nor
+   to help the clients protect theirs. Stop reading this document and run
+   your Tahoe-LAFS storage server using publicly routed TCP/IP.
+
+
    See this Tor Project page for more information about Tor Hidden Services:
    https://www.torproject.org/docs/hidden-services.html.en
 
    See this I2P Project page for more information about I2P:
    https://geti2p.net/en/about/intro
-
-3. The operator wishes to protect their anonymity by making their Tahoe
-   server accessible only over I2P, via Tor Hidden Services, or both.
-
-
-
-Unresolved tickets
-==================
-
-Tahoe's anonymity support does not yet include automatic configuration of
-servers. This issue is tracked by Tahoe tickets `#2490`_ and `#2773`_: until
-those are resolved, anonymous servers (running as Tor Onion services or I2P
-servers) must be configured manually, as described below.
-
-See also Tahoe-LAFS Tor related tickets `#1010`_ and `#517`_.
-
-.. _`#2490`: https://tahoe-lafs.org/trac/tahoe-lafs/ticket/2490
-.. _`#2773`: https://tahoe-lafs.org/trac/tahoe-lafs/ticket/2773
-.. _`#1010`: https://tahoe-lafs.org/trac/tahoe-lafs/ticket/1010
-.. _`#517`: https://tahoe-lafs.org/trac/tahoe-lafs/ticket/517
 
 
 Software Dependencies
@@ -315,10 +299,6 @@ the location announcement).
 
 Server anonymity, automatic configuration
 -----------------------------------------
-
-(note: this is not yet implemented, see Tahoe tickets `#2490`_ and `#2773`_
-for progress)
-
 
 To configure a server node to listen on an anonymizing network, create the
 node with the ``--listen=tor`` option. This requires a Tor configuration that

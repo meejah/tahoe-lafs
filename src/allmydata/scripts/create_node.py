@@ -1,10 +1,11 @@
 import os
+from twisted.internet import reactor, defer
 from twisted.python.usage import UsageError
 from allmydata.scripts.common import BasedirOptions, NoDefaultBasedirOptions
 from allmydata.scripts.default_nodedir import _default_nodedir
 from allmydata.util.assertutil import precondition
 from allmydata.util.encodingutil import listdir_unicode, argv_to_unicode, quote_local_unicode_path
-from allmydata.util import fileutil, iputil
+from allmydata.util import fileutil, i2p_provider, iputil, tor_provider
 
 
 dummy_tac = """
@@ -27,6 +28,28 @@ WHERE_OPTS = [
      "Hostname to automatically set --location/--port when --listen=tcp"),
     ("listen", None, "tcp",
      "Comma-separated list of listener types (tcp,tor,i2p,none)."),
+]
+
+TOR_OPTS = [
+    ("tor-control-port", None, None,
+     "Tor's control port endpoint descriptor string (e.g. tcp:127.0.0.1:9051 or unix:/var/run/tor/control)"),
+    ("tor-executable", None, None,
+     "The 'tor' executable to run (default is to search $PATH)."),
+]
+
+TOR_FLAGS = [
+    ("tor-launch", None, "Launch a tor instead of connecting to a tor control port."),
+]
+
+I2P_OPTS = [
+    ("i2p-sam-port", None, None,
+     "I2P's SAM API port endpoint descriptor string (e.g. tcp:127.0.0.1:7656)"),
+    ("i2p-executable", None, None,
+     "(future) The 'i2prouter' executable to run (default is to search $PATH)."),
+]
+
+I2P_FLAGS = [
+    ("i2p-launch", None, "(future) Launch an I2P router instead of connecting to a SAM API port."),
 ]
 
 def validate_where_options(o):
@@ -67,10 +90,52 @@ def validate_where_options(o):
             if 'tcp' not in listeners and o['hostname']:
                 raise UsageError("--listen= must be tcp to use --hostname")
 
+def validate_tor_options(o):
+    use_tor = "tor" in o["listen"].split(",")
+    if use_tor or any((o["tor-launch"], o["tor-control-port"])):
+        if tor_provider._import_txtorcon() is None:
+            raise UsageError(
+                "Specifying any Tor options requires the 'txtorcon' module"
+            )
+    if not use_tor:
+        if o["tor-launch"]:
+            raise UsageError("--tor-launch requires --listen=tor")
+        if o["tor-control-port"]:
+            raise UsageError("--tor-control-port= requires --listen=tor")
+    if o["tor-launch"] and o["tor-control-port"]:
+        raise UsageError("use either --tor-launch or --tor-control-port=, not both")
+
+def validate_i2p_options(o):
+    use_i2p = "i2p" in o["listen"].split(",")
+    if use_i2p or any((o["i2p-launch"], o["i2p-sam-port"])):
+        if i2p_provider._import_txi2p() is None:
+            raise UsageError(
+                "Specifying any I2P options requires the 'txi2p' module"
+            )
+    if not use_i2p:
+        if o["i2p-launch"]:
+            raise UsageError("--i2p-launch requires --listen=i2p")
+        if o["i2p-sam-port"]:
+            raise UsageError("--i2p-sam-port= requires --listen=i2p")
+    if o["i2p-launch"] and o["i2p-sam-port"]:
+        raise UsageError("use either --i2p-launch or --i2p-sam-port=, not both")
+    if o["i2p-launch"]:
+        raise UsageError("--i2p-launch is under development")
+
 class _CreateBaseOptions(BasedirOptions):
     optFlags = [
         ("hide-ip", None, "prohibit any configuration that would reveal the node's IP address"),
         ]
+
+    def postOptions(self):
+        super(_CreateBaseOptions, self).postOptions()
+        if self['hide-ip']:
+            if tor_provider._import_txtorcon() is None and i2p_provider._import_txi2p() is None:
+                raise UsageError(
+                    "--hide-ip was specified but neither 'txtorcon' nor 'txi2p' "
+                    "are installed.\nTo do so:\n   pip install tahoe-lafs[tor]\nor\n"
+                    "   pip install tahoe-lafs[i2p]"
+                )
 
 class CreateClientOptions(_CreateBaseOptions):
     synopsis = "[options] [NODEDIR]"
@@ -80,6 +145,7 @@ class CreateClientOptions(_CreateBaseOptions):
         # we provide 'create-node'-time options for the most common
         # configuration knobs. The rest can be controlled by editing
         # tahoe.cfg before node startup.
+
         ("nickname", "n", None, "Specify the nickname for this node."),
         ("introducer", "i", None, "Specify the introducer FURL to use."),
         ("webport", "p", "tcp:3456:interface=127.0.0.1",
@@ -96,26 +162,34 @@ class CreateClientOptions(_CreateBaseOptions):
 class CreateNodeOptions(CreateClientOptions):
     optFlags = [
         ("no-storage", None, "Do not offer storage service to other nodes."),
-        ]
+        ] + TOR_FLAGS + I2P_FLAGS
+
     synopsis = "[options] [NODEDIR]"
     description = "Create a full Tahoe-LAFS node (client+server)."
-    optParameters = CreateClientOptions.optParameters + WHERE_OPTS
+    optParameters = CreateClientOptions.optParameters + WHERE_OPTS + TOR_OPTS + I2P_OPTS
 
     def parseArgs(self, basedir=None):
         CreateClientOptions.parseArgs(self, basedir)
         validate_where_options(self)
+        validate_tor_options(self)
+        validate_i2p_options(self)
+
 
 class CreateIntroducerOptions(NoDefaultBasedirOptions):
     subcommand_name = "create-introducer"
     description = "Create a Tahoe-LAFS introducer."
     optFlags = [
         ("hide-ip", None, "prohibit any configuration that would reveal the node's IP address"),
-    ]
-    optParameters = NoDefaultBasedirOptions.optParameters + WHERE_OPTS
+    ] + TOR_FLAGS + I2P_FLAGS
+    optParameters = NoDefaultBasedirOptions.optParameters + WHERE_OPTS + TOR_OPTS + I2P_OPTS
     def parseArgs(self, basedir=None):
         NoDefaultBasedirOptions.parseArgs(self, basedir)
         validate_where_options(self)
+        validate_tor_options(self)
+        validate_i2p_options(self)
 
+
+@defer.inlineCallbacks
 def write_node_config(c, config):
     # this is shared between clients and introducers
     c.write("# -*- mode: conf; coding: utf-8 -*-\n")
@@ -130,6 +204,7 @@ def write_node_config(c, config):
     if config["hide-ip"]:
         c.write("[connections]\n")
         c.write("tcp = tor\n")
+        c.write("\n")
 
     c.write("[node]\n")
     nickname = argv_to_unicode(config.get("nickname") or "")
@@ -147,26 +222,39 @@ def write_node_config(c, config):
     c.write("web.static = public_html\n")
 
     listeners = config['listen'].split(",")
+
+    tor_config = {}
+    i2p_config = {}
+    tub_ports = []
+    tub_locations = []
     if listeners == ["none"]:
         c.write("tub.port = disabled\n")
         c.write("tub.location = disabled\n")
     else:
         if "tor" in listeners:
-            raise NotImplementedError("--listen=tor is under development, "
-                                      "see ticket #2490 for details")
+            (tor_config, tor_port, tor_location) = \
+                         yield tor_provider.create_onion(reactor, config)
+            tub_ports.append(tor_port)
+            tub_locations.append(tor_location)
         if "i2p" in listeners:
-            raise NotImplementedError("--listen=i2p is under development, "
-                                      "see ticket #2490 for details")
+            (i2p_config, i2p_port, i2p_location) = \
+                         yield i2p_provider.create_dest(reactor, config)
+            tub_ports.append(i2p_port)
+            tub_locations.append(i2p_location)
         if "tcp" in listeners:
             if config["port"]: # --port/--location are a pair
-                c.write("tub.port = %s\n" % config["port"].encode('utf-8'))
-                c.write("tub.location = %s\n" % config["location"].encode('utf-8'))
+                tub_ports.append(config["port"].encode('utf-8'))
+                tub_locations.append(config["location"].encode('utf-8'))
             else:
                 assert "hostname" in config
                 hostname = config["hostname"]
                 new_port = iputil.allocate_tcp_port()
-                c.write("tub.port = tcp:%s\n" % new_port)
-                c.write("tub.location = tcp:%s:%s\n" % (hostname.encode('utf-8'), new_port))
+                tub_ports.append("tcp:%s" % new_port)
+                tub_locations.append("tcp:%s:%s" % (hostname.encode('utf-8'),
+                                                    new_port))
+        c.write("tub.port = %s\n" % ",".join(tub_ports))
+        c.write("tub.location = %s\n" % ",".join(tub_locations))
+    c.write("\n")
 
     c.write("#log_gatherer.furl =\n")
     c.write("#timeout.keepalive =\n")
@@ -174,6 +262,19 @@ def write_node_config(c, config):
     c.write("#ssh.port = 8022\n")
     c.write("#ssh.authorized_keys_file = ~/.ssh/authorized_keys\n")
     c.write("\n")
+
+    if tor_config:
+        c.write("[tor]\n")
+        for key, value in tor_config.items():
+            c.write("%s = %s\n" % (key, value))
+        c.write("\n")
+
+    if i2p_config:
+        c.write("[i2p]\n")
+        for key, value in i2p_config.items():
+            c.write("%s = %s\n" % (key, value))
+        c.write("\n")
+
 
 def write_client_config(c, config):
     c.write("[client]\n")
@@ -207,6 +308,7 @@ def write_client_config(c, config):
     c.write("enabled = false\n")
     c.write("\n")
 
+@defer.inlineCallbacks
 def create_node(config):
     out = config.stdout
     err = config.stderr
@@ -219,25 +321,24 @@ def create_node(config):
             print >>err, "The base directory %s is not empty." % quote_local_unicode_path(basedir)
             print >>err, "To avoid clobbering anything, I am going to quit now."
             print >>err, "Please use a different directory, or empty this one."
-            return -1
+            defer.returnValue(-1)
         # we're willing to use an empty directory
     else:
         os.mkdir(basedir)
     write_tac(basedir, "client")
 
+    fileutil.make_dirs(os.path.join(basedir, "private"), 0700)
     with open(os.path.join(basedir, "tahoe.cfg"), "w") as c:
-        write_node_config(c, config)
+        yield write_node_config(c, config)
         write_client_config(c, config)
 
-    from allmydata.util import fileutil
-    fileutil.make_dirs(os.path.join(basedir, "private"), 0700)
     print >>out, "Node created in %s" % quote_local_unicode_path(basedir)
     if not config.get("introducer", ""):
         print >>out, " Please set [client]introducer.furl= in tahoe.cfg!"
         print >>out, " The node cannot connect to a grid without it."
     if not config.get("nickname", ""):
         print >>out, " Please set [node]nickname= in tahoe.cfg"
-    return 0
+    defer.returnValue(0)
 
 def create_client(config):
     config['no-storage'] = True
@@ -245,6 +346,7 @@ def create_client(config):
     return create_node(config)
 
 
+@defer.inlineCallbacks
 def create_introducer(config):
     out = config.stdout
     err = config.stderr
@@ -257,18 +359,18 @@ def create_introducer(config):
             print >>err, "The base directory %s is not empty." % quote_local_unicode_path(basedir)
             print >>err, "To avoid clobbering anything, I am going to quit now."
             print >>err, "Please use a different directory, or empty this one."
-            return -1
+            defer.returnValue(-1)
         # we're willing to use an empty directory
     else:
         os.mkdir(basedir)
     write_tac(basedir, "introducer")
 
-    c = open(os.path.join(basedir, "tahoe.cfg"), "w")
-    write_node_config(c, config)
-    c.close()
+    fileutil.make_dirs(os.path.join(basedir, "private"), 0700)
+    with open(os.path.join(basedir, "tahoe.cfg"), "w") as c:
+        yield write_node_config(c, config)
 
     print >>out, "Introducer created in %s" % quote_local_unicode_path(basedir)
-    return 0
+    defer.returnValue(0)
 
 
 subCommands = [
