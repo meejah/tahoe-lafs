@@ -1,6 +1,6 @@
 
 from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler, DirCreatedEvent, FileCreatedEvent, FileModifiedEvent
+from watchdog.events import FileSystemEventHandler, DirCreatedEvent, FileCreatedEvent
 
 
 from twisted.internet import reactor
