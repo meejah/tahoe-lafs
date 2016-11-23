@@ -17,8 +17,6 @@ from twisted.trial import unittest
 from allmydata.frontends.magic_folder import get_inotify_module
 inotify = get_inotify_module()
 
-NO_READ_ONLY_SKIP = "Cannot reliably detect read-only events."
-
 
 class INotifyTests(unittest.TestCase):
     """
@@ -47,7 +45,7 @@ class INotifyTests(unittest.TestCase):
                 raise inotify.INotifyError()
         self.patch(inotify.INotify, '_inotify', FakeINotify())
         self.assertRaises(inotify.INotifyError, inotify.INotify)
-    test_initializationErrors.skip = NO_READ_ONLY_SKIP
+    test_initializationErrors.skip = True
 
 
     def _notificationTest(self, mask, operation, expectedPath=None, ignore_count=0):
@@ -102,7 +100,7 @@ class INotifyTests(unittest.TestCase):
             path.getContent()
 
         return self._notificationTest(inotify.IN_ACCESS, operation)
-    test_access.skip = NO_READ_ONLY_SKIP
+    test_access.skip = True
 
 
     def test_modify(self):
@@ -152,7 +150,7 @@ class INotifyTests(unittest.TestCase):
             path.open("r").close()
 
         return self._notificationTest(inotify.IN_CLOSE_NOWRITE, operation)
-    test_closeNoWrite.skip = NO_READ_ONLY_SKIP
+    test_closeNoWrite.skip = True
 
 
     def test_open(self):
@@ -164,7 +162,7 @@ class INotifyTests(unittest.TestCase):
             path.open("w").close()
 
         return self._notificationTest(inotify.IN_OPEN, operation)
-    test_open.skip = NO_READ_ONLY_SKIP
+    test_open.skip = True
 
 
     def test_movedFrom(self):
@@ -177,7 +175,7 @@ class INotifyTests(unittest.TestCase):
             path.moveTo(filepath.FilePath(self.mktemp()))
 
         return self._notificationTest(inotify.IN_MOVED_FROM, operation)
-    test_movedFrom.skip = NO_READ_ONLY_SKIP
+    test_movedFrom.skip = True
 
 
     def test_movedTo(self):
@@ -191,7 +189,7 @@ class INotifyTests(unittest.TestCase):
             p.moveTo(path)
 
         return self._notificationTest(inotify.IN_MOVED_TO, operation)
-    test_movedTo.skip = NO_READ_ONLY_SKIP
+    test_movedTo.skip = True
 
 
     def test_create(self):
@@ -203,7 +201,7 @@ class INotifyTests(unittest.TestCase):
             path.open("w").close()
 
         return self._notificationTest(inotify.IN_CREATE, operation)
-    test_create.skip = NO_READ_ONLY_SKIP
+    test_create.skip = True
 
 
     def test_delete(self):
@@ -236,7 +234,7 @@ class INotifyTests(unittest.TestCase):
 
         return self._notificationTest(
             inotify.IN_DELETE_SELF, operation, expectedPath=self.dirname)
-    test_deleteSelf.skip = NO_READ_ONLY_SKIP
+    test_deleteSelf.skip = True
 
 
     def test_moveSelf(self):
@@ -249,7 +247,7 @@ class INotifyTests(unittest.TestCase):
 
         return self._notificationTest(
             inotify.IN_MOVE_SELF, operation, expectedPath=self.dirname)
-    test_moveSelf.skip = NO_READ_ONLY_SKIP
+    test_moveSelf.skip = True
 
 
     def test_simpleSubdirectoryAutoAdd(self):
@@ -276,7 +274,7 @@ class INotifyTests(unittest.TestCase):
         d = defer.Deferred()
         subdir.createDirectory()
         return d
-    test_simpleSubdirectoryAutoAdd.skip = NO_READ_ONLY_SKIP
+    test_simpleSubdirectoryAutoAdd.skip = True
 
 
     def test_simpleDeleteDirectory(self):
@@ -318,7 +316,7 @@ class INotifyTests(unittest.TestCase):
         d = defer.Deferred()
         subdir.createDirectory()
         return d
-    test_simpleDeleteDirectory.skip = NO_READ_ONLY_SKIP
+    test_simpleDeleteDirectory.skip = True
 
 
     def test_ignoreDirectory(self):
@@ -329,7 +327,7 @@ class INotifyTests(unittest.TestCase):
         self.assertTrue(self.inotify._isWatched(self.dirname))
         self.inotify.ignore(self.dirname)
         self.assertFalse(self.inotify._isWatched(self.dirname))
-    test_ignoreDirectory.skip = NO_READ_ONLY_SKIP
+    test_ignoreDirectory.skip = True
 
 
     def test_humanReadableMask(self):
@@ -345,7 +343,7 @@ class INotifyTests(unittest.TestCase):
         self.assertEqual(
             set(inotify.humanReadableMask(checkMask)),
             set(['close_write', 'access', 'open']))
-    test_humanReadableMask.skip = NO_READ_ONLY_SKIP
+    test_humanReadableMask.skip = True
 
 
     def test_recursiveWatch(self):
@@ -363,7 +361,7 @@ class INotifyTests(unittest.TestCase):
         self.inotify.watch(self.dirname, recursive=True)
         for d in dirs:
             self.assertTrue(self.inotify._isWatched(d))
-    test_recursiveWatch.skip = NO_READ_ONLY_SKIP
+    test_recursiveWatch.skip = True
 
 
     def test_connectionLostError(self):
@@ -438,7 +436,7 @@ class INotifyTests(unittest.TestCase):
         expectedPath.remove()
 
         return notified
-    test_seriesOfWatchAndIgnore.skip = NO_READ_ONLY_SKIP
+    test_seriesOfWatchAndIgnore.skip = True
 
 
     def test_ignoreFilePath(self):
@@ -475,7 +473,7 @@ class INotifyTests(unittest.TestCase):
         expectedPath2.remove()
 
         return notified
-    test_ignoreFilePath.skip = NO_READ_ONLY_SKIP
+    test_ignoreFilePath.skip = True
 
 
     def test_ignoreNonWatchedFile(self):
@@ -487,7 +485,7 @@ class INotifyTests(unittest.TestCase):
         expectedPath.touch()
 
         self.assertRaises(KeyError, self.inotify.ignore, expectedPath)
-    test_ignoreNonWatchedFile.skip = NO_READ_ONLY_SKIP
+    test_ignoreNonWatchedFile.skip = True
 
 
     def test_complexSubdirectoryAutoAdd(self):
