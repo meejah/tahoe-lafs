@@ -14,9 +14,8 @@ from twisted.internet import defer, reactor
 from twisted.python import filepath
 from twisted.trial import unittest
 
-#from allmydata.frontends.magic_folder import get_inotify_module
-#inotify = get_inotify_module()
-from allmydata.watchdog import inotify
+from allmydata.frontends.magic_folder import get_inotify_module
+inotify = get_inotify_module()
 
 NO_READ_ONLY_SKIP = "Cannot reliably detect read-only events."
 
