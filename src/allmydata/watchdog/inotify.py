@@ -8,7 +8,6 @@ from watchdog.events import (
 
 from twisted.internet import reactor
 from twisted.python.filepath import FilePath
-from twisted.python import log as twlog
 from allmydata.util.fileutil import abspath_expanduser_unicode
 
 from allmydata.util.pollmixin import PollMixin
