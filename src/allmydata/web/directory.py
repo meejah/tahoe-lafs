@@ -964,6 +964,7 @@ class ManifestResults(rend.Page, ReloadMixin):
 
     def renderHTTP(self, ctx):
         req = inevow.IRequest(ctx)
+        req.setHeader("Referrer-Policy", "no-referrer")
         output = get_arg(req, "output", "html").lower()
         if output == "text":
             return self.text(req)
@@ -1054,6 +1055,7 @@ class DeepSizeResults(rend.Page):
 
     def renderHTTP(self, ctx):
         req = inevow.IRequest(ctx)
+        req.setHeader("Referrer-Policy", "no-referrer")
         output = get_arg(req, "output", "html").lower()
         req.setHeader("content-type", "text/plain")
         if output == "json":
@@ -1082,6 +1084,7 @@ class DeepStatsResults(rend.Page):
 
     def renderHTTP(self, ctx):
         # JSON only
+        inevow.IRequest(ctx).setHeader("Referrer-Policy", "no-referrer")
         inevow.IRequest(ctx).setHeader("content-type", "text/plain")
         s = self.monitor.get_status().copy()
         s["finished"] = self.monitor.is_finished()

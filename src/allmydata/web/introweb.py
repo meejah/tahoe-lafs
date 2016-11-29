@@ -27,6 +27,7 @@ class IntroducerRoot(rend.Page):
 
     def renderHTTP(self, ctx):
         t = get_arg(inevow.IRequest(ctx), "t")
+        inevow.IRequest(ctx).setHeader("Referrer-Policy", "no-referrer")
         if t == "json":
             return self.render_JSON(ctx)
         return rend.Page.renderHTTP(self, ctx)

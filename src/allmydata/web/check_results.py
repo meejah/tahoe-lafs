@@ -189,6 +189,7 @@ class LiteralCheckResultsRenderer(rend.Page, ResultsBase):
         rend.Page.__init__(self, client)
 
     def renderHTTP(self, ctx):
+        inevow.IRequest(ctx).setHeader("Referrer-Policy", "no-referrer")
         if self.want_json(ctx):
             return self.json(ctx)
         return rend.Page.renderHTTP(self, ctx)
@@ -208,6 +209,7 @@ class LiteralCheckResultsRenderer(rend.Page, ResultsBase):
 class CheckerBase:
 
     def renderHTTP(self, ctx):
+        inevow.IRequest(ctx).setHeader("Referrer-Policy", "no-referrer")
         if self.want_json(ctx):
             return self.json(ctx)
         return rend.Page.renderHTTP(self, ctx)
@@ -334,6 +336,7 @@ class DeepCheckResultsRenderer(rend.Page, ResultsBase, ReloadMixin):
                            http.NOT_FOUND)
 
     def renderHTTP(self, ctx):
+        inevow.IRequest(ctx).setHeader("Referrer-Policy", "no-referrer")
         if self.want_json(ctx):
             return self.json(ctx)
         return rend.Page.renderHTTP(self, ctx)
@@ -485,6 +488,7 @@ class DeepCheckAndRepairResultsRenderer(rend.Page, ResultsBase, ReloadMixin):
                            http.NOT_FOUND)
 
     def renderHTTP(self, ctx):
+        inevow.IRequest(ctx).setHeader("Referrer-Policy", "no-referrer")
         if self.want_json(ctx):
             return self.json(ctx)
         return rend.Page.renderHTTP(self, ctx)

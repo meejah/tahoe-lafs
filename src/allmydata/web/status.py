@@ -149,6 +149,10 @@ class UploadStatusPage(UploadResultsRendererMixin, rend.Page):
         rend.Page.__init__(self, data)
         self.upload_status = data
 
+    def renderHTTP(self, ctx):
+        inevow.IRequest(ctx).setHeader("referrer-policy", "no-referrer")
+        return rend.Page.renderHTTP(self, ctx)
+
     def upload_results(self):
         return defer.maybeDeferred(self.upload_status.get_results)
 
@@ -201,6 +205,10 @@ class UploadStatusPage(UploadResultsRendererMixin, rend.Page):
 
 class DownloadResultsRendererMixin(RateAndTimeMixin):
     # this requires a method named 'download_results'
+
+    def renderHTTP(self, ctx):
+        inevow.IRequest(ctx).setHeader("referrer-policy", "no-referrer")
+        return rend.Page.renderHTTP(self, ctx)
 
     def render_servermap(self, ctx, data):
         d = self.download_results()
@@ -677,6 +685,10 @@ class RetrieveStatusPage(rend.Page, RateAndTimeMixin):
         rend.Page.__init__(self, data)
         self.retrieve_status = data
 
+    def renderHTTP(self, ctx):
+        inevow.IRequest(ctx).setHeader("referrer-policy", "no-referrer")
+        return rend.Page.renderHTTP(self, ctx)
+
     def render_started(self, ctx, data):
         started_s = render_time(data.get_started())
         return started_s
@@ -762,6 +774,10 @@ class PublishStatusPage(rend.Page, RateAndTimeMixin):
     def __init__(self, data):
         rend.Page.__init__(self, data)
         self.publish_status = data
+
+    def renderHTTP(self, ctx):
+        inevow.IRequest(ctx).setHeader("referrer-policy", "no-referrer")
+        return rend.Page.renderHTTP(self, ctx)
 
     def render_started(self, ctx, data):
         started_s = render_time(data.get_started())
@@ -872,6 +888,10 @@ class MapupdateStatusPage(rend.Page, RateAndTimeMixin):
         rend.Page.__init__(self, data)
         self.update_status = data
 
+    def renderHTTP(self, ctx):
+        inevow.IRequest(ctx).setHeader("referrer-policy", "no-referrer")
+        return rend.Page.renderHTTP(self, ctx)
+
     def render_started(self, ctx, data):
         started_s = render_time(data.get_started())
         return started_s
@@ -960,6 +980,7 @@ class Status(rend.Page):
 
     def renderHTTP(self, ctx):
         req = inevow.IRequest(ctx)
+        req.setHeader("Referrer-Policy", "no-referrer")
         t = get_arg(req, "t")
         if t == "json":
             return self.json(req)
@@ -1112,6 +1133,7 @@ class HelperStatus(rend.Page):
 
     def renderHTTP(self, ctx):
         req = inevow.IRequest(ctx)
+        req.setHeader("Referrer-Policy", "no-referrer")
         t = get_arg(req, "t")
         if t == "json":
             return self.render_JSON(req)
@@ -1163,6 +1185,7 @@ class Statistics(rend.Page):
 
     def renderHTTP(self, ctx):
         req = inevow.IRequest(ctx)
+        req.setHeader("Referrer-Policy", "no-referrer")
         t = get_arg(req, "t")
         if t == "json":
             stats = self.provider.get_stats()

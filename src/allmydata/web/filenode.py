@@ -402,6 +402,7 @@ class FileDownloader(rend.Page):
 
     def renderHTTP(self, ctx):
         req = IRequest(ctx)
+        req.setHeader("Referrer-Policy", "no-referrer")
         gte = static.getTypeAndEncoding
         ctype, encoding = gte(self.filename,
                               static.File.contentTypes,

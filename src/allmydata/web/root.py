@@ -113,6 +113,7 @@ class FileHandler(rend.Page):
         return filenode.FileNodeDownloadHandler(self.client, node)
 
     def renderHTTP(self, ctx):
+        IRequest(ctx).setHeader("Referrer-Policy", "no-referrer")
         raise WebError("/file must be followed by a file-cap and a name",
                        http.NOT_FOUND)
 
@@ -164,6 +165,10 @@ class Root(rend.Page):
         static_dir = resource_filename("allmydata.web", "static")
         for filen in os.listdir(static_dir):
             self.putChild(filen, nevow_File(os.path.join(static_dir, filen)))
+
+    def renderHTTP(self, ctx):
+        IRequest(ctx).setHeader("Referrer-Policy", "no-referrer")
+        return rend.Page.renderHTTP(self, ctx)
 
     def child_helper_status(self, ctx):
         # the Helper isn't attached until after the Tub starts, so this child

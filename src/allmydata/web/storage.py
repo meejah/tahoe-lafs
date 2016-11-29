@@ -21,6 +21,7 @@ class StorageStatus(rend.Page):
 
     def renderHTTP(self, ctx):
         req = inevow.IRequest(ctx)
+        req.setHeader("Referrer-Policy", "no-referrer")
         t = get_arg(req, "t")
         if t == "json":
             return self.render_JSON(req)

@@ -336,6 +336,7 @@ class MyExceptionHandler(appserver.DefaultExceptionHandler):
         req.finishRequest(False)
 
     def renderHTTP_exception(self, ctx, f):
+        inevow.IRequest(ctx).setHeader("Referrer-Policy", "no-referrer")
         try:
             text, code = humanize_failure(f)
         except:
@@ -374,6 +375,7 @@ class RenderMixin:
 
     def renderHTTP(self, ctx):
         request = IRequest(ctx)
+        request.setHeader("Referrer-Policy", "no-referrer")
 
         # if we were using regular twisted.web Resources (and the regular
         # twisted.web.server.Request object) then we could implement
