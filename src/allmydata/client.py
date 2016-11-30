@@ -617,6 +617,12 @@ class Client(node.Node, pollmixin.PollMixin):
     def get_cancel_secret(self):
         return self._secret_holder.get_cancel_secret()
 
+    def when_ready(self):
+        print("real client when_ready")
+        threshold = min(self.encoding_params["k"],
+                        self.encoding_params["happy"] + 1)
+        return self.storage_broker.when_connected_enough(threshold)
+
     def debug_wait_for_client_connections(self, num_clients):
         """Return a Deferred that fires (with None) when we have connections
         to the given number of peers. Useful for tests that set up a
