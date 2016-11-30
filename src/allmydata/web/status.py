@@ -951,19 +951,25 @@ class MapupdateStatusPage(rend.Page, RateAndTimeMixin):
 
 
 class ReadyStatus(rend.Page):
+    """
+    Provides an endpoint that returns "OK" when this node is "ready".
+    """
 
     def __init__(self, when_ready):
-        self.when_ready = when_ready
+        self._when_ready = when_ready
 
     def renderHTTP(self, ctx):
-        d = self.when_ready()
+        d = self._when_ready()
         req = inevow.IRequest(ctx)
+        req.setHeader("content-type", "text/plain")
+
         def is_ready(ign):
             req.write("OK")
             req.finish()
         d.addCallback(is_ready)
         d.addCallback(lambda ign: req.deferred)
         return d
+
 
 class Status(rend.Page):
     docFactory = getxmlfile("status.xhtml")

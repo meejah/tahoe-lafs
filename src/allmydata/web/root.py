@@ -154,7 +154,7 @@ class Root(rend.Page):
         self.child_uri = URIHandler(client)
         self.child_cap = URIHandler(client)
 
-        self.child_ready_status = status.ReadyStatus(client.when_ready)
+        self.child_is_ready = status.ReadyStatus(client.when_ready)
 
         # handler for "/magic_folder" URIs
         self.child_magic_folder = magic_folder.MagicFolderWebApi(client)
