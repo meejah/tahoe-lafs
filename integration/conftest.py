@@ -280,7 +280,8 @@ def storage_nodes(reactor, temp_dir, introducer, introducer_furl, flog_gatherer,
             pytest.blockon(
                 _create_node(
                     reactor, request, temp_dir, introducer_furl, flog_gatherer, name,
-                    web_port=None, storage=True,
+                    web_port="tcp:{}:interface=localhost".format(8880 + x),
+                    storage=True,
                 )
             )
         )

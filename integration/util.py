@@ -4,9 +4,11 @@ from os import mkdir
 from os.path import exists, join
 from StringIO import StringIO
 
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import Deferred, inlineCallbacks
+from twisted.internet.task import deferLater
 from twisted.internet.protocol import ProcessProtocol
 from twisted.internet.error import ProcessExitedAlready, ProcessDone
+from twisted.web.client import Agent, readBody
 
 import pytest
 
@@ -99,10 +101,8 @@ class _MagicTextProtocol(ProcessProtocol):
         sys.stdout.write(data)
 
 
-def _run_node(reactor, node_dir, request, magic_text):
-    if magic_text is None:
-        magic_text = "client running"
-    protocol = _MagicTextProtocol(magic_text)
+def _run_node(reactor, node_dir, request, has_web_port):
+    protocol = _DumpOutputProtocol(None)
 
     # on windows, "tahoe start" means: run forever in the foreground,
     # but on linux it means daemonize. "tahoe run" is consistent
@@ -116,20 +116,48 @@ def _run_node(reactor, node_dir, request, magic_text):
             node_dir,
         ),
     )
-    process.exited = protocol.exited
+    process.exited = protocol.done
+
+    agent = Agent(reactor)
+
+    @inlineCallbacks
+    def await_ready():
+        ready = False
+        while not ready:
+            print("looping")
+            yield deferLater(reactor, 0.1, lambda: None)
+            print("waited")
+            try:
+                nodeuri = join(node_dir, 'node.url')
+                with open(nodeuri, 'r') as f:
+                    uri = '{}is_ready'.format(f.read().strip())
+                print("uri is", uri)
+            except IOError as e:
+                print("IOERROR", nodeuri, e)
+                ready = False
+            else:
+                print("requesting", uri)
+                resp = yield agent.request('GET', uri)
+                print("got resp", resp, dir(resp))
+                if resp.code == 200:
+                    text = yield readBody(resp)
+                    print("got text", text, uri)
+                    if text.strip.lower() == 'ok':
+                        ready = True
 
     def cleanup():
         try:
             process.signalProcess('TERM')
-            pytest.blockon(protocol.exited)
+            pytest.blockon(protocol.done)
         except ProcessExitedAlready:
             pass
     request.addfinalizer(cleanup)
 
     # we return the 'process' ITransport instance
-    # XXX abusing the Deferred; should use .when_magic_seen() or something?
-    protocol.magic_seen.addCallback(lambda _: process)
-    return protocol.magic_seen
+    if has_web_port:
+        print("HAS WEB PORT!!", node_dir)
+        pytest.blockon(await_ready())
+    return process
 
 
 def _create_node(reactor, request, temp_dir, introducer_furl, flog_gatherer, name, web_port, storage=True, magic_text=None):
@@ -185,7 +213,7 @@ shares.total = 4
     'log_furl': flog_gatherer,
 })
 
-    return _run_node(reactor, node_dir, request, magic_text)
+    return _run_node(reactor, node_dir, request, web_port is not '')
 
 
 def await_file_contents(path, contents, timeout=15):
