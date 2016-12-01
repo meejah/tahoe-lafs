@@ -30,7 +30,7 @@ class _DumpOutputProtocol(ProcessProtocol):
         self._out.write(data)
 
 
-@inlineCallbacks    
+@inlineCallbacks
 def spawn_client(reactor, node_dir):
     protocol = _DumpOutputProtocol(None)
 
@@ -71,7 +71,12 @@ def spawn_client(reactor, node_dir):
                 if resp.code == 200:
                     text = yield readBody(resp)
                     print("got text", text, uri)
-                    if text.strip.lower() == 'ok':
-                        ready = True
+                    if isinstance(text, str):
+                        if text.strip.lower() == 'ok':
+                            ready = True
+                            defer.returnValue(ready)
+                        ready = False
+                        defer.returnValue(ready)
 
     yield await_ready()
+    defer.returnValue(process)

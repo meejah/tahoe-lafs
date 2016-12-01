@@ -620,8 +620,10 @@ class Client(node.Node, pollmixin.PollMixin):
     def when_ready(self):
         print("real client when_ready")
         threshold = min(self.encoding_params["k"],
-                        self.encoding_params["happy"] + 1)
-        return self.storage_broker.when_connected_enough(threshold)
+                        self.encoding_params["happy"])
+        print("awaiting threshold %s" % threshold)
+        print("end %s "% self.encoding_params["happy"])
+        return self.storage_broker.when_connected_enough(1)
 
     def debug_wait_for_client_connections(self, num_clients):
         """Return a Deferred that fires (with None) when we have connections
