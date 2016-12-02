@@ -241,9 +241,11 @@ class Provider(service.MultiService):
         return self._tor.default_socks()
 
     @inlineCallbacks
-    def _make_control_endpoint(self, reactor):
+    def _make_control_endpoint(self, reactor, update_status):
         # this will only be called when tahoe.cfg has "[tor] launch = true"
-        (endpoint_desc, _) = yield self._get_launched_tor(reactor)
+        update_status("launching Tor")
+        with self._tor.add_error_suffix(" (while launching Tor)"):
+            (endpoint_desc, _) = yield self._get_launched_tor(reactor)
         tor_control_endpoint = clientFromString(reactor, endpoint_desc)
         returnValue(tor_control_endpoint)
 
