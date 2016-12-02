@@ -104,6 +104,7 @@ class StorageFarmBroker(service.MultiService):
         "threshold".
         """
         d = defer.Deferred()
+        print("when_connected_enough", threshold, d)
         self._threshold_listeners.append( (threshold, d) )
         self._check_connected_high_water_mark()
         return d
@@ -129,12 +130,14 @@ class StorageFarmBroker(service.MultiService):
 
     def _check_connected_high_water_mark(self):
         current = len(self.get_connected_servers())
+        print("check high water", current)
         if current > self._connected_high_water_mark:
             self._connected_high_water_mark = current
 
         remaining = []
         for threshold, d in self._threshold_listeners:
             if self._connected_high_water_mark >= threshold:
+                print("saw enough; triggering callback", d)
                 eventually(d.callback, None)
             else:
                 remaining.append( (threshold, d) )

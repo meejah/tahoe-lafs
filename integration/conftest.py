@@ -361,12 +361,13 @@ def alice_invite(reactor, alice, temp_dir, request):
     # before magic-folder works, we have to stop and restart (this is
     # crappy for the tests -- can we fix it in magic-folder?)
     try:
+        print("stopping alice", alice)
         alice.signalProcess('TERM')
         pytest.blockon(alice.exited)
     except ProcessExitedAlready:
         pass
     magic_text = 'Completed initial Magic Folder scan successfully'
-    pytest.blockon(_run_node(reactor, node_dir, request, magic_text))
+    pytest.blockon(_run_node(reactor, node_dir, request, True))
     return invite
 
 

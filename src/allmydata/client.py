@@ -617,13 +617,25 @@ class Client(node.Node, pollmixin.PollMixin):
     def get_cancel_secret(self):
         return self._secret_holder.get_cancel_secret()
 
-    def when_ready(self):
-        print("real client when_ready")
-        threshold = min(self.encoding_params["k"],
-                        self.encoding_params["happy"])
-        print("awaiting threshold %s" % threshold)
-        print("end %s "% self.encoding_params["happy"])
-        return self.storage_broker.when_connected_enough(1)
+    def when_ready(self, mode='client'):
+        if mode == 'client':
+            print("real client when_ready")
+            threshold = min(
+                self.encoding_params["k"],
+                self.encoding_params["happy"] + 1,  # XXX why +1?
+            )
+            print("awaiting threshold %s" % threshold)
+            d = defer.succeed(None)
+            d.addCallback(lambda ign: self.storage_broker.when_connected_enough(1))#threshold))
+            #if self._magic_folder:
+            #d.addCallback(lambda ign: self._magic_folder.after_first_scan())
+            return d
+
+        elif mode == 'storage':
+            return defer.succeed(None)
+
+        else:
+            raise Exception("Unknown mode '{}'".format(mode))
 
     def debug_wait_for_client_connections(self, num_clients):
         """Return a Deferred that fires (with None) when we have connections

@@ -21,6 +21,7 @@ from allmydata.util.fileutil import precondition_abspath, get_pathinfo, Conflict
 from allmydata.util.assertutil import precondition, _assert
 from allmydata.util.deferredutil import HookMixin
 from allmydata.util.progress import PercentProgress
+from allmydata.util.observer import OneShotObserverList
 from allmydata.util.encodingutil import listdir_filepath, to_filepath, \
      extend_filepath, unicode_from_filepath, unicode_segments_from, \
      quote_filepath, quote_local_unicode_path, quote_output, FilenameEncodingError
@@ -768,6 +769,10 @@ class Downloader(QueueMixin, WriteFileMixin):
         self._umask = umask
         self._status_reporter = status_reporter
         self._poll_interval = poll_interval
+        self._after_first_scan = OneShotObserverList()
+
+    def after_first_scan(self):
+        return self._after_first_scan.when_fired()
 
     @defer.inlineCallbacks
     def start_downloading(self):
@@ -779,6 +784,7 @@ class Downloader(QueueMixin, WriteFileMixin):
             try:
                 data = yield self._scan_remote_collective(scan_self=True)
                 twlog.msg("Completed initial Magic Folder scan successfully")
+                self._after_first_scan.fire(None)
                 x = yield self._begin_processing(data)
                 defer.returnValue(x)
                 break

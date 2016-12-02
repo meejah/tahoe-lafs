@@ -4,7 +4,7 @@ from os import mkdir
 from os.path import exists, join
 from StringIO import StringIO
 
-from twisted.internet.defer import Deferred, inlineCallbacks
+from twisted.internet.defer import Deferred, inlineCallbacks, returnValue
 from twisted.internet.task import deferLater
 from twisted.internet.protocol import ProcessProtocol
 from twisted.internet.error import ProcessExitedAlready, ProcessDone
@@ -103,22 +103,23 @@ class _MagicTextProtocol(ProcessProtocol):
         sys.stdout.write(data)
 
 
+@inlineCallbacks
 def _run_node(reactor, node_dir, request, has_web_port):
 
-    d = spawn_client(reactor, node_dir)
-    def cleanup(process):
+    assert has_web_port
+    process = yield spawn_client(reactor, node_dir)
+    print("got process", process)
+
+    def cleanup():
+        print("cleanup", process)
         try:
             process.signalProcess('TERM')
-            pytest.blockon(protocol.done)
+            # .exited set by spawn_client()
+            pytest.blockon(process.exited)
         except ProcessExitedAlready:
             pass
-
-    # we return the 'process' ITransport instance
-    if has_web_port:
-        print("HAS WEB PORT!!", node_dir)
-        pytest.blockon(d)
-    process = None
-    return process
+    request.addfinalizer(cleanup)
+    returnValue(process)
 
 
 def _create_node(reactor, request, temp_dir, introducer_furl, flog_gatherer, name, web_port, storage=True, magic_text=None):

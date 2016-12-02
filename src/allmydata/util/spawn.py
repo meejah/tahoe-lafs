@@ -4,7 +4,7 @@ from os.path import join
 
 from twisted.web.client import Agent, readBody
 from twisted.internet.protocol import ProcessProtocol
-from twisted.internet.defer import Deferred, inlineCallbacks
+from twisted.internet.defer import Deferred, inlineCallbacks, returnValue
 from twisted.internet.error import ProcessDone
 from twisted.internet.task import deferLater
 
@@ -49,34 +49,26 @@ def spawn_client(reactor, node_dir):
     process.exited = protocol.done
     agent = Agent(reactor)
 
-    @inlineCallbacks
-    def await_ready():
-        ready = False
-        while not ready:
-            print("looping")
-            yield deferLater(reactor, 0.1, lambda: None)
-            print("waited")
-            try:
-                nodeuri = join(node_dir, 'node.url')
-                with open(nodeuri, 'r') as f:
-                    uri = '{}is_ready'.format(f.read().strip())
-                print("uri is", uri)
-            except IOError as e:
-                print("IOERROR", nodeuri, e)
-                ready = False
-            else:
-                print("requesting", uri)
-                resp = yield agent.request('GET', uri)
-                print("got resp", resp, dir(resp))
-                if resp.code == 200:
-                    text = yield readBody(resp)
-                    print("got text", text, uri)
-                    if isinstance(text, str):
-                        if text.strip.lower() == 'ok':
-                            ready = True
-                            defer.returnValue(ready)
-                        ready = False
-                        defer.returnValue(ready)
+    while True:
+        print("looping")
+        yield deferLater(reactor, 0.1, lambda: None)
+        print("waited")
+        try:
+            nodeuri = join(node_dir, 'node.url')
+            with open(nodeuri, 'r') as f:
+                uri = '{}is_ready'.format(f.read().strip())
+            print("uri is", uri)
+        except IOError as e:
+            print("IOERROR", nodeuri, e)
+        else:
+            print("requesting", uri)
+            resp = yield agent.request('GET', uri)
+            print("got resp", resp, dir(resp))
+            if resp.code == 200:
+                text = yield readBody(resp)
+                print("got text", text, uri)
+                if isinstance(text, str):
+                    if text.strip().lower() == 'ok':
+                        break
 
-    yield await_ready()
-    defer.returnValue(process)
+    returnValue(process)

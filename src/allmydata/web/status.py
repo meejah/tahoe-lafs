@@ -959,9 +959,11 @@ class ReadyStatus(rend.Page):
         self._when_ready = when_ready
 
     def renderHTTP(self, ctx):
-        d = self._when_ready()
         req = inevow.IRequest(ctx)
         req.setHeader("content-type", "text/plain")
+        mode = get_arg(req, "mode", "client")
+
+        d = self._when_ready(mode)
 
         def is_ready(ign):
             req.write("OK")
