@@ -87,6 +87,9 @@ class MagicFolder(service.MultiService):
                                      self.set_public_status, poll_interval=downloader_delay)
         self._public_status = (False, ['Magic folder has not yet started'])
 
+    def after_first_scan(self):
+        return self.downloader._after_first_scan.when_fired()
+
     def enable_debug_log(self, enabled=True):
         twlog.msg("enable debug log: %s" % enabled)
         self.uploader.enable_debug_log(enabled)
@@ -770,9 +773,6 @@ class Downloader(QueueMixin, WriteFileMixin):
         self._status_reporter = status_reporter
         self._poll_interval = poll_interval
         self._after_first_scan = OneShotObserverList()
-
-    def after_first_scan(self):
-        return self._after_first_scan.when_fired()
 
     @defer.inlineCallbacks
     def start_downloading(self):

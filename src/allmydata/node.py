@@ -12,6 +12,7 @@ from allmydata.util import fileutil, iputil
 from allmydata.util.assertutil import _assert
 from allmydata.util.fileutil import abspath_expanduser_unicode
 from allmydata.util.encodingutil import get_filesystem_encoding, quote_output
+from allmydata.util.observer import OneShotObserverList
 from allmydata.util import configutil
 from allmydata.util import i2p_provider, tor_provider
 
@@ -145,6 +146,10 @@ class Node(service.MultiService):
 
         self.log("Node constructed. " + get_package_versions_string())
         iputil.increase_rlimits()
+        self._when_running = OneShotObserverList()
+
+    def when_running(self):
+        return self._when_running.when_fired()
 
     def init_tempdir(self):
         tempdir_config = self.get_config("node", "tempdir", "tmp").decode('utf-8')
@@ -534,6 +539,7 @@ class Node(service.MultiService):
         service.MultiService.startService(self)
         self.log("%s running" % self.NODETYPE)
         twlog.msg("%s running" % self.NODETYPE)
+        self._when_running.fire(None)
 
     def stopService(self):
         self.log("Node.stopService")

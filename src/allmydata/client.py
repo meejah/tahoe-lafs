@@ -626,13 +626,13 @@ class Client(node.Node, pollmixin.PollMixin):
             )
             print("awaiting threshold %s" % threshold)
             d = defer.succeed(None)
-            d.addCallback(lambda ign: self.storage_broker.when_connected_enough(1))#threshold))
-            #if self._magic_folder:
-            #d.addCallback(lambda ign: self._magic_folder.after_first_scan())
+            d.addCallback(lambda ign: self.storage_broker.when_connected_enough(threshold))
+            if self._magic_folder:
+                d.addCallback(lambda ign: self._magic_folder.after_first_scan())
             return d
 
-        elif mode == 'storage':
-            return defer.succeed(None)
+        elif mode in ('storage', 'introducer'):
+            return self.when_running()
 
         else:
             raise Exception("Unknown mode '{}'".format(mode))

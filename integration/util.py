@@ -104,10 +104,9 @@ class _MagicTextProtocol(ProcessProtocol):
 
 
 @inlineCallbacks
-def _run_node(reactor, node_dir, request, has_web_port):
-
-    assert has_web_port
-    process = yield spawn_client(reactor, node_dir)
+def _run_node(reactor, node_dir, request, mode):
+    print("about to spawn", node_dir)
+    process = yield spawn_client(reactor, node_dir, mode)
     print("got process", process)
 
     def cleanup():
@@ -122,14 +121,13 @@ def _run_node(reactor, node_dir, request, has_web_port):
     returnValue(process)
 
 
-def _create_node(reactor, request, temp_dir, introducer_furl, flog_gatherer, name, web_port, storage=True, magic_text=None):
+def _create_node(reactor, request, temp_dir, introducer_furl, flog_gatherer, name, mode, web_port, storage=True, magic_text=None):
     """
     Helper to create a single node, run it and return the instance
     spawnProcess returned (ITransport)
     """
     node_dir = join(temp_dir, name)
-    if web_port is None:
-        web_port = ''
+    assert web_port
     if not exists(node_dir):
         print("creating", node_dir)
         mkdir(node_dir)
@@ -175,7 +173,7 @@ shares.total = 4
     'log_furl': flog_gatherer,
 })
 
-    return _run_node(reactor, node_dir, request, web_port is not '')
+    return _run_node(reactor, node_dir, request, mode)
 
 
 def await_file_contents(path, contents, timeout=15):

@@ -236,6 +236,7 @@ log_gatherer.furl = {log_furl}
     # on windows, "tahoe start" means: run forever in the foreground,
     # but on linux it means daemonize. "tahoe run" is consistent
     # between platforms.
+    # XXX should be able to use _create_node() for this (or at least _run_node)
     protocol = _MagicTextProtocol('introducer running')
     process = reactor.spawnProcess(
         protocol,
@@ -280,6 +281,7 @@ def storage_nodes(reactor, temp_dir, introducer, introducer_furl, flog_gatherer,
             pytest.blockon(
                 _create_node(
                     reactor, request, temp_dir, introducer_furl, flog_gatherer, name,
+                    mode='storage',
                     web_port="tcp:{}:interface=localhost".format(8880 + x),
                     storage=True,
                 )
@@ -299,6 +301,7 @@ def alice(reactor, temp_dir, introducer_furl, flog_gatherer, storage_nodes, requ
     process = pytest.blockon(
         _create_node(
             reactor, request, temp_dir, introducer_furl, flog_gatherer, "alice",
+            mode='client',
             web_port="tcp:9980:interface=localhost",
             storage=False,
         )
@@ -316,6 +319,7 @@ def bob(reactor, temp_dir, introducer_furl, flog_gatherer, storage_nodes, reques
     process = pytest.blockon(
         _create_node(
             reactor, request, temp_dir, introducer_furl, flog_gatherer, "bob",
+            mode='client',
             web_port="tcp:9981:interface=localhost",
             storage=False,
         )
@@ -363,11 +367,13 @@ def alice_invite(reactor, alice, temp_dir, request):
     try:
         print("stopping alice", alice)
         alice.signalProcess('TERM')
-        pytest.blockon(alice.exited)
+        try:
+            pytest.blockon(alice.exited)
+        except Exception as e:
+            print("BAD", e)
     except ProcessExitedAlready:
         pass
-    magic_text = 'Completed initial Magic Folder scan successfully'
-    pytest.blockon(_run_node(reactor, node_dir, request, True))
+    pytest.blockon(_run_node(reactor, node_dir, request, 'client'))
     return invite
 
 
@@ -394,12 +400,14 @@ def magic_folder(reactor, alice_invite, alice, bob, temp_dir, request):
     try:
         print("Sending TERM to Bob")
         bob.signalProcess('TERM')
-        pytest.blockon(bob.exited)
+        try:
+            pytest.blockon(bob.exited)
+        except Exception as e:
+            print("BAD", e)
     except ProcessExitedAlready:
         pass
 
-    magic_text = 'Completed initial Magic Folder scan successfully'
-    pytest.blockon(_run_node(reactor, bob_dir, request, magic_text))
+    pytest.blockon(_run_node(reactor, bob_dir, request, 'client'))
     return (join(temp_dir, 'magic-alice'), join(temp_dir, 'magic-bob'))
 
 

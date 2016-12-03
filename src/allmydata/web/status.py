@@ -5,7 +5,8 @@ from twisted.internet import defer
 from nevow import rend, inevow, tags as T
 from allmydata.util import base32, idlib
 from allmydata.web.common import getxmlfile, get_arg, \
-     abbreviate_time, abbreviate_rate, abbreviate_size, plural, compute_rate, render_time
+     abbreviate_time, abbreviate_rate, abbreviate_size, plural, compute_rate, render_time, \
+     WebError
 from allmydata.interfaces import IUploadStatus, IDownloadStatus, \
      IPublishStatus, IRetrieveStatus, IServermapUpdaterStatus
 
@@ -962,6 +963,8 @@ class ReadyStatus(rend.Page):
         req = inevow.IRequest(ctx)
         req.setHeader("content-type", "text/plain")
         mode = get_arg(req, "mode", "client")
+        if mode not in ('client', 'storage', 'introducer'):
+            raise WebError("Illegal mode= arg")
 
         d = self._when_ready(mode)
 

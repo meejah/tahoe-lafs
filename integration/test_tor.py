@@ -119,5 +119,5 @@ shares.total = 2
 })
 
     print("running")
-    yield util._run_node(reactor, node_dir, request, None)
+    yield util._run_node(reactor, node_dir, request, 'client')
     print("okay, launched")

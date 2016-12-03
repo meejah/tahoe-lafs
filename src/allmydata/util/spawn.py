@@ -5,7 +5,7 @@ from os.path import join
 from twisted.web.client import Agent, readBody
 from twisted.internet.protocol import ProcessProtocol
 from twisted.internet.defer import Deferred, inlineCallbacks, returnValue
-from twisted.internet.error import ProcessDone
+from twisted.internet.error import ProcessDone, ConnectionRefusedError
 from twisted.internet.task import deferLater
 
 
@@ -31,7 +31,12 @@ class _DumpOutputProtocol(ProcessProtocol):
 
 
 @inlineCallbacks
-def spawn_client(reactor, node_dir):
+def spawn_client(reactor, node_dir, mode='client'):
+    """
+    :param mode: 'client (the default) or 'storage' or 'introducer'
+    """
+    print("spawn_client", node_dir, mode)
+    assert mode in ('client', 'storage', 'introducer')
     protocol = _DumpOutputProtocol(None)
 
     # on windows, "tahoe start" means: run forever in the foreground,
@@ -56,13 +61,16 @@ def spawn_client(reactor, node_dir):
         try:
             nodeuri = join(node_dir, 'node.url')
             with open(nodeuri, 'r') as f:
-                uri = '{}is_ready'.format(f.read().strip())
+                uri = '{}is_ready?mode={}'.format(f.read().strip(), mode)
             print("uri is", uri)
         except IOError as e:
             print("IOERROR", nodeuri, e)
         else:
             print("requesting", uri)
-            resp = yield agent.request('GET', uri)
+            try:
+                resp = yield agent.request('GET', uri)
+            except ConnectionRefusedError:
+                continue
             print("got resp", resp, dir(resp))
             if resp.code == 200:
                 text = yield readBody(resp)
