@@ -22,6 +22,7 @@ class _DumpOutputProtocol(ProcessProtocol):
     def processExited(self, reason):
         if not isinstance(reason.value, ProcessDone):
             self.done.errback(reason)
+        print("EXITED", reason)
 
     def outReceived(self, data):
         self._out.write(data)
