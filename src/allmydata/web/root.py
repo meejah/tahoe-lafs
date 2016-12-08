@@ -2,9 +2,11 @@ import time, os
 
 from twisted.web import http
 from nevow import rend, url, tags as T
-from nevow.inevow import IRequest
+from nevow.inevow import IRequest, IContainer
 from nevow.static import File as nevow_File # TODO: merge with static.File?
 from nevow.util import resource_filename
+
+from zope.interface import implementer
 
 import allmydata # to display import path
 from allmydata import get_package_versions_string
@@ -323,7 +325,36 @@ class Root(rend.Page):
 
     def data_services(self, ctx, data):
         sb = self.client.get_storage_broker()
-        return sorted(sb.get_known_servers(), key=lambda s: s.get_serverid())
+
+        @implementer(IContainer)
+        class Wrapper(object):
+            def __init__(self, c):
+                self._container = c
+
+            def child(self, context, name):
+                st = self._container.get_connection_status()
+                if name == 'connections':
+                    print("STATUSES", st._statuses, type(st._statuses))
+                    return st._statuses.items()
+                return None  # or are we supposed to raise something?
+
+            def __getattr__(self, x):
+                return getattr(self._container, x)
+
+        return [
+            Wrapper(x) for x in sorted(sb.get_known_servers(), key=lambda s: s.get_serverid())
+        ]
+
+    def render_connection_status(self, ctx, server):
+        return ctx.tag[
+            T.b()[str(server)]
+        ]
+
+    def render_connection_item(self, ctx, server):
+        print("render connection item", server, type(server))
+        ctx.tag.fillSlots('details', 'zinga')
+        ctx.tag.fillSlots('summary', '{}: {} {}'.format(server[0], server[1], type(server[1])))
+        return ctx.tag
 
     def render_service_row(self, ctx, server):
         #server_id = server.get_serverid()
@@ -352,8 +383,8 @@ class Root(rend.Page):
         ctx.fillSlots("last_received_data_rel_time",
                       render_time_delta(last_received_data_time, self.now_fn()))
 
-        ctx.fillSlots("summary", "%s" % cs.summarize_last_connection())
-        ctx.fillSlots("details", "%s" % cs.describe_last_connection())
+#        ctx.fillSlots("summary", "%s" % cs.summarize_last_connection())
+#        ctx.fillSlots("details", "%s" % cs.describe_last_connection())
 
         announcement = server.get_announcement()
         version = announcement.get("my-version", "")
