@@ -47,7 +47,10 @@ class INotifyEventHandler(FileSystemEventHandler):
     def process(self, event):
         print "FILESYSTEM ENCODING: %s" % encodingutil.get_filesystem_encoding()
         event_filepath_u = event.src_path.decode(encodingutil.get_filesystem_encoding())
-        event_filepath_u = abspath_expanduser_unicode(event_filepath_u, base=self._path)
+        event_filepath_u = abspath_expanduser_unicode(
+            event_filepath_u,
+            base=self._path,
+        )
 
         if event_filepath_u == self._path:
             # ignore events for parent directory

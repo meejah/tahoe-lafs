@@ -263,6 +263,8 @@ class INotify(PollMixin):
             fni = FileNotifyInformation()
 
             while True:
+                # XXX probaly a tiny race condition between here and
+                # the .read_changes call :(
                 self._state = STARTED
                 try:
                     fni.read_changes(self._hDirectory, self._recursive, self._filter)
