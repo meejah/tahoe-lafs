@@ -2843,34 +2843,34 @@ class IConnectionStatus(Interface):
     from the connection manager, and it does not change after that point.
     """
 
-    def is_connected():
+    connected = Attribute(
         """
         Returns True if we appear to be connected: we've been successful
         in communicating with our target at some point in the past, and we
-        haven't experienced any errors since then."""
+        haven't experienced any errors since then.""")
 
-    def when_established():
+    last_connection_time = Attribute(
         """
         If is_connected() is True, this returns a number
         (seconds-since-epoch) when we last transitioned from 'not connected'
         to 'connected', such as when a TCP connect() operation completed and
         subsequent negotiation was successful. Otherwise it returns None.
-        """
+        """)
 
-    def summarize_last_connection():
+    last_connection_summary = Attribute(
         """
-        Returns a (unicode) string with a brief summary of the current
-        status, suitable for display on an informational page. The more
-        complete text from describe_last_connection() would be appropriate
-        for a tool-tip popup.
-        """
+        Returns a string with a brief summary of the current status, suitable
+        for display on an informational page. The more complete text from
+        last_connection_description would be appropriate for a tool-tip
+        popup.
+        """)
 
-    def describe_last_connection():
+    last_connection_description = Attribute(
         """
-        Returns a (unicode) string with a description of the results of
-        the most recent connection attempt. For Foolscap connections, this
-        indicates the winning hint and the connection handler which used it,
-        e.g. 'tcp:HOST:PORT via tcp' or 'tor:HOST.onion:PORT via tor':
+        Returns a string with a description of the results of the most recent
+        connection attempt. For Foolscap connections, this indicates the
+        winning hint and the connection handler which used it, e.g.
+        'tcp:HOST:PORT via tcp' or 'tor:HOST.onion:PORT via tor':
 
         * 'Connection successful: HINT via HANDLER (other hints: ..)'
         * 'Connection failed: HINT->HANDLER->FAILURE, ...'
@@ -2878,12 +2878,12 @@ class IConnectionStatus(Interface):
         Note that this describes the last *completed* connection attempt. If
         a connection attempt is currently in progress, this method will
         describe the results of the previous attempt.
-        """
+        """)
 
-    def last_received():
+    last_received_time = Attribute(
         """
         Returns a number (seconds-since-epoch) describing the last time we
         heard anything (including low-level keep-alives or inbound requests)
         from the other side.
-        """
+        """)
 

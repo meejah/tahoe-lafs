@@ -245,7 +245,7 @@ class Root(rend.Page):
 
     def data_connected_introducers(self, ctx, data):
         return len([1 for cs in self.client.introducer_connection_statuses()
-                    if cs.is_connected()])
+                    if cs.connected])
 
     def data_connected_to_at_least_one_introducer(self, ctx, data):
         if self.data_connected_introducers(ctx, data):
@@ -260,26 +260,32 @@ class Root(rend.Page):
         return self.client.introducer_connection_statuses()
 
     def render_introducers_row(self, ctx, cs):
-        connected = "yes" if cs.is_connected() else "no"
+        connected = "yes" if cs.connected else "no"
         ctx.fillSlots("service_connection_status", connected)
         ctx.fillSlots("service_connection_status_alt",
                       self._connectedalts[connected])
 
-        since = cs.when_established()
-        # TODO: what if None?
+        since = cs.last_connection_time
         ctx.fillSlots("service_connection_status_rel_time",
-                      render_time_delta(since, self.now_fn()))
+                      render_time_delta(since, self.now_fn())
+                      if since is not None
+                      else "N/A")
         ctx.fillSlots("service_connection_status_abs_time",
-                      render_time_attr(since))
+                      render_time_attr(since)
+                      if since is not None
+                      else "N/A")
 
-        last_received_data_time = cs.last_received()
-        # TODO: what if None?
+        last_received_data_time = cs.last_received_time
         ctx.fillSlots("last_received_data_abs_time",
-                      render_time_attr(last_received_data_time))
+                      render_time_attr(last_received_data_time)
+                      if last_received_data_time is not None
+                      else "N/A")
         ctx.fillSlots("last_received_data_rel_time",
-                      render_time_delta(last_received_data_time, self.now_fn()))
-        ctx.fillSlots("summary", "%s" % cs.summarize_last_connection())
-        ctx.fillSlots("details", "%s" % cs.describe_last_connection())
+                      render_time_delta(last_received_data_time, self.now_fn())
+                      if last_received_data_time is not None
+                      else "N/A")
+        ctx.fillSlots("summary", "%s" % cs.last_connection_summary)
+        ctx.fillSlots("details", "%s" % cs.last_connection_description)
         return ctx.tag
 
     def data_helper_furl_prefix(self, ctx, data):
@@ -357,34 +363,38 @@ class Root(rend.Page):
         return ctx.tag
 
     def render_service_row(self, ctx, server):
-        #server_id = server.get_serverid()
         cs = server.get_connection_status()
 
         ctx.fillSlots("peerid", server.get_longname())
         ctx.fillSlots("nickname", server.get_nickname())
 
-        #ctx.fillSlots("address", addr)
-        connected = "yes" if cs.is_connected() else "no"
+        connected = "yes" if cs.connected else "no"
         ctx.fillSlots("service_connection_status", connected)
         ctx.fillSlots("service_connection_status_alt",
                       self._connectedalts[connected])
 
-        since = cs.when_established()
-        # TODO: what if None?
+        since = cs.last_connection_time
         ctx.fillSlots("service_connection_status_rel_time",
-                      render_time_delta(since, self.now_fn()))
+                      render_time_delta(since, self.now_fn())
+                      if since is not None
+                      else "N/A")
         ctx.fillSlots("service_connection_status_abs_time",
-                      render_time_attr(since))
+                      render_time_attr(since)
+                      if since is not None
+                      else "N/A")
 
-        last_received_data_time = cs.last_received()
-        # TODO: what if None?
+        last_received_data_time = cs.last_received_time
         ctx.fillSlots("last_received_data_abs_time",
-                      render_time_attr(last_received_data_time))
+                      render_time_attr(last_received_data_time)
+                      if last_received_data_time is not None
+                      else "N/A")
         ctx.fillSlots("last_received_data_rel_time",
-                      render_time_delta(last_received_data_time, self.now_fn()))
+                      render_time_delta(last_received_data_time, self.now_fn())
+                      if last_received_data_time is not None
+                      else "N/A")
 
-#        ctx.fillSlots("summary", "%s" % cs.summarize_last_connection())
-#        ctx.fillSlots("details", "%s" % cs.describe_last_connection())
+        ctx.fillSlots("summary", "%s" % cs.last_connection_summary)
+        ctx.fillSlots("details", "%s" % cs.last_connection_description)
 
         announcement = server.get_announcement()
         version = announcement.get("my-version", "")

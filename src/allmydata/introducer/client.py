@@ -327,7 +327,7 @@ class IntroducerClient(service.Service, Referenceable):
                 eventually(cb, key_s, ann, *args, **kwargs)
 
     def connection_status(self):
-        assert self.running # staerService builds _introducer_reconnector
+        assert self.running # startService builds _introducer_reconnector
         irc = self._introducer_reconnector
         last_received = (self._publisher.getDataLastReceivedAt()
                          if self._publisher

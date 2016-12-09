@@ -185,15 +185,21 @@
             <tr n:pattern="item" n:render="service_row">
               <td class="nickname-and-peerid">
                 <div class="status-indicator"><img><n:attr name="src">img/connected-<n:slot name="service_connection_status" />.png</n:attr><n:attr name="alt"><n:slot name="service_connection_status_alt" /></n:attr></img></div>
-                <a class="timestamp"><n:attr name="title"><n:slot name="service_connection_status_abs_time"/></n:attr><n:slot name="service_connection_status_rel_time"/></a>
                 <div class="nickname"><n:slot name="nickname"/></div>
                 <div class="nodeid"><n:slot name="peerid"/></div>
               </td>
               <td class="connection-status">
-                <b n:render="connection_status"/><br/>
+
+<!--                <b n:render="connection_status"/><br/>
                 <ul n:render="sequence" n:data="connections" class="details">
                   <li n:pattern="item" n:render="connection_item"><n:attr name="title"><n:slot name="details"/></n:attr><n:slot name="summary"/></li>
-                </ul>
+                </ul>  -->
+                <n:attr name="title"><n:slot name="details"/></n:attr>
+                <n:slot name="summary"/>
+                <a class="timestamp">
+                  <n:attr name="title"><n:slot name="service_connection_status_abs_time"/></n:attr>
+                  <n:slot name="service_connection_status_rel_time"/>
+                </a>
               </td>
               <td class="service-last-received-data"><a class="timestamp"><n:attr name="title"><n:slot name="last_received_data_abs_time"/></n:attr><n:slot name="last_received_data_rel_time"/></a></td>
               <td class="service-version"><n:slot name="version"/></td>
@@ -207,7 +213,7 @@
           <table class="table table-striped table-bordered peer-status" n:render="sequence" n:data="introducers">
             <thead>
               <tr n:pattern="header">
-                <td><h3>Address</h3></td>
+                <td><h3>Connection</h3></td>
                 <td><h3>Last&nbsp;RX</h3></td>
               </tr>
             </thead>
