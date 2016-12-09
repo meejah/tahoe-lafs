@@ -1,4 +1,5 @@
 import time, os
+from datetime import datetime
 
 from twisted.web import http
 from nevow import rend, url, tags as T
@@ -16,6 +17,7 @@ from allmydata.web import filenode, directory, unlinked, status, operations
 from allmydata.web import storage, magic_folder
 from allmydata.web.common import abbreviate_size, getxmlfile, WebError, \
      get_arg, RenderMixin, get_format, get_mutable_type, render_time_delta, render_time, render_time_attr
+from allmydata.util.abbreviate import abbreviate_time
 
 
 class URIHandler(RenderMixin, rend.Page):
@@ -334,32 +336,42 @@ class Root(rend.Page):
 
         @implementer(IContainer)
         class Wrapper(object):
-            def __init__(self, c):
-                self._container = c
+            def __init__(self, server):
+                self._server = server
 
             def child(self, context, name):
-                st = self._container.get_connection_status()
                 if name == 'connections':
-                    print("STATUSES", st._statuses, type(st._statuses))
-                    return st._statuses.items()
+                    return self._server.get_connection_status().statuses.items()
                 return None  # or are we supposed to raise something?
 
             def __getattr__(self, x):
-                return getattr(self._container, x)
+                return getattr(self._server, x)
 
         return [
-            Wrapper(x) for x in sorted(sb.get_known_servers(), key=lambda s: s.get_serverid())
+            Wrapper(x)
+            for x in sorted(sb.get_known_servers(), key=lambda s: s.get_serverid())
         ]
 
     def render_connection_status(self, ctx, server):
-        return ctx.tag[
-            T.b()[str(server)]
-        ]
+        cs = server.get_connection_status()
+        if cs.connected:
+            return ctx.tag[
+                cs.last_connection_summary,
+                ' ({})'.format(
+                    abbreviate_time(
+                        datetime.now() - datetime.fromtimestamp(cs.last_connection_time)
+                    )
+                ),
+            ]
+        else:
+            return ctx.tag[
+                cs.last_connection_summary,
+            ]
 
     def render_connection_item(self, ctx, server):
         print("render connection item", server, type(server))
-        ctx.tag.fillSlots('details', 'zinga')
-        ctx.tag.fillSlots('summary', '{}: {} {}'.format(server[0], server[1], type(server[1])))
+        ctx.tag.fillSlots('details', server[1])
+        ctx.tag.fillSlots('summary', '{}: {}'.format(server[0], server[1]))
         return ctx.tag
 
     def render_service_row(self, ctx, server):
