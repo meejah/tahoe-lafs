@@ -341,7 +341,10 @@ class Root(rend.Page):
 
             def child(self, context, name):
                 if name == 'connections':
-                    return self._server.get_connection_status().statuses.items()
+                    st = self._server.get_connection_status()
+                    if st.connected:
+                        return []
+                    return st.statuses.items()
                 return None  # or are we supposed to raise something?
 
             def __getattr__(self, x):
@@ -351,22 +354,6 @@ class Root(rend.Page):
             Wrapper(x)
             for x in sorted(sb.get_known_servers(), key=lambda s: s.get_serverid())
         ]
-
-    def render_connection_status(self, ctx, server):
-        cs = server.get_connection_status()
-        if cs.connected:
-            return ctx.tag[
-                cs.last_connection_summary,
-                ' ({})'.format(
-                    abbreviate_time(
-                        datetime.now() - datetime.fromtimestamp(cs.last_connection_time)
-                    )
-                ),
-            ]
-        else:
-            return ctx.tag[
-                cs.last_connection_summary,
-            ]
 
     def render_connection_item(self, ctx, server):
         print("render connection item", server, type(server))
