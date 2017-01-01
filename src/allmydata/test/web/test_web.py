@@ -2028,6 +2028,7 @@ class Web(WebMixin, WebErrorMixin, testutil.StallMixin, testutil.ReallyEqualMixi
             self.failUnlessIn("storage-index", res)
             self.failUnlessIn("verifycaps", res)
             self.failUnlessIn("stats", res)
+            self.failUnlessIn("api-version", res)
         d.addCallback(_got_json)
         return d
 
