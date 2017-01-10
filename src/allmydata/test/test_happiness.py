@@ -59,19 +59,19 @@ class Happiness(unittest.TestCase):
         places0 = happiness_upload.share_placement(peers, readonly_peers, shares, peers_to_shares)
         places1 = happiness_upload.HappinessUpload(peers, readonly_peers, shares).generate_mappings()
 
-        print("places0")
-        for k, v in places0.items():
-            print("  {} -> {}".format(k, v))
-        print("places1")
-        for k, v in places1.items():
-            print("  {} -> {}".format(k, v))
+        if False:
+            print("places0")
+            for k, v in places0.items():
+                print("  {} -> {}".format(k, v))
+            print("places1")
+            for k, v in places1.items():
+                print("  {} -> {}".format(k, v))
 
         self.assertEqual(
-            places1,
+            places0,
             {
                 'share0': {'peer1'},
                 'share1': {'peer1'},
                 'share2': {'peer0'},
             }
         )
-#        self.assertEqual(places0, places1)

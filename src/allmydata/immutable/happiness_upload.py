@@ -180,7 +180,7 @@ def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
     """
     # "1. Query all servers for existing shares."
     #shares = _query_all_shares(servers, peers)
-    print("shares", shares)
+    #print("shares", shares)
 
     # "2. Construct a bipartite graph G1 of *readonly* servers to pre-existing
     # shares, where an edge exists between an arbitrary readonly server S and an
@@ -190,7 +190,6 @@ def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
         for server in peers:
             if server in readonly_peers and share in peers_to_shares.get(server, set()):
                 g1.add((server, share))
-    print("G1", g1)
 
     # 3. Calculate a maximum matching graph of G1 (a set of S->T edges that has or
     #    is-tied-for the highest "happiness score"). There is a clever efficient
@@ -200,18 +199,19 @@ def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
     #    maps shares to servers, where each share appears at most once, and each
     #    server appears at most once.
     m1 = _maximum_matching_graph(g1, peers_to_shares)#peers, shares)
-    print("M1:")
-    for k, v in m1.items():
-        print(" {}: {}".format(k, v))
+    if False:
+        print("M1:")
+        for k, v in m1.items():
+            print(" {}: {}".format(k, v))
 
     # 4. Construct a bipartite graph G2 of readwrite servers to pre-existing
     #    shares. Then remove any edge (from G2) that uses a server or a share found
     #    in M1. Let an edge exist between server S and share T if and only if S
     #    already holds T.
     g2 = set()
-    for server, shares in peers_to_shares.items():
-        for share in shares:
-            g2.add((server, share))
+    for g2_server, g2_shares in peers_to_shares.items():
+        for share in g2_shares:
+            g2.add((g2_server, share))
 
     for server, share in m1.items():
         for g2server, g2share in g2:
@@ -223,9 +223,10 @@ def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
 
     m2 = _maximum_matching_graph(g2, peers_to_shares)
 
-    print("M2:")
-    for k, v in m2.items():
-        print(" {}: {}".format(k, v))
+    if False:
+        print("M2:")
+        for k, v in m2.items():
+            print(" {}: {}".format(k, v))
 
     # 6. Construct a bipartite graph G3 of (only readwrite) servers to shares. Let
     #    an edge exist between server S and share T if and only if S already has T,
@@ -235,34 +236,50 @@ def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
     #    the M1/M2 subsets)
 
     # meejah: does that last sentence mean remove *any* edge with any
-    # server in M1?? or just "remove any edge found in M1/M2"?
+    # server in M1?? or just "remove any edge found in M1/M2"? (Wait,
+    # is that last sentence backwards? G1 a subset of M1?)
     readwrite = set(peers).difference(set(readonly_peers))
-    g3 = set()
-    for server in readwrite:
-        for share in shares:
-            if share in peers_to_shares.get(server, set()) or True:#server.has_room_for(share):
-                edge = (server, share)
-                # this is the "remove" part of 6 above
-                if edge not in m1 and edge not in m2:
-                    g3.add(edge)
+    # doesn't yet account for "could hold T" -- but perhaps we could
+    # just put "full" servers in the readonly list, so then just
+    # delete this comment.
+    g3 = [
+        (server, share) for server in readwrite for share in shares
+    ]
 
     m12_servers = [x[0] for x in m1] + [x[0] for x in m2]
     m12_shares = [x[1] for x in m1] + [x[1] for x in m2]
     for edge in g3:
         if edge[0] in m12_servers or edge[1] in m12_shares:
             g3.remove(edge)
-    print("G3:")
-    for srv, shr in g3:
-        print("  {}->{}".format(srv, shr))
+    if False:
+        print("G3:")
+        for srv, shr in g3:
+            print("  {}->{}".format(srv, shr))
 
-    m3 = _maximum_matching_graph(g3, peers_to_shares)
+    m3 = _maximum_matching_graph(g3, {})#, peers_to_shares)
     answer = dict()
+    # XXX look out! m3 returns things like "share0" -> None so we put
+    # it in here first -- but really we should update the below to not
+    # simple "update", but to merge the answers -- i.e. if m3 has
+    # "share0" -> None and m1 has "share0" -> {"peer0"} then it
+    # shouldn't matter which order we update() in we should get the
+    # share0 -> {"peer0"}
+    answer.update(m3)
     answer.update(m1)
     answer.update(m2)
-    answer.update(m3)
-    print("anaswer:")
+
+    # anything left over that has "None" instead of a 1-set of peers
+    # should be part of the "evenly distribute amongst readwrite
+    # servers" thing.
+    def peer_generator():
+        while True:
+            for peer in readwrite:
+                yield peer
+
+    round_robin_peers = peer_generator()
     for k, v in answer.items():
-        print("  {}->{}".format(k, v))
+        if v is None:
+            answer[k] = {next(round_robin_peers)}
     return answer
 
 class HappinessUpload:
