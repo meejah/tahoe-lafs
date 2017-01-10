@@ -75,3 +75,42 @@ class Happiness(unittest.TestCase):
                 'share2': {'peer0'},
             }
         )
+
+
+    def test_placement_1(self):
+
+        shares = {
+            'share0', 'share1', 'share2',
+            'share3', 'share4', 'share5',
+            'share7', 'share8', 'share9',
+        }
+        peers = {
+            'peer0', 'peer1', 'peer2', 'peer3',
+            'peer4', 'peer5', 'peer6', 'peer7',
+            'peer8', 'peer9', 'peerA', 'peerB',
+        }
+        readonly_peers = {'peer0', 'peer1', 'peer2', 'peer3'}
+        peers_to_shares = {
+            'peer0': {'share0'},
+            'peer1': {'share1'},
+            'peer2': {'share2'},
+            'peer3': {'share3'},
+            'peer4': {'share4'},
+            'peer5': {'share5'},
+            'peer6': {'share6'},
+            'peer7': {'share7'},
+            'peer8': {'share8'},
+            'peer9': {'share9'},
+            'peerA': set(),
+            'peerB': set(),
+        }
+
+        places0 = happiness_upload.share_placement(peers, readonly_peers, shares, peers_to_shares)
+        places1 = happiness_upload.HappinessUpload(peers, readonly_peers, shares).generate_mappings()
+
+        # share N maps to peer N
+        expected = {
+            'share{}'.format(i): {'peer{}'.format(i)}
+            for i in range(10)
+        }
+        self.assertEqual(expected, places0)
