@@ -27,7 +27,6 @@ class HappinessUtils(unittest.TestCase):
         self.assertEqual(capacity, [[0, 1, 0, 0], [-1, 0, 1, 0], [0, -1, 0, 1], [0, 0, -1, 0]])
 
 
-
 class Happiness(unittest.TestCase):
 
     def test_original_easy(self):
@@ -109,6 +108,8 @@ class Happiness(unittest.TestCase):
         places1 = happiness_upload.HappinessUpload(peers, readonly_peers, shares).generate_mappings()
 
         # share N maps to peer N
+        # i.e. this says that share0 should be on peer0, share1 should
+        # be on peer1, etc.
         expected = {
             'share{}'.format(i): {'peer{}'.format(i)}
             for i in range(10)
