@@ -323,6 +323,11 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                                              share_size, 0, num_segments,
                                              num_share_hashes, EXTENSION_SIZE)
         allocated_size = wbp.get_allocated_size()
+
+        # see docs/specifications/servers-of-happiness.rst
+        # 0. Start with an ordered list of servers. Maybe *2N* of them.
+        #
+
         all_servers = storage_broker.get_servers_for_psi(storage_index)
         if not all_servers:
             raise NoServersError("client gave us zero servers")
@@ -386,6 +391,10 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
         # index, which we want to know about for accurate
         # servers_of_happiness accounting, then we forget about them.
         readonly_trackers = _make_trackers(readonly_servers)
+
+        # see docs/specifications/servers-of-happiness.rst
+        # 1. Query all servers for existing shares.
+        #
 
         # We now ask servers that can't hold any new shares about existing
         # shares that they might have for our SI. Once this is done, we
