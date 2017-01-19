@@ -171,6 +171,39 @@ def _maximum_matching_graph(graph, servermap):
     return _convert_mappings(index_to_peer, index_to_share, max_graph)
 
 
+def _filter_g3(g3, m1, m2):
+    """
+    This implements the last part of 'step 6' in the spec, "Then
+    remove (from G3) any servers and shares used in M1 or M2 (note
+    that we retain servers/shares that were in G1/G2 but *not* in the
+    M1/M2 subsets)"
+    """
+    # m1, m2 are dicts from share -> set(peers)
+    # (but I think the set size is always 1 .. so maybe we could fix that everywhere)
+    m12_servers = reduce(lambda a, b: a.union(b), m1.values() + m2.values())
+    m12_shares = set(m1.keys() + m2.keys())
+    new_g3 = set()
+    for edge in g3:
+        if edge[0] not in m12_servers and edge[1] not in m12_shares:
+            new_g3.add(edge)
+    return new_g3
+
+
+def _merge_dicts(result, inc):
+    """
+    given two dicts mapping key -> set(), merge the *values* of the
+    'inc' dict into the value of the 'result' dict if the value is not
+    None.
+
+    Note that this *mutates* 'result'
+    """
+    for k, v in inc.items():
+        existing = result.get(k, None)
+        if existing is None:
+            result[k] = v
+        elif v is not None:
+            result[k] = existing.union(v)
+
 
 def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
     """
@@ -242,40 +275,45 @@ def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
         (server, share) for server in readwrite for share in shares
     ]
 
-    m12_servers = [x[0] for x in m1] + [x[0] for x in m2]
-    m12_shares = [x[1] for x in m1] + [x[1] for x in m2]
-    for edge in g3:
-        if edge[0] in m12_servers or edge[1] in m12_shares:
-            g3.remove(edge)
+    g3 = _filter_g3(g3, m1, m2)
     if False:
         print("G3:")
         for srv, shr in g3:
             print("  {}->{}".format(srv, shr))
 
+    # 7. Calculate a maximum matching graph of G3, call this M3, preferring earlier
+    #    servers. The final placement table is the union of M1+M2+M3.
+
     m3 = _maximum_matching_graph(g3, {})#, peers_to_shares)
+
     answer = dict()
-    # XXX look out! m3 returns things like "share0" -> None so we put
-    # it in here first -- but really we should update the below to not
-    # simple "update", but to merge the answers -- i.e. if m3 has
-    # "share0" -> None and m1 has "share0" -> {"peer0"} then it
-    # shouldn't matter which order we update() in we should get the
-    # share0 -> {"peer0"}
-    answer.update(m3)
-    answer.update(m1)
-    answer.update(m2)
+    _merge_dicts(answer, m1)
+    _merge_dicts(answer, m2)
+    _merge_dicts(answer, m3)
 
     # anything left over that has "None" instead of a 1-set of peers
     # should be part of the "evenly distribute amongst readwrite
     # servers" thing.
+
+    # See "Properties of Upload Strategy of Happiness" in the spec:
+    # "The size of the maximum bipartite matching is bounded by the size of the smaller
+    # set of vertices. Therefore in a situation where the set of servers is smaller
+    # than the set of shares, placement is not generated for a subset of shares. In
+    # this case the remaining shares are distributed as evenly as possible across the
+    # set of writable servers."
+
     def peer_generator():
         while True:
             for peer in readwrite:
                 yield peer
-
     round_robin_peers = peer_generator()
     for k, v in answer.items():
         if v is None:
             answer[k] = {next(round_robin_peers)}
+
+    # XXX we should probably actually return share->peer instead of
+    # share->set(peer) where the set-size is 1 because sets are a pain
+    # to deal with (i.e. no indexing).
     return answer
 
 class HappinessUpload:
