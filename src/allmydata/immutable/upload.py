@@ -160,14 +160,14 @@ class ServerTracker:
                             sharenums,
                             self.allocated_size,
                             canary=Referenceable())
-        d.addCallback(self._got_reply)
+        d.addCallback(self._buckets_allocated)
         return d
 
     def ask_about_existing_shares(self):
         rref = self._server.get_rref()
         return rref.callRemote("get_buckets", self.storage_index)
 
-    def _got_reply(self, (alreadygot, buckets)):
+    def _buckets_allocated(self, (alreadygot, buckets)):
         #log.msg("%s._got_reply(%s)" % (self, (alreadygot, buckets)))
         b = {}
         for sharenum, rref in buckets.iteritems():
