@@ -228,20 +228,16 @@ def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
         for k, v in m2.items():
             print(" {}: {}".format(k, v))
 
-    # 6. Construct a bipartite graph G3 of (only readwrite) servers to shares. Let
-    #    an edge exist between server S and share T if and only if S already has T,
-    #    or *could* hold T (i.e. S has enough available space to hold a share of at
-    #    least T's size). Then remove (from G3) any servers and shares used in M1
-    #    or M2 (note that we retain servers/shares that were in G1/G2 but *not* in
-    #    the M1/M2 subsets)
+    # 6. Construct a bipartite graph G3 of (only readwrite) servers to
+    #    shares (some shares may already exist on a server). Then remove
+    #    (from G3) any servers and shares used in M1 or M2 (note that we
+    #    retain servers/shares that were in G1/G2 but *not* in the M1/M2
+    #    subsets)
 
     # meejah: does that last sentence mean remove *any* edge with any
     # server in M1?? or just "remove any edge found in M1/M2"? (Wait,
     # is that last sentence backwards? G1 a subset of M1?)
     readwrite = set(peers).difference(set(readonly_peers))
-    # doesn't yet account for "could hold T" -- but perhaps we could
-    # just put "full" servers in the readonly list, so then just
-    # delete this comment.
     g3 = [
         (server, share) for server in readwrite for share in shares
     ]
