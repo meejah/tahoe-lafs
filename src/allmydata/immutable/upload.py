@@ -984,22 +984,28 @@ class CHKUploader:
             return defer.succeed(None)
         return self._encoder.abort()
 
+    @defer.inlineCallbacks
     def start_encrypted(self, encrypted):
-        """ Returns a Deferred that will fire with the UploadResults instance. """
+        """
+        Returns a Deferred that will fire with the UploadResults instance.
+        """
         eu = IEncryptedUploadable(encrypted)
 
         started = time.time()
-        self._encoder = e = encode.Encoder(
+        # would be Really Nice to make Encoder just a local; only
+        # abort() really needs self._encoder ...
+        self._encoder = encode.Encoder(
             self._log_number,
             self._upload_status,
             progress=self._progress,
         )
-        d = e.set_encrypted_uploadable(eu)
-        d.addCallback(self.locate_all_shareholders, started)
-        d.addCallback(self.set_shareholders, e)
-        d.addCallback(lambda res: e.start())
-        d.addCallback(self._encrypted_done)
-        return d
+        # this just returns itself
+        yield self._encoder.set_encrypted_uploadable(eu)
+        (upload_trackers, already_serverids) = yield self.locate_all_shareholders(self._encoder, started)
+        yield self.set_shareholders(upload_trackers, already_serverids, self._encoder)
+        verifycap = yield self._encoder.start()
+        results = yield self._encrypted_done(verifycap)
+        defer.returnValue(results)
 
     def locate_all_shareholders(self, encoder, started):
         server_selection_started = now = time.time()
@@ -1030,13 +1036,13 @@ class CHKUploader:
         d.addCallback(_done)
         return d
 
-    def set_shareholders(self, (upload_trackers, already_serverids), encoder):
+    def set_shareholders(self, upload_trackers, already_serverids, encoder):
         """
-        @param upload_trackers: a sequence of ServerTracker objects that
+        :param upload_trackers: a sequence of ServerTracker objects that
                                 have agreed to hold some shares for us (the
                                 shareids are stashed inside the ServerTracker)
 
-        @paran already_serverids: a dict mapping sharenum to a set of
+        :param already_serverids: a dict mapping sharenum to a set of
                                   serverids for servers that claim to already
                                   have this share
         """
