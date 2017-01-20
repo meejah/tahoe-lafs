@@ -73,17 +73,6 @@ def residual_network(graph, f):
                 cf[v][i] = -1
     return (new_graph, cf)
 
-def _query_all_shares(servermap, readonly_peers):
-    readonly_shares = set()
-    readonly_map = {}
-    for peer in servermap:
-        if peer in readonly_peers:
-            readonly_map.setdefault(peer, servermap[peer])
-            for share in servermap[peer]:
-                readonly_shares.add(share)
-    return readonly_shares
-
-
 def _convert_mappings(index_to_peer, index_to_share, maximum_graph):
     """
     Now that a maximum spanning graph has been found, convert the indexes
