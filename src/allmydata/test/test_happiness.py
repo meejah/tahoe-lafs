@@ -2,7 +2,6 @@
 
 from twisted.trial import unittest
 from allmydata.immutable import happiness_upload
-from allmydata.util.happinessutil import augmenting_path_for, residual_network
 
 
 class HappinessUtils(unittest.TestCase):
@@ -20,7 +19,7 @@ class HappinessUtils(unittest.TestCase):
         )
         flow = [[0 for _ in graph] for _ in graph]
 
-        residual, capacity = residual_network(graph, flow)
+        residual, capacity = happiness_upload.residual_network(graph, flow)
 
         # XXX no idea if these are right; hand-verify
         self.assertEqual(residual, [[1], [2], [3], []])

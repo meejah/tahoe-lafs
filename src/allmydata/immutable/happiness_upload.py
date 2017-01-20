@@ -1,5 +1,77 @@
-from Queue import PriorityQueue
-from allmydata.util.happinessutil import augmenting_path_for, residual_network
+
+def augmenting_path_for(graph):
+    """
+    I return an augmenting path, if there is one, from the source node
+    to the sink node in the flow network represented by my graph argument.
+    If there is no augmenting path, I return False. I assume that the
+    source node is at index 0 of graph, and the sink node is at the last
+    index. I also assume that graph is a flow network in adjacency list
+    form.
+    """
+    bfs_tree = bfs(graph, 0)
+    if bfs_tree[len(graph) - 1]:
+        n = len(graph) - 1
+        path = [] # [(u, v)], where u and v are vertices in the graph
+        while n != 0:
+            path.insert(0, (bfs_tree[n], n))
+            n = bfs_tree[n]
+        return path
+    return False
+
+def bfs(graph, s):
+    """
+    Perform a BFS on graph starting at s, where graph is a graph in
+    adjacency list form, and s is a node in graph. I return the
+    predecessor table that the BFS generates.
+    """
+    # This is an adaptation of the BFS described in "Introduction to
+    # Algorithms", Cormen et al, 2nd ed., p. 532.
+    # WHITE vertices are those that we haven't seen or explored yet.
+    WHITE = 0
+    # GRAY vertices are those we have seen, but haven't explored yet
+    GRAY  = 1
+    # BLACK vertices are those we have seen and explored
+    BLACK = 2
+    color        = [WHITE for i in xrange(len(graph))]
+    predecessor  = [None for i in xrange(len(graph))]
+    distance     = [-1 for i in xrange(len(graph))]
+    queue = [s] # vertices that we haven't explored yet.
+    color[s] = GRAY
+    distance[s] = 0
+    while queue:
+        n = queue.pop(0)
+        for v in graph[n]:
+            if color[v] == WHITE:
+                color[v] = GRAY
+                distance[v] = distance[n] + 1
+                predecessor[v] = n
+                queue.append(v)
+        color[n] = BLACK
+    return predecessor
+
+def residual_network(graph, f):
+    """
+    I return the residual network and residual capacity function of the
+    flow network represented by my graph and f arguments. graph is a
+    flow network in adjacency-list form, and f is a flow in graph.
+    """
+    new_graph = [[] for i in xrange(len(graph))]
+    cf = [[0 for s in xrange(len(graph))] for sh in xrange(len(graph))]
+    for i in xrange(len(graph)):
+        for v in graph[i]:
+            if f[i][v] == 1:
+                # We add an edge (v, i) with cf[v,i] = 1. This means
+                # that we can remove 1 unit of flow from the edge (i, v)
+                new_graph[v].append(i)
+                cf[v][i] = 1
+                cf[i][v] = -1
+            else:
+                # We add the edge (i, v), since we're not using it right
+                # now.
+                new_graph[i].append(v)
+                cf[i][v] = 1
+                cf[v][i] = -1
+    return (new_graph, cf)
 
 def _query_all_shares(servermap, readonly_peers):
     readonly_shares = set()
@@ -176,9 +248,8 @@ def _filter_g3(g3, m1, m2):
     that we retain servers/shares that were in G1/G2 but *not* in the
     M1/M2 subsets)"
     """
-    # m1, m2 are dicts from share -> set(peers)
-    # (but I think the set size is always 1 .. so maybe we could fix that everywhere)
     sequence = m1.values() + m2.values()
+    sequence = filter(lambda x: x is not None, sequence)
     if len(sequence) == 0:
         return g3
     m12_servers = reduce(lambda a, b: a.union(b), sequence)
@@ -205,6 +276,15 @@ def _merge_dicts(result, inc):
         elif v is not None:
             result[k] = existing.union(v)
 
+def calculate_happiness(mappings):
+    """
+    I calculate the happiness of the generated mappings
+    """
+    happiness = 0
+    for share in mappings:
+        if mappings[share] is not None:
+            happiness += 1
+    return happiness
 
 def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
     """
