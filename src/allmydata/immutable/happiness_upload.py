@@ -280,11 +280,8 @@ def calculate_happiness(mappings):
     """
     I calculate the happiness of the generated mappings
     """
-    happiness = 0
-    for share in mappings:
-        if mappings[share] is not None:
-            happiness += 1
-    return happiness
+    unique_peers = {list(v)[0] for k, v in mappings.items()}
+    return len(unique_peers)
 
 def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
     """
