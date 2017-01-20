@@ -438,7 +438,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
     def _handle_existing_response(self, res, tracker):
         """
         I handle responses to the queries sent by
-        Tahoe2ServerSelector._existing_shares.
+        Tahoe2ServerSelector.get_shareholders.
         """
         serverid = tracker.get_serverid()
         if isinstance(res, failure.Failure):
