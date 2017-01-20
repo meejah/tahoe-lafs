@@ -5,7 +5,6 @@ def _query_all_shares(servermap, readonly_peers):
     readonly_shares = set()
     readonly_map = {}
     for peer in servermap:
-        print("peer", peer)
         if peer in readonly_peers:
             readonly_map.setdefault(peer, servermap[peer])
             for share in servermap[peer]:
@@ -158,7 +157,6 @@ def _maximum_matching_graph(graph, servermap):
     """
     peers = [x[0] for x in graph]
     shares = [x[1] for x in graph]
-
     peer_to_index, index_to_peer = _reindex(peers, 1)
     share_to_index, index_to_share = _reindex(shares, len(peers) + 1)
     shareIndices = [share_to_index[s] for s in shares]
@@ -180,7 +178,10 @@ def _filter_g3(g3, m1, m2):
     """
     # m1, m2 are dicts from share -> set(peers)
     # (but I think the set size is always 1 .. so maybe we could fix that everywhere)
-    m12_servers = reduce(lambda a, b: a.union(b), m1.values() + m2.values())
+    sequence = m1.values() + m2.values()
+    if len(sequence) == 0:
+        return g3
+    m12_servers = reduce(lambda a, b: a.union(b), sequence)
     m12_shares = set(m1.keys() + m2.keys())
     new_g3 = set()
     for edge in g3:
@@ -208,8 +209,6 @@ def _merge_dicts(result, inc):
 def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
     """
     :param servers: ordered list of servers, "Maybe *2N* of them."
-
-    working from servers-of-happiness.rst, in kind-of pseudo-code
     """
     # "1. Query all servers for existing shares."
     #shares = _query_all_shares(servers, peers)
@@ -231,7 +230,7 @@ def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
     #    prefer earlier servers. Call this particular placement M1. The placement
     #    maps shares to servers, where each share appears at most once, and each
     #    server appears at most once.
-    m1 = _maximum_matching_graph(g1, peers_to_shares)#peers, shares)
+    m1 = _maximum_matching_graph(g1, peers_to_shares)
     if False:
         print("M1:")
         for k, v in m1.items():
@@ -274,7 +273,6 @@ def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
     g3 = [
         (server, share) for server in readwrite for share in shares
     ]
-
     g3 = _filter_g3(g3, m1, m2)
     if False:
         print("G3:")
