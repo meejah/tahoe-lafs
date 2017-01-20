@@ -4,7 +4,12 @@ reporting it in messages
 """
 
 from copy import deepcopy
-from allmydata.immutable.happiness_upload import share_placement, calculate_happiness
+from allmydata.immutable.happiness_upload import share_placement
+from allmydata.immutable.happiness_upload import calculate_happiness
+from allmydata.immutable.happiness_upload import residual_network
+from allmydata.immutable.happiness_upload import bfs
+from allmydata.immutable.happiness_upload import augmenting_path_for
+
 
 def failure_message(peer_count, k, happy, effective_happy):
     # If peer_count < needed_shares, this error message makes more
@@ -129,7 +134,12 @@ def servers_of_happiness(sharemap):
     if sharemap == {}:
         return 0
     servermap = shares_by_server(sharemap)
-    graph = flow_network_for(servermap)
+    graph = _flow_network_for(servermap)
+
+    # XXX this core stuff is identical to
+    # happiness_upload._compute_maximum_graph and we should find a way
+    # to share the code.
+
     # This is an implementation of the Ford-Fulkerson method for finding
     # a maximum flow in a flow network applied to a bipartite graph.
     # Specifically, it is the Edmonds-Karp algorithm, since it uses a
@@ -165,7 +175,7 @@ def servers_of_happiness(sharemap):
     # matching on the bipartite graph described above.
     return sum([flow_function[0][v] for v in xrange(1, num_servers+1)])
 
-def flow_network_for(servermap):
+def _flow_network_for(servermap):
     """
     I take my argument, a dict of peerid -> set(shareid) mappings, and
     turn it into a flow network suitable for use with Edmonds-Karp. I
@@ -187,7 +197,7 @@ def flow_network_for(servermap):
     # we re-index so that all of our vertices have integral indices, and
     # that there aren't any holes. We start indexing at 1, so that we
     # can add a source node at index 0.
-    servermap, num_shares = reindex(servermap, base_index=1)
+    servermap, num_shares = _reindex(servermap, base_index=1)
     num_servers = len(servermap)
     graph = [] # index -> [index], an adjacency list
     # Add an entry at the top (index 0) that has an edge to every server
@@ -205,7 +215,9 @@ def flow_network_for(servermap):
     graph.append([])
     return graph
 
-def reindex(servermap, base_index):
+
+# XXX warning: this is different from happiness_upload's _reindex!
+def _reindex(servermap, base_index):
     """
     Given servermap, I map peerids and shareids to integers that don't
     conflict with each other, so they're useful as indices in a graph. I
@@ -228,77 +240,3 @@ def reindex(servermap, base_index):
                 num += 1
         ret[k] = map(lambda x: shares[x], ret[k])
     return (ret, len(shares))
-
-def residual_network(graph, f):
-    """
-    I return the residual network and residual capacity function of the
-    flow network represented by my graph and f arguments. graph is a
-    flow network in adjacency-list form, and f is a flow in graph.
-    """
-    new_graph = [[] for i in xrange(len(graph))]
-    cf = [[0 for s in xrange(len(graph))] for sh in xrange(len(graph))]
-    for i in xrange(len(graph)):
-        for v in graph[i]:
-            if f[i][v] == 1:
-                # We add an edge (v, i) with cf[v,i] = 1. This means
-                # that we can remove 1 unit of flow from the edge (i, v)
-                new_graph[v].append(i)
-                cf[v][i] = 1
-                cf[i][v] = -1
-            else:
-                # We add the edge (i, v), since we're not using it right
-                # now.
-                new_graph[i].append(v)
-                cf[i][v] = 1
-                cf[v][i] = -1
-    return (new_graph, cf)
-
-def augmenting_path_for(graph):
-    """
-    I return an augmenting path, if there is one, from the source node
-    to the sink node in the flow network represented by my graph argument.
-    If there is no augmenting path, I return False. I assume that the
-    source node is at index 0 of graph, and the sink node is at the last
-    index. I also assume that graph is a flow network in adjacency list
-    form.
-    """
-    bfs_tree = bfs(graph, 0)
-    if bfs_tree[len(graph) - 1]:
-        n = len(graph) - 1
-        path = [] # [(u, v)], where u and v are vertices in the graph
-        while n != 0:
-            path.insert(0, (bfs_tree[n], n))
-            n = bfs_tree[n]
-        return path
-    return False
-
-def bfs(graph, s):
-    """
-    Perform a BFS on graph starting at s, where graph is a graph in
-    adjacency list form, and s is a node in graph. I return the
-    predecessor table that the BFS generates.
-    """
-    # This is an adaptation of the BFS described in "Introduction to
-    # Algorithms", Cormen et al, 2nd ed., p. 532.
-    # WHITE vertices are those that we haven't seen or explored yet.
-    WHITE = 0
-    # GRAY vertices are those we have seen, but haven't explored yet
-    GRAY  = 1
-    # BLACK vertices are those we have seen and explored
-    BLACK = 2
-    color        = [WHITE for i in xrange(len(graph))]
-    predecessor  = [None for i in xrange(len(graph))]
-    distance     = [-1 for i in xrange(len(graph))]
-    queue = [s] # vertices that we haven't explored yet.
-    color[s] = GRAY
-    distance[s] = 0
-    while queue:
-        n = queue.pop(0)
-        for v in graph[n]:
-            if color[v] == WHITE:
-                color[v] = GRAY
-                distance[v] = distance[n] + 1
-                predecessor[v] = n
-                queue.append(v)
-        color[n] = BLACK
-    return predecessor
