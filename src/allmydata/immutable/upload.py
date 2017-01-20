@@ -25,7 +25,7 @@ from allmydata.immutable import layout
 from pycryptopp.cipher.aes import AES
 
 from cStringIO import StringIO
-from happiness_upload import HappinessUpload
+from happiness_upload import share_placement
 
 
 # this wants to live in storage, not here
@@ -252,12 +252,21 @@ class PeerSelector():
 
     def get_tasks(self):
         shares = set(range(self.total_shares))
-        self.h = HappinessUpload(self.peers, self.full_peers, shares, self.existing_shares)
-        return self.h.generate_mappings()
+        self.happiness_mappings = share_placement(self.peers, self.full_peers, shares, self.existing_shares)
+        self.happiness = self._calculate_happiness(self.happiness_mappings)
+        return self.happiness_mappings
+
+    def _calculate_happiness(self, mappings):
+        """
+        I calculate the happiness of the generated mappings
+        """
+        self._happiness = 0
+        for share in mappings:
+            if mappings[share] is not None:
+                self._happiness += 1
 
     def is_healthy(self):
-        return self.min_happiness <= self.h.happiness()
-
+        return self.min_happiness <= self.happiness
 
 class Tahoe2ServerSelector(log.PrefixingLogMixin):
 
