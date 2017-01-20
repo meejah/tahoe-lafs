@@ -96,3 +96,19 @@ class Happiness(unittest.TestCase):
             for i in range(10)
         }
         self.assertEqual(expected, places0)
+
+    def test_unhappy(self):
+
+        shares = {
+            'share1', 'share2', 'share3', 'share4', 'share5',
+        }
+        peers = {
+            'peer1', 'peer2', 'peer3', 'peer4',
+        }
+        readonly_peers = set()
+        peers_to_shares = {
+        }
+
+        places = happiness_upload.share_placement(peers, readonly_peers, shares, peers_to_shares)
+        happiness = happiness_upload.calculate_happiness(places)
+        self.assertEqual(4, happiness)
