@@ -265,6 +265,7 @@ def _merge_dicts(result, inc):
         elif v is not None:
             result[k] = existing.union(v)
 
+
 def calculate_happiness(mappings):
     """
     I calculate the happiness of the generated mappings
@@ -272,14 +273,11 @@ def calculate_happiness(mappings):
     unique_peers = {list(v)[0] for k, v in mappings.items()}
     return len(unique_peers)
 
+
 def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
     """
     :param servers: ordered list of servers, "Maybe *2N* of them."
     """
-    # "1. Query all servers for existing shares."
-    #shares = _query_all_shares(servers, peers)
-    #print("shares", shares)
-
     # "2. Construct a bipartite graph G1 of *readonly* servers to pre-existing
     # shares, where an edge exists between an arbitrary readonly server S and an
     # arbitrary share T if and only if S currently holds T."
