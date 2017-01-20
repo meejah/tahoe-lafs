@@ -533,10 +533,20 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
 
 
     def _request_another_allocation(self):
+        """
+        see docs/specifications/servers-of-happiness.rst
+        10. If any placements from step 9 fail, mark the server as read-only. Go back
+        to step 2 (since we may discover a server is/has-become read-only, or has
+        failed, during step 9).
+        """
         allocation = self._get_next_allocation()
         if allocation is not None:
             tracker, shares_to_ask = allocation
+
+            # see docs/specifications/servers-of-happiness.rst
+            # 8. Renew the shares on their respective servers from M1 and M2.
             d = tracker.query(shares_to_ask)
+
             d.addBoth(self._got_response, tracker, shares_to_ask)
             return d
 
