@@ -348,7 +348,9 @@ def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
 
     m3 = _maximum_matching_graph(g3, {})#, peers_to_shares)
 
-    answer = dict()
+    answer = {
+        k: None for k in shares
+    }
     _merge_dicts(answer, m1)
     _merge_dicts(answer, m2)
     _merge_dicts(answer, m3)
