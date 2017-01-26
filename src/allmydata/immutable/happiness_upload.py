@@ -270,7 +270,7 @@ def calculate_happiness(mappings):
     """
     I calculate the happiness of the generated mappings
     """
-    unique_peers = {list(v)[0] for k, v in mappings.items()}
+    unique_peers = {v for k, v in mappings.items()}
     return len(unique_peers)
 
 
@@ -366,16 +366,19 @@ def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
     # this case the remaining shares are distributed as evenly as possible across the
     # set of writable servers."
 
-    def peer_generator():
-        while True:
-            for peer in readwrite:
-                yield peer
-    round_robin_peers = peer_generator()
-    for k, v in answer.items():
-        if v is None:
-            answer[k] = {next(round_robin_peers)}
+    # if we have any readwrite servers at all, we can place any shares
+    # that didn't get placed -- otherwise, we can't.
+    if readwrite:
+        def peer_generator():
+            while True:
+                for peer in readwrite:
+                    yield peer
+        round_robin_peers = peer_generator()
+        for k, v in answer.items():
+            if v is None:
+                answer[k] = {next(round_robin_peers)}
 
-    # XXX we should probably actually return share->peer instead of
-    # share->set(peer) where the set-size is 1 because sets are a pain
-    # to deal with (i.e. no indexing).
-    return answer
+    new_answer = dict()
+    for k, v in answer.items():
+        new_answer[k] = list(v)[0] if v else None
+    return new_answer

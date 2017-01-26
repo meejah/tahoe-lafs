@@ -21,8 +21,6 @@ def test_hypothesis_unhappy(peers, shares):
     places = happiness_upload.share_placement(peers, readonly_peers, shares, peers_to_shares)
     happiness = happiness_upload.calculate_happiness(places)
     assert set(places.keys()) == shares
-    for peers in places.values():
-        assert len(peers) == 1
     assert happiness == 4
 
 
@@ -47,9 +45,8 @@ def test_more_hypothesis(peers, shares):
     # every share should get placed
     assert set(places.keys()) == shares
 
-    # each share is placed on precisely 1 peer
-    for p in places.values():
-        assert len(p) == 1
+    # we should only use peers that exist
+    assert set(places.values()).issubset(peers)
 
     # if we have more shares than peers, happiness is at most # of
     # peers; if we have fewer shares than peers happiness is capped at
