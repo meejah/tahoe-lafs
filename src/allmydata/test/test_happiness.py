@@ -106,6 +106,17 @@ class Happiness(unittest.TestCase):
         happiness = happiness_upload.calculate_happiness(places)
         self.assertEqual(4, happiness)
 
+    def test_hypothesis0(self):
+        peers={u'0', u'00'}
+        shares={u'0', u'1'}
+        readonly_peers = set()
+        peers_to_shares = dict()
+
+        places = happiness_upload.share_placement(peers, readonly_peers, shares, peers_to_shares)
+        happiness = happiness_upload.calculate_happiness(places)
+
+        self.assertEqual(2, happiness)
+
     def test_calc_happy(self):
         sharemap = {
             0: set(["\x0e\xd6\xb3>\xd6\x85\x9d\x94')'\xf03:R\x88\xf1\x04\x1b\xa4",
