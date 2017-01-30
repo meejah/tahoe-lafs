@@ -47,9 +47,9 @@ class Happiness(unittest.TestCase):
         self.assertEqual(
             places,
             {
-                'share0': {'peer1'},
-                'share1': {'peer1'},
-                'share2': {'peer0'},
+                'share0': 'peer1',
+                'share1': 'peer1',
+                'share2': 'peer0',
             }
         )
 
@@ -88,7 +88,7 @@ class Happiness(unittest.TestCase):
         # i.e. this says that share0 should be on peer0, share1 should
         # be on peer1, etc.
         expected = {
-            'share{}'.format(i): {'peer{}'.format(i)}
+            'share{}'.format(i): 'peer{}'.format(i)
             for i in range(10)
         }
         self.assertEqual(expected, places)
