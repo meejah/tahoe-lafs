@@ -117,6 +117,25 @@ class Happiness(unittest.TestCase):
 
         self.assertEqual(2, happiness)
 
+    def test_redistribute(self):
+        """
+        with existing shares 0, 3 on a single servers we can achieve
+        higher happiness by moving one of those shares to a new server
+        """
+        peers = {'a', 'b', 'c', 'd'}
+        shares = {'0', '1', '2', '3'}
+        readonly_peers = set()
+        peers_to_shares = {
+            'a': set(['0']),
+            'b': set(['1']),
+            'c': set(['2', '3']),
+        }
+        # we can achieve more happiness by moving "2" or "3" to server "d"
+
+        places = happiness_upload.share_placement(peers, readonly_peers, shares, peers_to_shares)
+        happiness = happiness_upload.calculate_happiness(places)
+        self.assertEqual(4, happiness)
+
     def test_calc_happy(self):
         sharemap = {
             0: set(["\x0e\xd6\xb3>\xd6\x85\x9d\x94')'\xf03:R\x88\xf1\x04\x1b\xa4",
