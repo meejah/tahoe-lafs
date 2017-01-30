@@ -278,6 +278,11 @@ def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
     """
     :param servers: ordered list of servers, "Maybe *2N* of them."
     """
+    if False:
+        print("peers:", peers)
+        print("readonly:", readonly_peers)
+        print("shares:", shares)
+        print("peers_to_shares:", peers_to_shares)
     # "2. Construct a bipartite graph G1 of *readonly* servers to pre-existing
     # shares, where an edge exists between an arbitrary readonly server S and an
     # arbitrary share T if and only if S currently holds T."
@@ -296,6 +301,9 @@ def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
     #    server appears at most once.
     m1 = _maximum_matching_graph(g1, peers_to_shares)
     if False:
+        print("G1:")
+        for k, v in g1:
+            print(" {}: {}".format(k, v))
         print("M1:")
         for k, v in m1.items():
             print(" {}: {}".format(k, v))
@@ -320,6 +328,9 @@ def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
     m2 = _maximum_matching_graph(g2, peers_to_shares)
 
     if False:
+        print("G2:")
+        for k, v in g2:
+            print(" {}: {}".format(k, v))
         print("M2:")
         for k, v in m2.items():
             print(" {}: {}".format(k, v))
@@ -351,6 +362,10 @@ def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
     answer = {
         k: None for k in shares
     }
+    if False:
+        print("m1", m1)
+        print("m2", m2)
+        print("m3", m3)
     _merge_dicts(answer, m1)
     _merge_dicts(answer, m2)
     _merge_dicts(answer, m3)
