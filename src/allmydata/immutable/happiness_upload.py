@@ -242,7 +242,10 @@ def _filter_g3(g3, m1, m2):
     if len(sequence) == 0:
         return g3
     m12_servers = reduce(lambda a, b: a.union(b), sequence)
-    m12_shares = set(m1.keys() + m2.keys())
+    m12_shares = set(
+        [k for k, v in m1.items() if v] +
+        [k for k, v in m2.items() if v]
+    )
     new_g3 = set()
     for edge in g3:
         if edge[0] not in m12_servers and edge[1] not in m12_shares:
