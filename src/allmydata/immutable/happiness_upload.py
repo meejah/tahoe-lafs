@@ -242,6 +242,10 @@ def _filter_g3(g3, m1, m2):
     if len(sequence) == 0:
         return g3
     m12_servers = reduce(lambda a, b: a.union(b), sequence)
+    # m1 and m2 may contain edges like "peer -> None" but those
+    # shouldn't be considered "actual mappings" by this removal
+    # algorithm (i.e. an edge "peer0 -> None" means there's nothing
+    # placed on peer0)
     m12_shares = set(
         [k for k, v in m1.items() if v] +
         [k for k, v in m2.items() if v]
