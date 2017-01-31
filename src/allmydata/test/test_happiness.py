@@ -117,6 +117,19 @@ class Happiness(unittest.TestCase):
 
         self.assertEqual(2, happiness)
 
+    # process just gets killed with anything like 200 (see
+    # test_upload.py)
+    def test_50(self):
+        peers = set(['peer{}'.format(x) for x in range(50)])
+        shares = set(['share{}'.format(x) for x in range(50)])
+        readonly_peers = set()
+        peers_to_shares = dict()
+
+        places = happiness_upload.share_placement(peers, readonly_peers, shares, peers_to_shares)
+        happiness = happiness_upload.calculate_happiness(places)
+
+        self.assertEqual(50, happiness)
+
     def test_redistribute(self):
         """
         with existing shares 0, 3 on a single servers we can achieve
