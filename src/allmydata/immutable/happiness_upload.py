@@ -123,7 +123,7 @@ def _compute_maximum_graph(graph, shareIndices):
             flow_function[v][u] -= delta
         residual_graph, residual_function = residual_network(graph,flow_function)
         path = augmenting_path_for(residual_graph)
-        print('loop', len(residual_graph))
+        #print('loop', len(residual_graph))
 
     new_mappings = {}
     for shareIndex in shareIndices:
@@ -484,9 +484,9 @@ class Happiness_Upload:
 
         used_peers, used_shares = self._extract_ids(readonly_mappings)
 
-        print("readonly mappings")
-        for k, v in readonly_mappings.items():
-            print(" {} -> {}".format(k, v))
+        #print("readonly mappings")
+        #for k, v in readonly_mappings.items():
+        #    print(" {} -> {}".format(k, v))
 
         # 4. Construct a bipartite graph G2 of readwrite servers to pre-existing
         #    shares. Then remove any edge (from G2) that uses a server or a share found
@@ -520,9 +520,9 @@ class Happiness_Upload:
                                             index_to_share, max_server_graph)
         # "max_server_graph" is M2
 
-        print("existing mappings")
-        for k, v in existing_mappings.items():
-            print(" {} -> {}".format(k, v))
+        #print("existing mappings")
+        #for k, v in existing_mappings.items():
+        #    print(" {} -> {}".format(k, v))
 
         # 6. Construct a bipartite graph G3 of (only readwrite) servers to
         #    shares (some shares may already exist on a server). Then remove
@@ -554,9 +554,9 @@ class Happiness_Upload:
         new_mappings = self._convert_mappings(peer_to_index, index_to_share,
                                                                     max_graph)
 
-        print("new mappings")
-        for k, v in new_mappings.items():
-            print(" {} -> {}".format(k, v))
+        #print("new mappings")
+        #for k, v in new_mappings.items():
+        #    print(" {} -> {}".format(k, v))
 
         # "the final placement table"
         mappings = dict(readonly_mappings.items() + existing_mappings.items()
@@ -631,6 +631,7 @@ class Happiness_Upload:
         I calculate the happiness of the generated mappings and
         create the set self.homeless_shares.
         """
+        #print "_calculate_happiness"
         self.happy = 0
         self.homeless_shares = set()
         for share in mappings:
