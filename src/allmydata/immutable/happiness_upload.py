@@ -108,8 +108,8 @@ def _compute_maximum_graph(graph, shareIndices):
     flow_function = [[0 for sh in xrange(dim)] for s in xrange(dim)]
     residual_graph, residual_function = residual_network(graph, flow_function)
 
-    while augmenting_path_for(residual_graph):
-        path = augmenting_path_for(residual_graph)
+    path = augmenting_path_for(residual_graph)
+    while path:
         # Delta is the largest amount that we can increase flow across
         # all of the edges in path. Because of the way that the residual
         # function is constructed, f[u][v] for a particular edge (u, v)
@@ -122,6 +122,8 @@ def _compute_maximum_graph(graph, shareIndices):
             flow_function[u][v] += delta
             flow_function[v][u] -= delta
         residual_graph, residual_function = residual_network(graph,flow_function)
+        path = augmenting_path_for(residual_graph)
+        print('loop', len(residual_graph))
 
     new_mappings = {}
     for shareIndex in shareIndices:
@@ -444,6 +446,10 @@ class Happiness_Upload:
         by the client.
         """
 
+        # 2. Construct a bipartite graph G1 of *readonly* servers to pre-existing
+        #    shares, where an edge exists between an arbitrary readonly server S and an
+        #    arbitrary share T if and only if S currently holds T.
+
         # First find the maximum spanning of the readonly servers.
         readonly_peers = self.readonly_peers
         readonly_shares = set()
@@ -457,13 +463,35 @@ class Happiness_Upload:
         peer_to_index = self._index_peers(readonly_peers, 1)
         share_to_index, index_to_share = self._reindex_shares(readonly_shares,
                                                         len(readonly_peers) + 1)
+        # "graph" is G1
         graph = self._servermap_flow_graph(readonly_peers, readonly_shares, readonly_map)
         shareids = [share_to_index[s] for s in readonly_shares]
         max_graph = self._compute_maximum_graph(graph, shareids)
+
+        # 3. Calculate a maximum matching graph of G1 (a set of S->T edges that has or
+        #    is-tied-for the highest "happiness score"). There is a clever efficient
+        #    algorithm for this, named "Ford-Fulkerson". There may be more than one
+        #    maximum matching for this graph; we choose one of them arbitrarily, but
+        #    prefer earlier servers. Call this particular placement M1. The placement
+        #    maps shares to servers, where each share appears at most once, and each
+        #    server appears at most once.
+
+        # "max_graph" is M1 and is a dict which maps shares -> peer
+        # (but "one" of the many arbitrary mappings that give us "max
+        # happiness" of the existing placed shares)
         readonly_mappings = self._convert_mappings(peer_to_index,
                                                     index_to_share, max_graph)
 
         used_peers, used_shares = self._extract_ids(readonly_mappings)
+
+        print("readonly mappings")
+        for k, v in readonly_mappings.items():
+            print(" {} -> {}".format(k, v))
+
+        # 4. Construct a bipartite graph G2 of readwrite servers to pre-existing
+        #    shares. Then remove any edge (from G2) that uses a server or a share found
+        #    in M1. Let an edge exist between server S and share T if and only if S
+        #    already holds T.
 
         # Now find the maximum matching for the rest of the existing allocations.
         # Remove any peers and shares used in readonly_mappings.
@@ -479,6 +507,9 @@ class Happiness_Upload:
                     servermap.pop(peer, None)
                     peers.remove(peer)
 
+        # 5. Calculate a maximum matching graph of G2, call this M2, again preferring
+        #    earlier servers.
+
         # Reindex and find the maximum matching of the graph.
         peer_to_index = self._index_peers(peers, 1)
         share_to_index, index_to_share = self._reindex_shares(shares, len(peers) + 1)
@@ -487,6 +518,17 @@ class Happiness_Upload:
         max_server_graph = self._compute_maximum_graph(graph, shareids)
         existing_mappings = self._convert_mappings(peer_to_index,
                                             index_to_share, max_server_graph)
+        # "max_server_graph" is M2
+
+        print("existing mappings")
+        for k, v in existing_mappings.items():
+            print(" {} -> {}".format(k, v))
+
+        # 6. Construct a bipartite graph G3 of (only readwrite) servers to
+        #    shares (some shares may already exist on a server). Then remove
+        #    (from G3) any servers and shares used in M1 or M2 (note that we
+        #    retain servers/shares that were in G1/G2 but *not* in the M1/M2
+        #    subsets)
 
         existing_peers, existing_shares = self._extract_ids(existing_mappings)
         peers = self.peerids - existing_peers - used_peers
@@ -500,10 +542,23 @@ class Happiness_Upload:
         peerids = [peer_to_index[peer] for peer in peers]
         shareids = [share_to_index[share] for share in shares]
         graph = self._flow_network(peerids, shareids)
+
+        # XXX I think the above is equivalent to step 6, except
+        # instead of "construct, then remove" the above is just
+        # "remove all used peers, shares and then construct graph"
+
+        # 7. Calculate a maximum matching graph of G3, call this M3, preferring earlier
+        #    servers. The final placement table is the union of M1+M2+M3.
+
         max_graph = self._compute_maximum_graph(graph, shareids)
         new_mappings = self._convert_mappings(peer_to_index, index_to_share,
                                                                     max_graph)
 
+        print("new mappings")
+        for k, v in new_mappings.items():
+            print(" {} -> {}".format(k, v))
+
+        # "the final placement table"
         mappings = dict(readonly_mappings.items() + existing_mappings.items()
                                                         + new_mappings.items())
         self._calculate_happiness(mappings)

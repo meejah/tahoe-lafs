@@ -200,3 +200,53 @@ class Happiness(unittest.TestCase):
         }
         happy = happiness_upload.calculate_happiness(share_placements)
         self.assertEqual(2, happy)
+
+    def test_bar(self):
+        peers = {'peer0', 'peer1', 'peer2', 'peer3'}
+        shares = {'share0', 'share1', 'share2'}
+        readonly_peers = {'peer0'}
+        servermap = {
+            'peer0': {'share2', 'share0'},
+            'peer1': {'share1'},
+        }
+        h = happiness_upload.Happiness_Upload(peers, readonly_peers, shares, servermap)
+        maps = h.generate_mappings()
+        print("maps:")
+        for k in sorted(maps.keys()):
+            print("{} -> {}".format(k, maps[k]))
+
+    def test_foo(self):
+        peers = ['peer0', 'peer1']
+        shares = ['share0', 'share1', 'share2']
+        h = happiness_upload.Happiness_Upload(peers, [], shares, {})
+
+        # servermap must have all peers -> [share, share, share, ...]
+        graph = h._servermap_flow_graph(
+            peers,
+            shares,
+            {
+                'peer0': ['share0', 'share1', 'share2'],
+                'peer1': ['share1'],
+            },
+        )
+        peer_to_index = h._index_peers(peers, 1)
+        share_to_index, index_to_share = h._reindex_shares(shares, len(peers) + 1)
+
+        print("graph:")
+        for row in graph:
+            print(row)
+        shareids = [3, 4, 5]
+        max_server_graph = h._compute_maximum_graph(graph, shareids)
+        print("max_server_graph:", max_server_graph)
+        for k, v in max_server_graph.items():
+            print("{} -> {}".format(k, v))
+
+        mappings = h._convert_mappings(peer_to_index, index_to_share, max_server_graph)
+        print("mappings:", mappings)
+        used_peers, used_shares = h._extract_ids(mappings)
+        print("existing used peers", used_peers)
+        print("existing used shares", used_shares)
+
+        unused_peers = peers - used_peers
+        unused_shares = shares - used_shares
+
