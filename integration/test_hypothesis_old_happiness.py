@@ -21,9 +21,8 @@ def test_hypothesis_old_unhappy(peers, shares):
     peers_to_shares = {}
     h = happiness_upload.Happiness_Upload(peers, readonly_peers, shares, peers_to_shares)
     places = h.generate_mappings()
-    happiness = happiness_upload.calculate_happiness(places)
     assert set(places.keys()) == shares
-    assert happiness == 4
+    assert h.happiness() == 4
 
 
 @given(
@@ -31,7 +30,7 @@ def test_hypothesis_old_unhappy(peers, shares):
     # can we make a readonly_peers that's a subset of ^
     sets(elements=text(min_size=1), min_size=1, max_size=20),
 )
-def test_hypothesis_more_happiness(peers, shares):
+def test_hypothesis_old_more_happiness(peers, shares):
     """
     similar to test_unhappy we test that the resulting happiness is
     always either the number of peers or the number of shares
@@ -44,13 +43,13 @@ def test_hypothesis_more_happiness(peers, shares):
     peers_to_shares = {}
     h = happiness_upload.Happiness_Upload(peers, readonly_peers, shares, peers_to_shares)
     places = h.generate_mappings()
-    happiness = happiness_upload.calculate_happiness(places)
+    happiness = h.happiness()
 
     # every share should get placed
     assert set(places.keys()) == shares
 
     # we should only use peers that exist
-    assert set(places.values()).issubset(peers)
+    assert set(map(lambda x: list(x)[0], places.values())).issubset(peers) # XXX correct?
 
     # if we have more shares than peers, happiness is at most # of
     # peers; if we have fewer shares than peers happiness is capped at
