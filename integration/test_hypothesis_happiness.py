@@ -12,7 +12,8 @@ from allmydata.immutable import happiness_upload
 )
 def test_hypothesis_unhappy(peers, shares):
     """
-    similar to test_unhappy we test that the resulting happiness is always 4 since the size of peers is 4.
+    similar to test_unhappy we test that the resulting happiness is
+    always 4 since the size of peers is 4.
     """
     # https://hypothesis.readthedocs.io/en/latest/data.html#hypothesis.strategies.sets
     # hypothesis.strategies.sets(elements=None, min_size=None, average_size=None, max_size=None)[source]
@@ -31,7 +32,9 @@ def test_hypothesis_unhappy(peers, shares):
 )
 def test_more_hypothesis(peers, shares):
     """
-    similar to test_unhappy we test that the resulting happiness is always 4 since the size of peers is 4.
+    similar to test_unhappy we test that the resulting happiness is
+    always either the number of peers or the number of shares
+    whichever is smaller.
     """
     # https://hypothesis.readthedocs.io/en/latest/data.html#hypothesis.strategies.sets
     # hypothesis.strategies.sets(elements=None, min_size=None, average_size=None, max_size=None)[source]
