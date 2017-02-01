@@ -349,15 +349,17 @@ def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
     #    (from G3) any servers and shares used in M1 or M2 (note that we
     #    retain servers/shares that were in G1/G2 but *not* in the M1/M2
     #    subsets)
+    peers_for_g3 = set(peers)
+    peers_for_g3 = peers_for_g3 - set(map(lambda x: list(x)[0], m1.values()))
+    peers_for_g3 = peers_for_g3 - set(map(lambda x: list(x)[0], m2.values()))
 
-    # meejah: does that last sentence mean remove *any* edge with any
-    # server in M1?? or just "remove any edge found in M1/M2"? (Wait,
-    # is that last sentence backwards? G1 a subset of M1?)
-    readwrite = set(peers).difference(set(readonly_peers))
+    shares_for_g3 = filter(lambda x: x not in set(m1.keys()), shares)
+    shares_for_g3 = filter(lambda x: x not in set(m2.keys()), shares_for_g3)
+
     g3 = [
-        (server, share) for server in readwrite for share in shares
+        (server, share) for server in peers_for_g3 for share in shares_for_g3
     ]
-    g3 = _filter_g3(g3, m1, m2)
+
     if False:
         print("G3:")
         for srv, shr in g3:
@@ -392,10 +394,10 @@ def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
 
     # if we have any readwrite servers at all, we can place any shares
     # that didn't get placed -- otherwise, we can't.
-    if readwrite:
+    if peers_for_g3:
         def peer_generator():
             while True:
-                for peer in readwrite:
+                for peer in peers_for_g3:
                     yield peer
         round_robin_peers = peer_generator()
         for k, v in answer.items():

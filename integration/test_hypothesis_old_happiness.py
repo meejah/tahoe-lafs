@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-from twisted.trial import unittest
 from hypothesis import given
 from hypothesis.strategies import text, sets
 from allmydata.immutable import happiness_upload
