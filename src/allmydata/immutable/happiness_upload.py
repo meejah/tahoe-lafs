@@ -1,4 +1,8 @@
 
+from Queue import PriorityQueue
+#from allmydata.util.happinessutil import augmenting_path_for, residual_network
+
+
 def augmenting_path_for(graph):
     """
     I return an augmenting path, if there is one, from the source node
@@ -274,32 +278,237 @@ def _merge_dicts(result, inc):
         elif v is not None:
             result[k] = existing.union(v)
 
+def _index_peers(ids, base):
+    """
+    I create a bidirectional dictionary of indexes to ids with
+    indexes from base to base + |ids| - 1 inclusively. I am used
+    in order to create a flow network with vertices 0 through n.
+    """
+    reindex_to_name = {}
+    for item in ids:
+        reindex_to_name.setdefault(item, base)
+        reindex_to_name.setdefault(base, item)
+        base += 1
+    return reindex_to_name
+
+def _reindex_shares(shares, base):
+    """
+    I create a dictionary of sharenum -> index (where 'index' is as defined
+    in _index_peers) and a dictionary of index -> sharenum. Since share
+    numbers  use the same name space as the indexes, two dictionaries need
+    to be created instead of one like in _reindex_peers.
+    """
+    share_to_index = {}
+    index_to_share = {}
+    for share in shares:
+        share_to_index.setdefault(share, base)
+        index_to_share.setdefault(base, share)
+        base += 1
+    return (share_to_index, index_to_share)
+
+def _servermap_flow_graph(peers, shares, servermap):
+    """
+    Generates a flow network of peerids to shareids from a server map
+    of 'peerids' -> ['shareids']. According to Wikipedia, "a flow network is a
+    directed graph where each edge has a capacity and each edge receives a flow.
+    The amount of flow on an edge cannot exceed the capacity of the edge." This
+    is necessary because in order to find the maximum spanning, the Edmonds-Karp algorithm
+    converts the problem into a maximum flow problem.
+    """
+    if servermap == {}:
+        return []
+
+    peerids = peers
+    shareids = shares
+    peer_to_index = _index_peers(peerids, 1)
+    share_to_index, index_to_share = _reindex_shares(shareids, len(peerids) + 1)
+    graph = []
+    sink_num = len(peerids) + len(shareids) + 1
+    graph.append([peer_to_index[peer] for peer in peerids])
+    for peerid in peerids:
+        shares = [share_to_index[s] for s in servermap[peerid]]
+        graph.insert(peer_to_index[peerid], shares)
+    for shareid in shareids:
+        graph.insert(share_to_index[shareid], [sink_num])
+    graph.append([])
+    return graph
+
+def _compute_maximum_graph(graph, shareids):
+    """
+    This is an implementation of the Ford-Fulkerson method for finding
+    a maximum flow in a flow network applied to a bipartite graph.
+    Specifically, it is the Edmonds-Karp algorithm, since it uses a
+    BFS to find the shortest augmenting path at each iteration, if one
+    exists.
+
+    The implementation here is an adapation of an algorithm described in
+    "Introduction to Algorithms", Cormen et al, 2nd ed., pp 658-662.
+    """
+
+    if graph == []:
+        return {}
+
+    dim = len(graph)
+    flow_function = [[0 for sh in xrange(dim)] for s in xrange(dim)]
+    residual_graph, residual_function = residual_network(graph, flow_function)
+
+    while augmenting_path_for(residual_graph):
+        path = augmenting_path_for(residual_graph)
+        # Delta is the largest amount that we can increase flow across
+        # all of the edges in path. Because of the way that the residual
+        # function is constructed, f[u][v] for a particular edge (u, v)
+        # is the amount of unused capacity on that edge. Taking the
+        # minimum of a list of those values for each edge in the
+        # augmenting path gives us our delta.
+        delta = min(map(lambda (u, v), rf=residual_function: rf[u][v],
+                        path))
+        for (u, v) in path:
+            flow_function[u][v] += delta
+            flow_function[v][u] -= delta
+        residual_graph, residual_function = residual_network(graph,flow_function)
+
+    new_mappings = {}
+    for share in shareids:
+        peer = residual_graph[share]
+        if peer == [dim - 1]:
+            new_mappings.setdefault(share, None)
+        else:
+            new_mappings.setdefault(share, peer[0])
+
+    return new_mappings
+
+def _convert_mappings(peer_to_index, share_to_index, maximum_graph):
+    """
+    Now that a maximum spanning graph has been found, convert the indexes
+    back to their original ids so that the client can pass them to the
+    uploader.
+    """
+
+    converted_mappings = {}
+    for share in maximum_graph:
+        peer = maximum_graph[share]
+        if peer == None:
+            converted_mappings.setdefault(share_to_index[share], None)
+        else:
+            converted_mappings.setdefault(share_to_index[share],
+                                          set([peer_to_index[peer]]))
+    return converted_mappings
+
+def _flow_network(peerids, shareids):
+    """
+    Given set of peerids and shareids, I create a flow network
+    to be used by _compute_maximum_graph.
+    """
+    graph = []
+    graph.append(peerids)
+    sink_num = len(peerids + shareids) + 1
+    for peerid in peerids:
+        graph.insert(peerid, shareids)
+    for shareid in shareids:
+        graph.insert(shareid, [sink_num])
+    graph.append([])
+    return graph
+
+def _extract_ids(mappings):
+    shares = set()
+    peers = set()
+    for share in mappings:
+        if mappings[share] == None:
+            pass
+        else:
+            shares.add(share)
+            for item in mappings[share]:
+                peers.add(item)
+    return (peers, shares)
 
 def calculate_happiness(mappings):
     """
-    I calculate the happiness of the generated mappings
+    I return the happiness of the mappings
     """
-    unique_peers = {v for k, v in mappings.items()}
-    return len(unique_peers)
+    happy = 0
+    for share in mappings:
+        if mappings[share] is not None:
+            happy += 1
+    return happy
 
+def _distribute_homeless_shares(mappings, homeless_shares, peers_to_shares):
+    """
+    Shares which are not mapped to a peer in the maximum spanning graph
+    still need to be placed on a server. This function attempts to
+    distribute those homeless shares as evenly as possible over the
+    available peers. If possible a share will be placed on the server it was
+    originally on, signifying the lease should be renewed instead.
+    """
+    servermap_peerids = set([key for key in peers_to_shares])
+    servermap_shareids = set()
+    for key in peers_to_shares:
+        for share in peers_to_shares[key]:
+            servermap_shareids.add(share)
+
+    # First check to see if the leases can be renewed.
+    to_distribute = set()
+    for share in homeless_shares:
+        if share in servermap_shareids:
+            for peerid in peers_to_shares:
+                if share in peers_to_shares[peerid]:
+                    mappings[share] = set([peerid])
+                    break
+        else:
+            to_distribute.add(share)
+    # This builds a priority queue of peers with the number of shares
+    # each peer holds as the priority.
+    priority = {}
+    pQueue = PriorityQueue()
+    for peerid in servermap_peerids:
+        priority.setdefault(peerid, 0)
+    for share in mappings:
+        if mappings[share] is not None:
+            for peer in mappings[share]:
+                if peer in servermap_peerids:
+                    priority[peer] += 1
+    if priority == {}:
+        return
+    for peerid in priority:
+        pQueue.put((priority[peerid], peerid))
+    # Distribute the shares to peers with the lowest priority.
+    for share in to_distribute:
+        peer = pQueue.get()
+        mappings[share] = set([peer[1]])
+        pQueue.put((peer[0]+1, peer[1]))
 
 def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
     """
-    :param servers: ordered list of servers, "Maybe *2N* of them."
+    Generate a flow network of peerids to existing shareids and find
+    its maximum spanning graph. The leases of these shares should be renewed
+    by the client.
     """
-    if False:
-        print("peers:", peers)
-        print("readonly:", readonly_peers)
-        print("shares:", shares)
-        print("peers_to_shares:", peers_to_shares)
-    # "2. Construct a bipartite graph G1 of *readonly* servers to pre-existing
-    # shares, where an edge exists between an arbitrary readonly server S and an
-    # arbitrary share T if and only if S currently holds T."
-    g1 = set()
-    for share in shares:
-        for server in peers:
-            if server in readonly_peers and share in peers_to_shares.get(server, set()):
-                g1.add((server, share))
+
+    servermap_peerids = set([key for key in peers_to_shares])
+    servermap_shareids = set()
+    for key in peers_to_shares:
+        for share in peers_to_shares[key]:
+            servermap_shareids.add(share)
+
+    # 2. Construct a bipartite graph G1 of *readonly* servers to pre-existing
+    #    shares, where an edge exists between an arbitrary readonly server S and an
+    #    arbitrary share T if and only if S currently holds T.
+
+    # First find the maximum spanning of the readonly servers.
+    readonly_shares = set()
+    readonly_map = {}
+    for peer in peers_to_shares:
+        if peer in readonly_peers:
+            readonly_map.setdefault(peer, peers_to_shares[peer])
+            for share in peers_to_shares[peer]:
+                readonly_shares.add(share)
+
+    peer_to_index = _index_peers(readonly_peers, 1)
+    share_to_index, index_to_share = _reindex_shares(readonly_shares,
+                                                          len(readonly_peers) + 1)
+    # "graph" is G1
+    graph = _servermap_flow_graph(readonly_peers, readonly_shares, readonly_map)
+    shareids = [share_to_index[s] for s in readonly_shares]
+    max_graph = _compute_maximum_graph(graph, shareids)
 
     # 3. Calculate a maximum matching graph of G1 (a set of S->T edges that has or
     #    is-tied-for the highest "happiness score"). There is a clever efficient
@@ -308,475 +517,96 @@ def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
     #    prefer earlier servers. Call this particular placement M1. The placement
     #    maps shares to servers, where each share appears at most once, and each
     #    server appears at most once.
-    m1 = _maximum_matching_graph(g1, peers_to_shares)
-    if False:
-        print("G1:")
-        for k, v in g1:
-            print(" {}: {}".format(k, v))
-        print("M1:")
-        for k, v in m1.items():
-            print(" {}: {}".format(k, v))
+
+    # "max_graph" is M1 and is a dict which maps shares -> peer
+    # (but "one" of the many arbitrary mappings that give us "max
+    # happiness" of the existing placed shares)
+    readonly_mappings = _convert_mappings(peer_to_index,
+                                               index_to_share, max_graph)
+
+    used_peers, used_shares = _extract_ids(readonly_mappings)
+
+    #print("readonly mappings")
+    #for k, v in readonly_mappings.items():
+    #    print(" {} -> {}".format(k, v))
 
     # 4. Construct a bipartite graph G2 of readwrite servers to pre-existing
     #    shares. Then remove any edge (from G2) that uses a server or a share found
     #    in M1. Let an edge exist between server S and share T if and only if S
     #    already holds T.
-    g2 = set()
-    for g2_server, g2_shares in peers_to_shares.items():
-        for share in g2_shares:
-            g2.add((g2_server, share))
 
-    for server, share in m1.items():
-        for g2server, g2share in g2:
-            if g2server == server or g2share == share:
-                g2.remove((g2server, g2share))
+    # Now find the maximum matching for the rest of the existing allocations.
+    # Remove any peers and shares used in readonly_mappings.
+    new_peers = servermap_peerids - used_peers
+    new_shares = servermap_shareids - used_shares
+    servermap = peers_to_shares.copy()
+    for peer in peers_to_shares:
+        if peer in used_peers:
+            servermap.pop(peer, None)
+        else:
+            servermap[peer] = set(servermap[peer]) - used_shares
+            if servermap[peer] == set():
+                servermap.pop(peer, None)
+                new_peers.remove(peer)
 
     # 5. Calculate a maximum matching graph of G2, call this M2, again preferring
     #    earlier servers.
 
-    m2 = _maximum_matching_graph(g2, peers_to_shares)
+    # Reindex and find the maximum matching of the graph.
+    peer_to_index = _index_peers(new_peers, 1)
+    share_to_index, index_to_share = _reindex_shares(new_shares, len(new_peers) + 1)
+    graph = _servermap_flow_graph(new_peers, new_shares, servermap)
+    shareids = [share_to_index[s] for s in new_shares]
+    max_server_graph = _compute_maximum_graph(graph, shareids)
+    existing_mappings = _convert_mappings(peer_to_index,
+                                               index_to_share, max_server_graph)
+    # "max_server_graph" is M2
 
-    if False:
-        print("G2:")
-        for k, v in g2:
-            print(" {}: {}".format(k, v))
-        print("M2:")
-        for k, v in m2.items():
-            print(" {}: {}".format(k, v))
+    #print("existing mappings")
+    #for k, v in existing_mappings.items():
+    #    print(" {} -> {}".format(k, v))
 
     # 6. Construct a bipartite graph G3 of (only readwrite) servers to
     #    shares (some shares may already exist on a server). Then remove
     #    (from G3) any servers and shares used in M1 or M2 (note that we
     #    retain servers/shares that were in G1/G2 but *not* in the M1/M2
     #    subsets)
-    peers_for_g3 = set(peers)
-    peers_for_g3 = peers_for_g3 - set(map(lambda x: list(x)[0], m1.values()))
-    peers_for_g3 = peers_for_g3 - set(map(lambda x: list(x)[0], m2.values()))
 
-    shares_for_g3 = filter(lambda x: x not in set(m1.keys()), shares)
-    shares_for_g3 = filter(lambda x: x not in set(m2.keys()), shares_for_g3)
+    existing_peers, existing_shares = _extract_ids(existing_mappings)
+    new_peers = new_peers - existing_peers - used_peers
+    new_shares = new_shares - existing_shares - used_shares
 
-    g3 = [
-        (server, share) for server in peers_for_g3 for share in shares_for_g3
-    ]
+    # Generate a flow network of peerids to shareids for all peers
+    # and shares which cannot be reused from previous file allocations.
+    # These mappings represent new allocations the uploader must make.
+    peer_to_index = _index_peers(new_peers, 1)
+    share_to_index, index_to_share = _reindex_shares(new_shares, len(new_peers) + 1)
+    peerids = [peer_to_index[peer] for peer in new_peers]
+    shareids = [share_to_index[share] for share in new_shares]
+    graph = _flow_network(peerids, shareids)
 
-    if False:
-        print("G3:")
-        for srv, shr in g3:
-            print("  {}->{}".format(srv, shr))
+    # XXX I think the above is equivalent to step 6, except
+    # instead of "construct, then remove" the above is just
+    # "remove all used peers, shares and then construct graph"
 
     # 7. Calculate a maximum matching graph of G3, call this M3, preferring earlier
     #    servers. The final placement table is the union of M1+M2+M3.
 
-    m3 = _maximum_matching_graph(g3, {})#, peers_to_shares)
-
-    answer = {
-        k: None for k in shares
-    }
-    if False:
-        print("m1", m1)
-        print("m2", m2)
-        print("m3", m3)
-    _merge_dicts(answer, m1)
-    _merge_dicts(answer, m2)
-    _merge_dicts(answer, m3)
-
-    # anything left over that has "None" instead of a 1-set of peers
-    # should be part of the "evenly distribute amongst readwrite
-    # servers" thing.
-
-    # See "Properties of Upload Strategy of Happiness" in the spec:
-    # "The size of the maximum bipartite matching is bounded by the size of the smaller
-    # set of vertices. Therefore in a situation where the set of servers is smaller
-    # than the set of shares, placement is not generated for a subset of shares. In
-    # this case the remaining shares are distributed as evenly as possible across the
-    # set of writable servers."
-
-    # if we have any readwrite servers at all, we can place any shares
-    # that didn't get placed -- otherwise, we can't.
-    if peers_for_g3:
-        def peer_generator():
-            while True:
-                for peer in peers_for_g3:
-                    yield peer
-        round_robin_peers = peer_generator()
-        for k, v in answer.items():
-            if v is None:
-                answer[k] = {next(round_robin_peers)}
-
-    new_answer = dict()
-    for k, v in answer.items():
-        new_answer[k] = list(v)[0] if v else None
-    return new_answer
-
-
-
-# putting mark-berger code back in to see if it's slow too
-from Queue import PriorityQueue
-from allmydata.util.happinessutil import augmenting_path_for, residual_network
-
-class Happiness_Upload:
-    """
-    I handle the calculations involved with generating the maximum
-    spanning graph for a file when given a set of peerids, shareids, and
-    a servermap of 'peerid' -> [shareids]. Mappings are returned in a
-    dictionary of 'shareid' -> 'peerid'
-    """
-
-    def __init__(self, peerids, readonly_peers, shareids, servermap={}):
-        self.happy = 0
-        self.homeless_shares = set()
-        self.peerids = peerids
-        self.readonly_peers = readonly_peers
-        self.shareids = shareids
-        self.servermap = servermap
-        self.servermap_peerids = set([key for key in servermap])
-        self.servermap_shareids = set()
-        for key in servermap:
-            for share in servermap[key]:
-                self.servermap_shareids.add(share)
-
-
-    def happiness(self):
-        return self.happy
-
-
-    def generate_mappings(self):
-        """
-        Generate a flow network of peerids to existing shareids and find
-        its maximum spanning graph. The leases of these shares should be renewed
-        by the client.
-        """
-
-        # 2. Construct a bipartite graph G1 of *readonly* servers to pre-existing
-        #    shares, where an edge exists between an arbitrary readonly server S and an
-        #    arbitrary share T if and only if S currently holds T.
-
-        # First find the maximum spanning of the readonly servers.
-        readonly_peers = self.readonly_peers
-        readonly_shares = set()
-        readonly_map = {}
-        for peer in self.servermap:
-            if peer in self.readonly_peers:
-                readonly_map.setdefault(peer, self.servermap[peer])
-                for share in self.servermap[peer]:
-                    readonly_shares.add(share)
-
-        peer_to_index = self._index_peers(readonly_peers, 1)
-        share_to_index, index_to_share = self._reindex_shares(readonly_shares,
-                                                        len(readonly_peers) + 1)
-        # "graph" is G1
-        graph = self._servermap_flow_graph(readonly_peers, readonly_shares, readonly_map)
-        shareids = [share_to_index[s] for s in readonly_shares]
-        max_graph = self._compute_maximum_graph(graph, shareids)
-
-        # 3. Calculate a maximum matching graph of G1 (a set of S->T edges that has or
-        #    is-tied-for the highest "happiness score"). There is a clever efficient
-        #    algorithm for this, named "Ford-Fulkerson". There may be more than one
-        #    maximum matching for this graph; we choose one of them arbitrarily, but
-        #    prefer earlier servers. Call this particular placement M1. The placement
-        #    maps shares to servers, where each share appears at most once, and each
-        #    server appears at most once.
-
-        # "max_graph" is M1 and is a dict which maps shares -> peer
-        # (but "one" of the many arbitrary mappings that give us "max
-        # happiness" of the existing placed shares)
-        readonly_mappings = self._convert_mappings(peer_to_index,
-                                                    index_to_share, max_graph)
-
-        used_peers, used_shares = self._extract_ids(readonly_mappings)
-
-        #print("readonly mappings")
-        #for k, v in readonly_mappings.items():
-        #    print(" {} -> {}".format(k, v))
-
-        # 4. Construct a bipartite graph G2 of readwrite servers to pre-existing
-        #    shares. Then remove any edge (from G2) that uses a server or a share found
-        #    in M1. Let an edge exist between server S and share T if and only if S
-        #    already holds T.
-
-        # Now find the maximum matching for the rest of the existing allocations.
-        # Remove any peers and shares used in readonly_mappings.
-        peers = self.servermap_peerids - used_peers
-        shares = self.servermap_shareids - used_shares
-        servermap = self.servermap.copy()
-        for peer in self.servermap:
-            if peer in used_peers:
-                servermap.pop(peer, None)
-            else:
-                servermap[peer] = servermap[peer] - used_shares
-                if servermap[peer] == set():
-                    servermap.pop(peer, None)
-                    peers.remove(peer)
-
-        # 5. Calculate a maximum matching graph of G2, call this M2, again preferring
-        #    earlier servers.
-
-        # Reindex and find the maximum matching of the graph.
-        peer_to_index = self._index_peers(peers, 1)
-        share_to_index, index_to_share = self._reindex_shares(shares, len(peers) + 1)
-        graph = self._servermap_flow_graph(peers, shares, servermap)
-        shareids = [share_to_index[s] for s in shares]
-        max_server_graph = self._compute_maximum_graph(graph, shareids)
-        existing_mappings = self._convert_mappings(peer_to_index,
-                                            index_to_share, max_server_graph)
-        # "max_server_graph" is M2
-
-        #print("existing mappings")
-        #for k, v in existing_mappings.items():
-        #    print(" {} -> {}".format(k, v))
-
-        # 6. Construct a bipartite graph G3 of (only readwrite) servers to
-        #    shares (some shares may already exist on a server). Then remove
-        #    (from G3) any servers and shares used in M1 or M2 (note that we
-        #    retain servers/shares that were in G1/G2 but *not* in the M1/M2
-        #    subsets)
-
-        existing_peers, existing_shares = self._extract_ids(existing_mappings)
-        peers = self.peerids - existing_peers - used_peers
-        shares = self.shareids - existing_shares - used_shares
-
-        # Generate a flow network of peerids to shareids for all peers
-        # and shares which cannot be reused from previous file allocations.
-        # These mappings represent new allocations the uploader must make.
-        peer_to_index = self._index_peers(peers, 1)
-        share_to_index, index_to_share = self._reindex_shares(shares, len(peers) + 1)
-        peerids = [peer_to_index[peer] for peer in peers]
-        shareids = [share_to_index[share] for share in shares]
-        graph = self._flow_network(peerids, shareids)
-
-        # XXX I think the above is equivalent to step 6, except
-        # instead of "construct, then remove" the above is just
-        # "remove all used peers, shares and then construct graph"
-
-        # 7. Calculate a maximum matching graph of G3, call this M3, preferring earlier
-        #    servers. The final placement table is the union of M1+M2+M3.
-
-        max_graph = self._compute_maximum_graph(graph, shareids)
-        new_mappings = self._convert_mappings(peer_to_index, index_to_share,
+    max_graph = _compute_maximum_graph(graph, shareids)
+    new_mappings = _convert_mappings(peer_to_index, index_to_share,
                                                                     max_graph)
+    #print("new mappings")
+    #for k, v in new_mappings.items():
+    #    print(" {} -> {}".format(k, v))
 
-        #print("new mappings")
-        #for k, v in new_mappings.items():
-        #    print(" {} -> {}".format(k, v))
+    # "the final placement table"
+    mappings = dict(readonly_mappings.items() + existing_mappings.items()
+                    + new_mappings.items())
+    homeless_shares = set()
+    for share in mappings:
+        if mappings[share] is None:
+            homeless_shares.add(share)
+    if len(homeless_shares) != 0:
+        _distribute_homeless_shares(mappings, homeless_shares, peers_to_shares)
 
-        # "the final placement table"
-        mappings = dict(readonly_mappings.items() + existing_mappings.items()
-                                                        + new_mappings.items())
-        self._calculate_happiness(mappings)
-        if len(self.homeless_shares) != 0:
-            self._distribute_homeless_shares(mappings)
-
-        return mappings
-
-
-    def _compute_maximum_graph(self, graph, shareids):
-        """
-        This is an implementation of the Ford-Fulkerson method for finding
-        a maximum flow in a flow network applied to a bipartite graph.
-        Specifically, it is the Edmonds-Karp algorithm, since it uses a
-        BFS to find the shortest augmenting path at each iteration, if one
-        exists.
-
-        The implementation here is an adapation of an algorithm described in
-        "Introduction to Algorithms", Cormen et al, 2nd ed., pp 658-662.
-        """
-
-        if graph == []:
-            return {}
-
-        dim = len(graph)
-        flow_function = [[0 for sh in xrange(dim)] for s in xrange(dim)]
-        residual_graph, residual_function = residual_network(graph, flow_function)
-
-        while augmenting_path_for(residual_graph):
-            path = augmenting_path_for(residual_graph)
-            # Delta is the largest amount that we can increase flow across
-            # all of the edges in path. Because of the way that the residual
-            # function is constructed, f[u][v] for a particular edge (u, v)
-            # is the amount of unused capacity on that edge. Taking the
-            # minimum of a list of those values for each edge in the
-            # augmenting path gives us our delta.
-            delta = min(map(lambda (u, v), rf=residual_function: rf[u][v],
-                            path))
-            for (u, v) in path:
-                flow_function[u][v] += delta
-                flow_function[v][u] -= delta
-            residual_graph, residual_function = residual_network(graph,flow_function)
-
-        new_mappings = {}
-        for share in shareids:
-            peer = residual_graph[share]
-            if peer == [dim - 1]:
-                new_mappings.setdefault(share, None)
-            else:
-                new_mappings.setdefault(share, peer[0])
-
-        return new_mappings
-
-
-    def _extract_ids(self, mappings):
-        shares = set()
-        peers = set()
-        for share in mappings:
-            if mappings[share] == None:
-                pass
-            else:
-                shares.add(share)
-                for item in mappings[share]:
-                    peers.add(item)
-        return (peers, shares)
-
-
-    def _calculate_happiness(self, mappings):
-        """
-        I calculate the happiness of the generated mappings and
-        create the set self.homeless_shares.
-        """
-        #print "_calculate_happiness"
-        self.happy = 0
-        self.homeless_shares = set()
-        for share in mappings:
-            if mappings[share] is not None:
-                self.happy += 1
-            else:
-                self.homeless_shares.add(share)
-
-
-    def _distribute_homeless_shares(self, mappings):
-        """
-        Shares which are not mapped to a peer in the maximum spanning graph
-        still need to be placed on a server. This function attempts to
-        distribute those homeless shares as evenly as possible over the
-        available peers. If possible a share will be placed on the server it was
-        originally on, signifying the lease should be renewed instead.
-        """
-
-        # First check to see if the leases can be renewed.
-        to_distribute = set()
-
-        for share in self.homeless_shares:
-            if share in self.servermap_shareids:
-                for peerid in self.servermap:
-                    if share in self.servermap[peerid]:
-                        mappings[share] = set([peerid])
-                        break
-            else:
-                to_distribute.add(share)
-
-        # This builds a priority queue of peers with the number of shares
-        # each peer holds as the priority.
-
-        priority = {}
-        pQueue = PriorityQueue()
-        for peerid in self.peerids:
-            priority.setdefault(peerid, 0)
-        for share in mappings:
-            if mappings[share] is not None:
-                for peer in mappings[share]:
-                    if peer in self.peerids:
-                        priority[peer] += 1
-
-        if priority == {}:
-            return
-
-        for peerid in priority:
-            pQueue.put((priority[peerid], peerid))
-
-        # Distribute the shares to peers with the lowest priority.
-        for share in to_distribute:
-            peer = pQueue.get()
-            mappings[share] = set([peer[1]])
-            pQueue.put((peer[0]+1, peer[1]))
-
-
-    def _convert_mappings(self, peer_to_index, share_to_index, maximum_graph):
-        """
-        Now that a maximum spanning graph has been found, convert the indexes
-        back to their original ids so that the client can pass them to the
-        uploader.
-        """
-
-        converted_mappings = {}
-        for share in maximum_graph:
-            peer = maximum_graph[share]
-            if peer == None:
-                converted_mappings.setdefault(share_to_index[share], None)
-            else:
-                converted_mappings.setdefault(share_to_index[share],
-                                                    set([peer_to_index[peer]]))
-        return converted_mappings
-
-
-    def _servermap_flow_graph(self, peers, shares, servermap):
-        """
-        Generates a flow network of peerids to shareids from a server map
-        of 'peerids' -> ['shareids']. According to Wikipedia, "a flow network is a
-        directed graph where each edge has a capacity and each edge receives a flow.
-        The amount of flow on an edge cannot exceed the capacity of the edge." This
-        is necessary because in order to find the maximum spanning, the Edmonds-Karp algorithm
-        converts the problem into a maximum flow problem.
-        """
-        if servermap == {}:
-            return []
-
-        peerids = peers
-        shareids = shares
-        peer_to_index = self._index_peers(peerids, 1)
-        share_to_index, index_to_share = self._reindex_shares(shareids, len(peerids) + 1)
-        graph = []
-        sink_num = len(peerids) + len(shareids) + 1
-        graph.append([peer_to_index[peer] for peer in peerids])
-        for peerid in peerids:
-            shares = [share_to_index[s] for s in servermap[peerid]]
-            graph.insert(peer_to_index[peerid], shares)
-        for shareid in shareids:
-            graph.insert(share_to_index[shareid], [sink_num])
-        graph.append([])
-        return graph
-
-
-    def _index_peers(self, ids, base):
-        """
-        I create a bidirectional dictionary of indexes to ids with
-        indexes from base to base + |ids| - 1 inclusively. I am used
-        in order to create a flow network with vertices 0 through n.
-        """
-        reindex_to_name = {}
-        for item in ids:
-            reindex_to_name.setdefault(item, base)
-            reindex_to_name.setdefault(base, item)
-            base += 1
-        return reindex_to_name
-
-
-    def _reindex_shares(self, shares, base):
-        """
-        I create a dictionary of sharenum -> index (where 'index' is as defined
-        in _index_peers) and a dictionary of index -> sharenum. Since share
-        numbers  use the same name space as the indexes, two dictionaries need
-        to be created instead of one like in _reindex_peers.
-        """
-        share_to_index = {}
-        index_to_share = {}
-        for share in shares:
-            share_to_index.setdefault(share, base)
-            index_to_share.setdefault(base, share)
-            base += 1
-        return (share_to_index, index_to_share)
-
-
-    def _flow_network(self, peerids, shareids):
-        """
-        Given set of peerids and shareids, I create a flow network
-        to be used by _compute_maximum_graph.
-        """
-        graph = []
-        graph.append(peerids)
-        sink_num = len(peerids + shareids) + 1
-        for peerid in peerids:
-            graph.insert(peerid, shareids)
-        for shareid in shareids:
-            graph.insert(shareid, [sink_num])
-        graph.append([])
-        return graph
+    return mappings
