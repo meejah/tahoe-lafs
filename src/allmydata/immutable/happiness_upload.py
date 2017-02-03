@@ -423,13 +423,10 @@ def _extract_ids(mappings):
 
 def calculate_happiness(mappings):
     """
-    I return the happiness of the mappings
+    I calculate the happiness of the generated mappings
     """
-    happy = 0
-    for share in mappings:
-        if mappings[share] is not None:
-            happy += 1
-    return happy
+    unique_peers = {v for k, v in mappings.items()}
+    return len(unique_peers)
 
 def _distribute_homeless_shares(mappings, homeless_shares, peers_to_shares):
     """
@@ -476,6 +473,131 @@ def _distribute_homeless_shares(mappings, homeless_shares, peers_to_shares):
         mappings[share] = set([peer[1]])
         pQueue.put((peer[0]+1, peer[1]))
 
+
+def slow_share_placement(peers, readonly_peers, shares, peers_to_shares={}):
+    """
+    """
+    if False:
+        print("peers:", peers)
+        print("readonly:", readonly_peers)
+        print("shares:", shares)
+        print("peers_to_shares:", peers_to_shares)
+    # "2. Construct a bipartite graph G1 of *readonly* servers to pre-existing
+    # shares, where an edge exists between an arbitrary readonly server S and an
+    # arbitrary share T if and only if S currently holds T."
+    g1 = set()
+    for share in shares:
+        for server in peers:
+            if server in readonly_peers and share in peers_to_shares.get(server, set()):
+                g1.add((server, share))
+
+    # 3. Calculate a maximum matching graph of G1 (a set of S->T edges that has or
+    #    is-tied-for the highest "happiness score"). There is a clever efficient
+    #    algorithm for this, named "Ford-Fulkerson". There may be more than one
+    #    maximum matching for this graph; we choose one of them arbitrarily, but
+    #    prefer earlier servers. Call this particular placement M1. The placement
+    #    maps shares to servers, where each share appears at most once, and each
+    #    server appears at most once.
+    m1 = _maximum_matching_graph(g1, peers_to_shares)
+    if False:
+        print("G1:")
+        for k, v in g1:
+            print(" {}: {}".format(k, v))
+        print("M1:")
+        for k, v in m1.items():
+            print(" {}: {}".format(k, v))
+
+    # 4. Construct a bipartite graph G2 of readwrite servers to pre-existing
+    #    shares. Then remove any edge (from G2) that uses a server or a share found
+    #    in M1. Let an edge exist between server S and share T if and only if S
+    #    already holds T.
+    g2 = set()
+    for g2_server, g2_shares in peers_to_shares.items():
+        for share in g2_shares:
+            g2.add((g2_server, share))
+
+    for server, share in m1.items():
+        for g2server, g2share in g2:
+            if g2server == server or g2share == share:
+                g2.remove((g2server, g2share))
+
+    # 5. Calculate a maximum matching graph of G2, call this M2, again preferring
+    #    earlier servers.
+
+    m2 = _maximum_matching_graph(g2, peers_to_shares)
+
+    if False:
+        print("G2:")
+        for k, v in g2:
+            print(" {}: {}".format(k, v))
+        print("M2:")
+        for k, v in m2.items():
+            print(" {}: {}".format(k, v))
+
+    # 6. Construct a bipartite graph G3 of (only readwrite) servers to
+    #    shares (some shares may already exist on a server). Then remove
+    #    (from G3) any servers and shares used in M1 or M2 (note that we
+    #    retain servers/shares that were in G1/G2 but *not* in the M1/M2
+    #    subsets)
+
+    # meejah: does that last sentence mean remove *any* edge with any
+    # server in M1?? or just "remove any edge found in M1/M2"? (Wait,
+    # is that last sentence backwards? G1 a subset of M1?)
+    readwrite = set(peers).difference(set(readonly_peers))
+    g3 = [
+        (server, share) for server in readwrite for share in shares
+    ]
+    g3 = _filter_g3(g3, m1, m2)
+    if False:
+        print("G3:")
+        for srv, shr in g3:
+            print("  {}->{}".format(srv, shr))
+
+    # 7. Calculate a maximum matching graph of G3, call this M3, preferring earlier
+    #    servers. The final placement table is the union of M1+M2+M3.
+
+    m3 = _maximum_matching_graph(g3, {})#, peers_to_shares)
+
+    answer = {
+        k: None for k in shares
+    }
+    if False:
+        print("m1", m1)
+        print("m2", m2)
+        print("m3", m3)
+    _merge_dicts(answer, m1)
+    _merge_dicts(answer, m2)
+    _merge_dicts(answer, m3)
+
+    # anything left over that has "None" instead of a 1-set of peers
+    # should be part of the "evenly distribute amongst readwrite
+    # servers" thing.
+
+    # See "Properties of Upload Strategy of Happiness" in the spec:
+    # "The size of the maximum bipartite matching is bounded by the size of the smaller
+    # set of vertices. Therefore in a situation where the set of servers is smaller
+    # than the set of shares, placement is not generated for a subset of shares. In
+    # this case the remaining shares are distributed as evenly as possible across the
+    # set of writable servers."
+
+    # if we have any readwrite servers at all, we can place any shares
+    # that didn't get placed -- otherwise, we can't.
+    if readwrite:
+        def peer_generator():
+            while True:
+                for peer in readwrite:
+                    yield peer
+        round_robin_peers = peer_generator()
+        for k, v in answer.items():
+            if v is None:
+                answer[k] = {next(round_robin_peers)}
+
+    new_answer = dict()
+    for k, v in answer.items():
+        new_answer[k] = list(v)[0] if v else None
+    return new_answer
+
+        
 def share_placement(peers, readonly_peers, shares, peers_to_shares={}):
     """
     Generate a flow network of peerids to existing shareids and find
