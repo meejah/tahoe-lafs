@@ -87,7 +87,7 @@ class Happiness(unittest.TestCase):
         # i.e. this says that share0 should be on peer0, share1 should
         # be on peer1, etc.
         expected = {
-            'share{}'.format(i): 'peer{}'.format(i)
+            'share{}'.format(i): 'set([peer{}])'.format(i)
             for i in range(10)
         }
         self.assertEqual(expected, places)
@@ -110,6 +110,10 @@ class Happiness(unittest.TestCase):
         shares={u'0', u'1'}
         readonly_peers = set()
         peers_to_shares = dict()
+
+        #h = happiness_upload.HappinessUpload(peers, readonly_peers, shares, peers_to_shares)
+        #places = h.generate_mappings()
+        #happiness = h.happiness()
 
         places = happiness_upload.share_placement(peers, readonly_peers, shares, peers_to_shares)
         happiness = happiness_upload.calculate_happiness(places)
@@ -145,6 +149,10 @@ class Happiness(unittest.TestCase):
         # we can achieve more happiness by moving "2" or "3" to server "d"
 
         places = happiness_upload.share_placement(peers, readonly_peers, shares, peers_to_shares)
+        #print "places %s" % places
+        #places = happiness_upload.slow_share_placement(peers, readonly_peers, shares, peers_to_shares)
+        #print "places %s" % places
+
         happiness = happiness_upload.calculate_happiness(places)
         self.assertEqual(4, happiness)
 

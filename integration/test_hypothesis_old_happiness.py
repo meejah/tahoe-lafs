@@ -18,7 +18,7 @@ def test_hypothesis_old_unhappy(peers, shares):
     # hypothesis.strategies.sets(elements=None, min_size=None, average_size=None, max_size=None)[source]
     readonly_peers = set()
     peers_to_shares = {}
-    h = happiness_upload.Happiness_Upload(peers, readonly_peers, shares, peers_to_shares)
+    h = happiness_upload.HappinessUpload(peers, readonly_peers, shares, peers_to_shares)
     places = h.generate_mappings()
     assert set(places.keys()) == shares
     assert h.happiness() == 4
@@ -40,7 +40,7 @@ def test_hypothesis_old_more_happiness(peers, shares):
     # XXX would be nice to paramaterize these by hypothesis too
     readonly_peers = set()
     peers_to_shares = {}
-    h = happiness_upload.Happiness_Upload(peers, readonly_peers, shares, peers_to_shares)
+    h = happiness_upload.HappinessUpload(peers, readonly_peers, shares, peers_to_shares)
     places = h.generate_mappings()
     happiness = h.happiness()
 
