@@ -265,7 +265,6 @@ def _servermap_flow_graph(peers, shares, servermap):
     #print "share_to_index %s" % share_to_index
     #print "servermap %s" % servermap
     for peer in peers:
-        print "peer %s" % peer
         if servermap.has_key(peer):
             for s in servermap[peer]:
                 if share_to_index.has_key(s):
