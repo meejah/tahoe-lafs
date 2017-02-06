@@ -173,7 +173,6 @@ class Happiness(unittest.TestCase):
             7: '\xb9\xa3N\x80u\x9c_\xf7\x97FSS\xa7\xbd\x02\xf9f$:\t',
             8: '\xb9\xa3N\x80u\x9c_\xf7\x97FSS\xa7\xbd\x02\xf9f$:\t',
             9: '\xb9\xa3N\x80u\x9c_\xf7\x97FSS\xa7\xbd\x02\xf9f$:\t',
-            10: None,
         }
         happy = happiness_upload.calculate_happiness(share_placements)
         self.assertEqual(2, happy)

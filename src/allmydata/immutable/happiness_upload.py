@@ -85,12 +85,7 @@ def calculate_happiness(mappings):
         placed shares on.
     """
     unique_peers = set(mappings.values())
-    # if we happened to still have a mapping to None, that's an
-    # "unplaced share" so doesn't count to happiness
-    try:
-        unique_peers.remove(None)
-    except KeyError:
-        pass
+    assert None not in unique_peers
     return len(unique_peers)
 
 
