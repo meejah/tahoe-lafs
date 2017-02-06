@@ -76,15 +76,20 @@ def residual_network(graph, f):
                 cf[v][i] = -1
     return (new_graph, cf)
 
+
 def calculate_happiness(mappings):
     """
-    I return the happiness of the mappings
+    :param mappings: a dict mapping 'share' -> 'peer'
+
+    :returns: the happiness, which is the number of unique peers we've
+        placed shares on.
     """
-    happy = 0
-    for share in mappings:
-        if mappings[share] is not None:
-            happy += 1
-    return happy
+    unique_peers = set(mappings.values())
+    # if we happened to still have a mapping to None, that's an
+    # "unplaced share" so doesn't count to happiness
+    unique_peers.remove(None)
+    return len(unique_peers)
+
 
 def _calculate_mappings(peers, shares, servermap=None):
     """
