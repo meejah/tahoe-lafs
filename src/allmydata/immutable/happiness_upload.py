@@ -371,6 +371,19 @@ def share_placement(peers, readonly_peers, shares, peers_to_shares):
         if mappings[share] is None:
             homeless_shares.add(share)
     if len(homeless_shares) != 0:
-        _distribute_homeless_shares(mappings, homeless_shares, peers_to_shares)
+        # 'servermap' should contain only read/write peers
+        _distribute_homeless_shares(
+            mappings, homeless_shares,
+            {
+                k: v
+                for k, v in peers_to_shares.items()
+                if k not in readonly_peers
+            }
+        )
     #print "mappings %s" % mappings
-    return mappings
+    #return mappings
+    assert all([v is None or len(v) == 1 for v in mappings.values()])
+    return {
+        k: v.pop() if v else None
+        for k, v in mappings.items()
+    }
