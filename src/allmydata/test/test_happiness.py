@@ -58,7 +58,8 @@ class Happiness(unittest.TestCase):
         shares = {
             'share0', 'share1', 'share2',
             'share3', 'share4', 'share5',
-            'share7', 'share8', 'share9',
+            'share6', 'share7', 'share8',
+            'share9',
         }
         peers = {
             'peer0', 'peer1', 'peer2', 'peer3',
@@ -83,11 +84,14 @@ class Happiness(unittest.TestCase):
 
         places = happiness_upload.share_placement(peers, readonly_peers, shares, peers_to_shares)
 
+        # actually many valid answers for this, so long as peer's 0,
+        # 1, 2, 3 all have share 0, 1, 2 3.
+
         # share N maps to peer N
         # i.e. this says that share0 should be on peer0, share1 should
         # be on peer1, etc.
         expected = {
-            'share{}'.format(i): 'set([peer{}])'.format(i)
+            'share{}'.format(i): 'peer{}'.format(i)
             for i in range(10)
         }
         self.assertEqual(expected, places)
@@ -169,6 +173,7 @@ class Happiness(unittest.TestCase):
             7: '\xb9\xa3N\x80u\x9c_\xf7\x97FSS\xa7\xbd\x02\xf9f$:\t',
             8: '\xb9\xa3N\x80u\x9c_\xf7\x97FSS\xa7\xbd\x02\xf9f$:\t',
             9: '\xb9\xa3N\x80u\x9c_\xf7\x97FSS\xa7\xbd\x02\xf9f$:\t',
+            10: None,
         }
         happy = happiness_upload.calculate_happiness(share_placements)
         self.assertEqual(2, happy)
