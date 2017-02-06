@@ -387,10 +387,18 @@ def share_placement(peers, readonly_peers, shares, peers_to_shares):
                 if k not in readonly_peers
             }
         )
-    #print "mappings %s" % mappings
-    #return mappings
-    assert all([v is None or len(v) == 1 for v in mappings.values()])
+
+    # now, if any share is *still* mapped to None that means "don't
+    # care which server it goes on", so we place it on a round-robin
+    # of read-write servers
+
+    def round_robin(peers):
+        while True:
+            for peer in peers:
+                yield peer
+    peer_iter = round_robin(peers - readonly_peers)
+
     return {
-        k: v.pop() if v else None
+        k: v.pop() if v else next(peer_iter)
         for k, v in mappings.items()
     }

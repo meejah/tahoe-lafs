@@ -177,3 +177,29 @@ class Happiness(unittest.TestCase):
         }
         happy = happiness_upload.calculate_happiness(share_placements)
         self.assertEqual(2, happy)
+
+    def test_hypothesis_0(self):
+        """
+        an error-case Hypothesis found
+        """
+        peers={u'0'}
+        shares={u'0', u'1'}
+
+        places = happiness_upload.share_placement(peers, set(), shares, {})
+        happiness = happiness_upload.calculate_happiness(places)
+
+        assert set(places.values()).issubset(peers)
+        assert happiness == min(len(peers), len(shares))
+
+    def test_hypothesis_1(self):
+        """
+        an error-case Hypothesis found
+        """
+        peers={u'0', u'1', u'2', u'3'}
+        shares={u'0', u'1', u'2', u'3', u'4', u'5', u'6', u'7', u'8'}
+
+        places = happiness_upload.share_placement(peers, set(), shares, {})
+        happiness = happiness_upload.calculate_happiness(places)
+
+        assert set(places.values()).issubset(peers)
+        assert happiness == min(len(peers), len(shares))
