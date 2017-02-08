@@ -270,7 +270,6 @@ class DownloadTest(_Base, unittest.TestCase):
         d.addCallback(_clobber_all_shares)
         return d
 
-    # XXX with PYTHONHASHSEED=1 this fails (now)
     def test_lost_servers(self):
         # while downloading a file (after seg[0], before seg[1]), lose the
         # three servers that we were using. The download should switch over
@@ -295,8 +294,7 @@ class DownloadTest(_Base, unittest.TestCase):
         def _kill_some_shares():
             # find the shares that were used and delete them
             shares = self.n._cnode._node._shares
-            shnums = sorted([s._shnum for s in shares])
-            self.failUnlessEqual(shnums, [2,4,6,7])
+            self.killed_share_nums = sorted([s._shnum for s in shares])
 
             # break the RIBucketReader references
             # (we don't break the RIStorageServer references, because that
@@ -313,7 +311,7 @@ class DownloadTest(_Base, unittest.TestCase):
             self.failUnlessEqual("".join(c.chunks), plaintext)
             shares = self.n._cnode._node._shares
             shnums = sorted([s._shnum for s in shares])
-            self.failIfEqual(shnums, [2,4,6,7])
+            self.failIfEqual(shnums, self.killed_share_nums)
         d.addCallback(_check_failover)
         return d
 
