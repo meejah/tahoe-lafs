@@ -224,7 +224,6 @@ class HungServerDownloadTest(GridTestMixin, ShouldFailMixin, PollMixin,
         return d
 
     def test_5_overdue_immutable(self):
-        from foolscap.eventual import fireEventually, flushEventualQueue
         # restrict the ShareFinder to only allow 5 outstanding requests, and
         # arrange for the first 5 servers to hang. Then trigger the OVERDUE
         # timers (simulating 10 seconds passed), at which point the
@@ -233,38 +232,8 @@ class HungServerDownloadTest(GridTestMixin, ShouldFailMixin, PollMixin,
         # timing out.
         done = []
         d = self._set_up(False, "test_5_overdue_immutable")
-        self.download_d = None
-        self.gathered_pending = None
-
-        # firstly we must determine the first 5 share requests
-        # by hanging all the servers, requesting the file and looking
-        # at what our pending request list holds.
-        def _freeze_all_shares(ign):
-            for serverid in self.g.get_all_serverids():
-                self.g.hang_server(serverid)
-            n = self.c0.create_node_from_uri(self.uri)
-            n._cnode._maybe_create_download_node()
-            self._sf = n._cnode._node._sharefinder
-            self._sf.max_outstanding_requests = 5
-            self._sf.OVERDUE_TIMEOUT = 1000.0
-            download_to_data(n)  # don't care about this deferred
-        d.addCallback(_freeze_all_shares)
-        # wait here a while
-        d.addCallback(lambda res: fireEventually(res))
-        d.addCallback(lambda res: flushEventualQueue())
-        def _gather_pending(ign):
-            assert len(self._sf.pending_requests) == 5
-            self.gathered_pending = map(lambda s: s.server.serverid, self._sf.pending_requests)
-            for serverid in self.g.get_all_serverids():
-                self.g.unhang_server(serverid)
-            for t in self._sf.overdue_timers.values():
-                t.reset(-1.0)
-            self._sf.pending_requests = set()
-            self._sf.overdue_requests = set()
-        d.addCallback(_gather_pending)
         def _reduce_max_outstanding_requests_and_download(ign):
-            for serverid in self.gathered_pending:
-                self.g.hang_server(serverid)
+            self._hang_shares([2, 4, 6, 7, 3])
             n = self.c0.create_node_from_uri(self.uri)
             n._cnode._maybe_create_download_node()
             self._sf = n._cnode._node._sharefinder
@@ -276,6 +245,7 @@ class HungServerDownloadTest(GridTestMixin, ShouldFailMixin, PollMixin,
                 done.append(res) # we will poll for this later
             d2.addBoth(_done)
         d.addCallback(_reduce_max_outstanding_requests_and_download)
+        from foolscap.eventual import fireEventually, flushEventualQueue
         # wait here a while
         d.addCallback(lambda res: fireEventually(res))
         d.addCallback(lambda res: flushEventualQueue())
