@@ -92,6 +92,9 @@ install_requires = [
     #   <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/2474>.
     "pyOpenSSL >= 0.14",
     "PyYAML >= 3.11",
+
+    # for 'tahoe invite' and 'tahoe join'
+    "magic-wormhole >= 0.9.2",
 ]
 
 # Includes some indirect dependencies, but does not include allmydata.
