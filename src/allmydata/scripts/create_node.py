@@ -1,4 +1,6 @@
 import os
+import json
+
 from twisted.internet import reactor, defer
 from twisted.python.usage import UsageError
 from allmydata.scripts.common import BasedirOptions, NoDefaultBasedirOptions
@@ -80,7 +82,7 @@ def validate_where_options(o):
     else:
         # no --location and --port? expect --listen= (maybe the default), and
         # --listen=tcp requires --hostname. But --listen=none is special.
-        if o['listen'] != "none":
+        if o['listen'] != "none" and 'join' not in o:
             listeners = o['listen'].split(",")
             for l in listeners:
                 if l not in ["tcp", "tor", "i2p"]:
@@ -155,6 +157,7 @@ class CreateClientOptions(_CreateBaseOptions):
         ("shares-needed", None, 3, "Needed shares required for uploaded files."),
         ("shares-happy", None, 7, "How many servers new files must be placed on."),
         ("shares-total", None, 10, "Total shares required for uploaded files."),
+        ("join", None, None, "Join a grid with the given Invite Code."),
         ]
 
     # This is overridden in order to ensure we get a "Wrong number of
@@ -221,7 +224,9 @@ def write_node_config(c, config):
         c.write("\n")
 
     c.write("[node]\n")
-    nickname = argv_to_unicode(config.get("nickname") or "")
+    nickname = config.get("nickname") or u""
+    if not isinstance(nickname, unicode):
+        nickname = argv_to_unicode()
     c.write("nickname = %s\n" % (nickname.encode('utf-8'),))
     if config["hide-ip"]:
         c.write("reveal-IP-address = false\n")
@@ -343,6 +348,37 @@ def create_node(config):
     else:
         os.mkdir(basedir)
     write_tac(basedir, "client")
+
+    # if we're doing magic-wormhole stuff, do it now
+    if config['join'] is not None:
+        from twisted.internet import reactor
+        import wormhole.xfer_util
+        print("Opening wormhole with code '{}'".format(config['join']))
+        done = wormhole.xfer_util.receive(
+            reactor,
+            appid=u"tahoe-lafs.org/lafs",
+            relay_url=u"ws://leastauthority.com:4000/v1",
+            code=unicode(config['join']),
+        )
+        remote_data = yield done
+        print("Wormhole successful, {} bytes".format(len(remote_data)))
+
+        # XXX do we want to whitelist what config this can set?
+        remote_config = json.loads(remote_data)
+        print("Encoding: {needed} of {total} shares, on at least {happy} "
+              "servers".format(**remote_config))
+        print("Overriding the following config:")
+        # presume someone doing "--join" doesn't want to provide
+        # storage; if they do they can change the config after (and/or
+        # allow the 'tahoe invite' to specify storage options?).
+        remote_config['no-storage'] = True
+        remote_config['listen'] = 'none'
+        for k, v in remote_config.items():
+            if k not in ['happy', 'needed', 'total', 'introducer']:
+                print("   --{}={}".format(k, v))
+            config[k] = v
+        if 'introducer' in remote_config:
+            print("   introducer=[sensitive data; see config]")
 
     fileutil.make_dirs(os.path.join(basedir, "private"), 0700)
     with open(os.path.join(basedir, "tahoe.cfg"), "w") as c:
