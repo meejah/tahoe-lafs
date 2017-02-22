@@ -13,17 +13,13 @@ from allmydata.util import configutil
 INVITE_SEPARATOR = "+"
 
 class InviteOptions(usage.Options):
-    synopsis = "[options] [NODEDIR]"
+    synopsis = "[options] <nickname>"
     description = "Create a client-only Tahoe-LAFS node (no storage server)."
 
     optParameters = [
         ("needed", None, None, "How many shares are needed to reconstruct files from this node"),
         ("happy", None, None, "Distinct storage servers new node will upload shares to"),
         ("total", None, None, "Total number of shares new node will upload"),
-        ("basedir", "C", quote_local_unicode_path(_default_nodedir),
-         "Specify which Tahoe base directory should be used."
-         " This has the same effect as the global --node-directory option."
-         " [default: %s]" % quote_local_unicode_path(_default_nodedir)),
     ]
 
     def parseArgs(self, *args):
@@ -50,7 +46,7 @@ def identify_node_type(basedir):
 
 @defer.inlineCallbacks
 def invite(options):
-    basedir = unicode(options['basedir'])
+    basedir = unicode(options.parent['node-directory'])
     nodetype = identify_node_type(basedir)
     config = configutil.get_config(join(basedir, 'tahoe.cfg'))
 
@@ -80,6 +76,7 @@ def invite(options):
     print(code)
     sys.stdout.flush()
     yield done
+    print("Wormhole completed successfully")
 
 
 subCommands = [
