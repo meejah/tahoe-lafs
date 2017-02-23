@@ -24,7 +24,7 @@ from nevow.appserver import (
     DefaultExceptionHandler,
 )
 
-from allmydata import interfaces, uri, webish, dirnode
+from allmydata import interfaces, uri, webish
 from allmydata.storage_client import StorageFarmBroker, StubServer
 from allmydata.immutable import upload
 from allmydata.immutable.downloader.status import DownloadStatus
@@ -48,7 +48,6 @@ from ..common_web import (
 )
 from allmydata.client import Client, SecretHolder
 from .common import unknown_rwcap, unknown_rocap, unknown_immcap, FAVICON_MARKUP
-from allmydata.introducer import IntroducerNode
 from allmydata.storage.expiration import ExpirationPolicy
 
 
