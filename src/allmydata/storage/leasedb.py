@@ -168,7 +168,8 @@ class LeaseDB(object):
         return defer.succeed(None)
 
     def close(self):
-        self._db.close()
+        self._conn.close()
+        return defer.succeed(None)
 
     # share management
 
