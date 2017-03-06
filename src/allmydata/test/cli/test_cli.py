@@ -7,7 +7,7 @@ from mock import patch
 
 from twisted.trial import unittest
 from twisted.python.monkey import MonkeyPatcher
-from twisted.internet import task
+from twisted.internet import task, defer
 from twisted.python.filepath import FilePath
 
 import allmydata
@@ -699,11 +699,17 @@ class Admin(unittest.TestCase):
 class Errors(GridTestMixin, CLITestMixin, unittest.TestCase):
     def test_get(self):
         self.basedir = "cli/Errors/get"
-        self.set_up_grid()
-        c0 = self.g.clients[0]
+
         self.fileurls = {}
         DATA = "data" * 100
-        d = c0.upload(upload.Data(DATA, convergence=""))
+
+        d = defer.succeed(None)
+        d.addCallback(lambda ign: self.set_up_grid())
+
+        def _upload(ignore):
+            return self.g.clients[0].upload(upload.Data(DATA, convergence=""))
+        d.addCallback(_upload)
+
         def _stash_bad(ur):
             self.uri_1share = ur.get_uri()
             self.delete_shares_numbered(ur.get_uri(), range(1,10))
@@ -1000,10 +1006,16 @@ class Rm(Unlink):
 class Stats(GridTestMixin, CLITestMixin, unittest.TestCase):
     def test_empty_directory(self):
         self.basedir = "cli/Stats/empty_directory"
-        self.set_up_grid(oneshare=True)
-        c0 = self.g.clients[0]
+
+        d = defer.succeed(None)
+        d.addCallback(lambda ign: self.set_up_grid(oneshare=True))
+
+        def _make_dir(ignore):
+            return self.g.clients[0].create_dirnode()
+        d.addCallback(_make_dir)
+
         self.fileurls = {}
-        d = c0.create_dirnode()
+
         def _stash_root(n):
             self.rootnode = n
             self.rooturi = n.get_uri()
