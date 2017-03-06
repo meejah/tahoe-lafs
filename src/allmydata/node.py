@@ -106,6 +106,74 @@ class PrivacyError(Exception):
     """reveal-IP-address = false, but the node is configured in such a way
     that the IP address could be revealed"""
 
+def _config_item(config, section, option, default=_None, boolean=False):
+    try:
+        if boolean:
+            return config.getboolean(section, option)
+
+        item = config.get(section, option)
+        if option.endswith(".furl") and _contains_unescaped_hash(item):
+            raise UnescapedHashError(section, option, item)
+
+        return item
+    except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
+        if default is _None:
+            fn = os.path.join(self.basedir, u"tahoe.cfg")
+            raise MissingConfigEntry("%s is missing the [%s]%s entry"
+                                     % (quote_output(fn), section, option))
+        return default
+
+
+def _maybe_error_about_old_config_files(basedir, generated_files=[]):
+    """
+    If any old configuration files are detected, raise OldConfigError.
+    """
+
+    oldfnames = set()
+    for name in [
+        'nickname', 'webport', 'keepalive_timeout', 'log_gatherer.furl',
+        'disconnect_timeout', 'advertised_ip_addresses', 'introducer.furl',
+        'helper.furl', 'key_generator.furl', 'stats_gatherer.furl',
+        'no_storage', 'readonly_storage', 'sizelimit',
+        'debug_discard_storage', 'run_helper']:
+        if name not in generated_files:
+            fullfname = os.path.join(basedir, name)
+            if os.path.exists(fullfname):
+                oldfnames.add(fullfname)
+    if oldfnames:
+        e = OldConfigError(oldfnames)
+        twlog.msg(e)
+        raise e
+
+
+def _read_config(basedir):
+    """
+    read and return Tahoe's configuration as a ConfigParser
+    """
+    config_fname = os.path.join(basedir, "tahoe.cfg")
+
+    _maybe_error_about_old_config_files(basedir)
+    config = ConfigParser.SafeConfigParser()
+
+    try:
+        config = configutil.get_config(config_fname)
+    except EnvironmentError:
+        if os.path.exists(config_fname):
+            raise
+    return config
+
+
+def _contains_unescaped_hash(item):
+    characters = iter(item)
+    for c in characters:
+        if c == '\\':
+            characters.next()
+        elif c == '#':
+            return True
+
+    return False
+
+
 class Node(service.MultiService):
     # this implements common functionality of both Client nodes and Introducer
     # nodes.
@@ -123,8 +191,7 @@ class Node(service.MultiService):
         with open(os.path.join(self.basedir, "private", "README"), "w") as f:
             f.write(PRIV_README)
 
-        # creates self.config
-        self.read_config()
+        self.config = _read_config(basedir)
         nickname_utf8 = self.get_config("node", "nickname", "<unspecified>")
         self.nickname = nickname_utf8.decode("utf-8")
         assert type(self.nickname) is unicode
@@ -159,62 +226,8 @@ class Node(service.MultiService):
         test_name = tempfile.mktemp()
         _assert(os.path.dirname(test_name) == tempdir, test_name, tempdir)
 
-    @staticmethod
-    def _contains_unescaped_hash(item):
-        characters = iter(item)
-        for c in characters:
-            if c == '\\':
-                characters.next()
-            elif c == '#':
-                return True
-
-        return False
-
     def get_config(self, section, option, default=_None, boolean=False):
-        try:
-            if boolean:
-                return self.config.getboolean(section, option)
-
-            item = self.config.get(section, option)
-            if option.endswith(".furl") and self._contains_unescaped_hash(item):
-                raise UnescapedHashError(section, option, item)
-
-            return item
-        except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
-            if default is _None:
-                fn = os.path.join(self.basedir, u"tahoe.cfg")
-                raise MissingConfigEntry("%s is missing the [%s]%s entry"
-                                         % (quote_output(fn), section, option))
-            return default
-
-    def read_config(self):
-        self.error_about_old_config_files()
-        self.config = ConfigParser.SafeConfigParser()
-
-        try:
-            self.config = configutil.get_config(self.config_fname)
-        except EnvironmentError:
-            if os.path.exists(self.config_fname):
-                raise
-
-    def error_about_old_config_files(self):
-        """ If any old configuration files are detected, raise OldConfigError. """
-
-        oldfnames = set()
-        for name in [
-            'nickname', 'webport', 'keepalive_timeout', 'log_gatherer.furl',
-            'disconnect_timeout', 'advertised_ip_addresses', 'introducer.furl',
-            'helper.furl', 'key_generator.furl', 'stats_gatherer.furl',
-            'no_storage', 'readonly_storage', 'sizelimit',
-            'debug_discard_storage', 'run_helper']:
-            if name not in self.GENERATED_FILES:
-                fullfname = os.path.join(self.basedir, name)
-                if os.path.exists(fullfname):
-                    oldfnames.add(fullfname)
-        if oldfnames:
-            e = OldConfigError(oldfnames)
-            twlog.msg(e)
-            raise e
+        return _config_item(self.config, section, option, default=default, boolean=boolean)
 
     def check_privacy(self):
         self._reveal_ip = self.get_config("node", "reveal-IP-address", True,

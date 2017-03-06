@@ -8,6 +8,7 @@ import allmydata.frontends.magic_folder
 import allmydata.util.log
 
 from allmydata.node import Node, OldConfigError, OldConfigOptionError, MissingConfigEntry, UnescapedHashError
+from allmydata.node import _contains_unescaped_hash
 from allmydata.frontends.auth import NeedRootcapLookupScheme
 from allmydata import client
 from allmydata.storage_client import StorageFarmBroker
@@ -47,13 +48,13 @@ class Basic(testutil.ReallyEqualMixin, testutil.NonASCIIPathMixin, unittest.Test
             fileutil.write(os.path.join(basedir, "tahoe.cfg"), config)
 
         for s in should_fail:
-            self.failUnless(Node._contains_unescaped_hash(s))
+            self.failUnless(_contains_unescaped_hash(s))
             write_config(s)
             e = self.assertRaises(UnescapedHashError, client.Client, basedir)
             self.assertIn("[client]introducer.furl", str(e))
 
         for s in should_not_fail:
-            self.failIf(Node._contains_unescaped_hash(s))
+            self.failIf(_contains_unescaped_hash(s))
             write_config(s)
             client.Client(basedir)
 
