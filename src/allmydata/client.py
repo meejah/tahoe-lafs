@@ -142,6 +142,7 @@ class KeyGenerator:
         verifier = signer.get_verifying_key()
         return defer.succeed( (verifier, signer) )
 
+
 class Terminator(service.Service):
     def __init__(self):
         self._clients = weakref.WeakKeyDictionary()
@@ -153,11 +154,92 @@ class Terminator(service.Service):
         return service.Service.stopService(self)
 
 
+@defer.inlineCallbacks
+def _create_storage_server(config, basedir, tub, stats_provider):
+    yield  ## FIXME we really want this to be async for leasedb ...
+
+    # should we run a storage server (and publish it for others to use)?
+    if not node._get_config("storage", "enabled", True, boolean=True):
+        return
+    # XXX seems like this check should be higher-level than here?
+    if len(tub.getListeners()) == 0:
+        raise ValueError("config error: storage is enabled, but tub "
+                         "is not listening ('tub.port=' is empty)")
+    readonly = _get_config(config, "storage", "readonly", False, boolean=True)
+    storedir = os.path.join(basedir, 'storage')
+
+    data = _get_config(config, "storage", "reserved_space", None)
+    try:
+        reserved = parse_abbreviated_size(data)
+    except ValueError:
+        log.msg("[storage]reserved_space= contains unparseable value %s"
+                % data)
+        raise
+    if reserved is None:
+        reserved = 0
+    discard = _get_config(config, "storage", "debug_discard", False,
+                          boolean=True)
+
+    expire = _get_config(config, "storage", "expire.enabled", False, boolean=True)
+    if expire:
+        mode = _get_config(config, "storage", "expire.mode") # require a mode
+    else:
+        mode = _get_config(config, "storage", "expire.mode", "age")
+
+    o_l_d = _get_config(config, "storage", "expire.override_lease_duration", None)
+    if o_l_d is not None:
+        o_l_d = parse_duration(o_l_d)
+
+    cutoff_date = None
+    if mode == "cutoff-date":
+        cutoff_date = _get_config(config, "storage", "expire.cutoff_date")
+        cutoff_date = parse_date(cutoff_date)
+
+    sharetypes = []
+    if _get_config(config, "storage", "expire.immutable", True, boolean=True):
+        sharetypes.append("immutable")
+    if _get_config(config, "storage", "expire.mutable", True, boolean=True):
+        sharetypes.append("mutable")
+    expiration_sharetypes = tuple(sharetypes)
+
+    # XXX note we now compute nodeid in 2 places :(
+    defer.returnValue(
+        StorageServer(
+            storedir=storedir,
+            nodeid=b32decode(tub.tubID.upper()),
+            reserved_space=reserved,
+            discard_storage=discard,
+            readonly_storage=readonly,
+            stats_provider=stats_provider,
+            expiration_enabled=expire,
+            expiration_mode=mode,
+            expiration_override_lease_duration=o_l_d,
+            expiration_cutoff_date=cutoff_date,
+            expiration_sharetypes=expiration_sharetypes,
+        )
+    )
+
+
+@defer.inlineCallbacks
+def create_client(basedir=u"."):
+    """
+    Instantiate a new Client instance.
+    """
+    config = node._read_config(basedir)
+
+    # could make this async? worth it? currently not required
+    tub = node.create_main_tub(config, basedir)
+    storage_server = yield _create_storage_server(config, basedir, tub, stats_provider=None)
+
+    client = Client(storage_client, tub, basedir=basedir)
+    defer.returnValue(client)
+
+
 class Client(node.Node, pollmixin.PollMixin):
     implements(IStatsProducer)
 
-    PORTNUMFILE = "client.port"
-    STOREDIR = 'storage'
+#    PORTNUMFILE = "client.port"
+#    STOREDIR = 'storage'
     NODETYPE = "client"
     EXIT_TRIGGER_FILE = "exit_trigger"
 
@@ -176,8 +258,8 @@ class Client(node.Node, pollmixin.PollMixin):
                                    "max_segment_size": 128*KiB,
                                    }
 
-    def __init__(self, basedir="."):
-        node.Node.__init__(self, basedir)
+    def __init__(self, main_tub, storage_server, basedir="."):
+        super(Client, self).__init__(main_tub, basedir=basedir)
         # All tub.registerReference must happen *after* we upcall, since
         # that's what does tub.setLocation()
         configutil.validate_config(self.config_fname, self.config,
@@ -190,7 +272,11 @@ class Client(node.Node, pollmixin.PollMixin):
         self.init_stats_provider()
         self.init_secrets()
         self.init_node_key()
-        self.init_storage()
+
+        # pulled init_storage_server out into the factory-function
+        self._storage_server = storage_server
+        self.add_service(storage_server)  # XXX all this does is call setServiceParent
+
         self.init_control()
         self._key_generator = KeyGenerator()
         key_gen_furl = self.get_config("client", "key_generator.furl", None)
@@ -225,6 +311,17 @@ class Client(node.Node, pollmixin.PollMixin):
         if webport:
             self.init_web(webport) # strports string
 
+    def startService(self):
+        super(Client, self).startService()
+        furl_file = os.path.join(self.basedir, "private", "storage.furl").encode(get_filesystem_encoding())
+        furl = self.tub.registerReference(ss, furlFile=furl_file)
+        ann = {
+            "anonymous-storage-FURL": furl,
+            "permutation-seed-base32": self._init_permutation_seed(self._storage_server),
+        }
+        for ic in self.introducer_clients:
+            ic.publish("storage", ann, self._node_key)
+
     def _sequencer(self):
         seqnum_s = self.get_config_from_file("announcement-seqnum")
         if not seqnum_s:
@@ -252,7 +349,10 @@ class Client(node.Node, pollmixin.PollMixin):
             introducers = {}
 
         if "default" in introducers.keys():
-            raise ValueError("'default' introducer furl cannot be specified in introducers.yaml; please fix impossible configuration.")
+            raise ValueError(
+                "'default' introducer furl cannot be specified in "
+                "introducers.yaml; please fix impossible configuration."
+            )
 
         # read furl from tahoe.cfg
         tahoe_cfg_introducer_furl = self.get_config("client", "introducer.furl", None)
@@ -269,7 +369,7 @@ class Client(node.Node, pollmixin.PollMixin):
                                   self.nickname,
                                   str(allmydata.__full_version__),
                                   str(self.OLDEST_SUPPORTED_VERSION),
-                                  self.get_app_versions(), self._sequencer,
+                                  node.app_versions, self._sequencer,
                                   introducer_cache_filepath)
             self.introducer_clients.append(ic)
             self.introducer_furls.append(introducer['furl'])
@@ -331,71 +431,6 @@ class Client(node.Node, pollmixin.PollMixin):
                 seed = base32.b2a(vk_bytes)
             self.write_config("permutation-seed", seed+"\n")
         return seed.strip()
-
-    def init_storage(self):
-        # should we run a storage server (and publish it for others to use)?
-        if not self.get_config("storage", "enabled", True, boolean=True):
-            return
-        if not self._tub_is_listening:
-            raise ValueError("config error: storage is enabled, but tub "
-                             "is not listening ('tub.port=' is empty)")
-        readonly = self.get_config("storage", "readonly", False, boolean=True)
-
-        storedir = os.path.join(self.basedir, self.STOREDIR)
-
-        data = self.get_config("storage", "reserved_space", None)
-        try:
-            reserved = parse_abbreviated_size(data)
-        except ValueError:
-            log.msg("[storage]reserved_space= contains unparseable value %s"
-                    % data)
-            raise
-        if reserved is None:
-            reserved = 0
-        discard = self.get_config("storage", "debug_discard", False,
-                                  boolean=True)
-
-        expire = self.get_config("storage", "expire.enabled", False, boolean=True)
-        if expire:
-            mode = self.get_config("storage", "expire.mode") # require a mode
-        else:
-            mode = self.get_config("storage", "expire.mode", "age")
-
-        o_l_d = self.get_config("storage", "expire.override_lease_duration", None)
-        if o_l_d is not None:
-            o_l_d = parse_duration(o_l_d)
-
-        cutoff_date = None
-        if mode == "cutoff-date":
-            cutoff_date = self.get_config("storage", "expire.cutoff_date")
-            cutoff_date = parse_date(cutoff_date)
-
-        sharetypes = []
-        if self.get_config("storage", "expire.immutable", True, boolean=True):
-            sharetypes.append("immutable")
-        if self.get_config("storage", "expire.mutable", True, boolean=True):
-            sharetypes.append("mutable")
-        expiration_sharetypes = tuple(sharetypes)
-
-        ss = StorageServer(storedir, self.nodeid,
-                           reserved_space=reserved,
-                           discard_storage=discard,
-                           readonly_storage=readonly,
-                           stats_provider=self.stats_provider,
-                           expiration_enabled=expire,
-                           expiration_mode=mode,
-                           expiration_override_lease_duration=o_l_d,
-                           expiration_cutoff_date=cutoff_date,
-                           expiration_sharetypes=expiration_sharetypes)
-        self.add_service(ss)
-
-        furl_file = os.path.join(self.basedir, "private", "storage.furl").encode(get_filesystem_encoding())
-        furl = self.tub.registerReference(ss, furlFile=furl_file)
-        ann = {"anonymous-storage-FURL": furl,
-               "permutation-seed-base32": self._init_permutation_seed(ss),
-               }
-        for ic in self.introducer_clients:
-            ic.publish("storage", ann, self._node_key)
 
     def init_client(self):
         helper_furl = self.get_config("client", "helper.furl", None)
