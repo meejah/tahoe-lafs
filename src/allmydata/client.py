@@ -23,6 +23,7 @@ from allmydata.util.encodingutil import (get_filesystem_encoding,
 from allmydata.util.fileutil import abspath_expanduser_unicode
 from allmydata.util.abbreviate import parse_abbreviated_size
 from allmydata.util.time_format import parse_duration, parse_date
+from allmydata.util import i2p_provider, tor_provider
 from allmydata.stats import StatsProvider
 from allmydata.history import History
 from allmydata.interfaces import IStatsProducer, SDMF_VERSION, MDMF_VERSION
@@ -159,16 +160,16 @@ def _create_storage_server(config, basedir, tub, stats_provider):
     yield  ## FIXME we really want this to be async for leasedb ...
 
     # should we run a storage server (and publish it for others to use)?
-    if not node._get_config("storage", "enabled", True, boolean=True):
+    if not configutil.config_item(config, "storage", "enabled", True, boolean=True):
         return
     # XXX seems like this check should be higher-level than here?
     if len(tub.getListeners()) == 0:
         raise ValueError("config error: storage is enabled, but tub "
                          "is not listening ('tub.port=' is empty)")
-    readonly = _get_config(config, "storage", "readonly", False, boolean=True)
+    readonly = configutil.config_item(config, "storage", "readonly", False, boolean=True)
     storedir = os.path.join(basedir, 'storage')
 
-    data = _get_config(config, "storage", "reserved_space", None)
+    data = configutil.config_item(config, "storage", "reserved_space", None)
     try:
         reserved = parse_abbreviated_size(data)
     except ValueError:
@@ -177,28 +178,28 @@ def _create_storage_server(config, basedir, tub, stats_provider):
         raise
     if reserved is None:
         reserved = 0
-    discard = _get_config(config, "storage", "debug_discard", False,
+    discard = configutil.config_item(config, "storage", "debug_discard", False,
                           boolean=True)
 
-    expire = _get_config(config, "storage", "expire.enabled", False, boolean=True)
+    expire = configutil.config_item(config, "storage", "expire.enabled", False, boolean=True)
     if expire:
-        mode = _get_config(config, "storage", "expire.mode") # require a mode
+        mode = configutil.config_item(config, "storage", "expire.mode") # require a mode
     else:
-        mode = _get_config(config, "storage", "expire.mode", "age")
+        mode = configutil.config_item(config, "storage", "expire.mode", "age")
 
-    o_l_d = _get_config(config, "storage", "expire.override_lease_duration", None)
+    o_l_d = configutil.config_item(config, "storage", "expire.override_lease_duration", None)
     if o_l_d is not None:
         o_l_d = parse_duration(o_l_d)
 
     cutoff_date = None
     if mode == "cutoff-date":
-        cutoff_date = _get_config(config, "storage", "expire.cutoff_date")
+        cutoff_date = configutil.config_item(config, "storage", "expire.cutoff_date")
         cutoff_date = parse_date(cutoff_date)
 
     sharetypes = []
-    if _get_config(config, "storage", "expire.immutable", True, boolean=True):
+    if configutil.config_item(config, "storage", "expire.immutable", True, boolean=True):
         sharetypes.append("immutable")
-    if _get_config(config, "storage", "expire.mutable", True, boolean=True):
+    if configutil.config_item(config, "storage", "expire.mutable", True, boolean=True):
         sharetypes.append("mutable")
     expiration_sharetypes = tuple(sharetypes)
 
@@ -220,19 +221,31 @@ def _create_storage_server(config, basedir, tub, stats_provider):
     )
 
 
-@defer.inlineCallbacks
+#@defer.inlineCallbacks
 def create_client(basedir=u"."):
     """
     Instantiate a new Client instance.
     """
-    config = node._read_config(basedir)
+    config = configutil.read_node_config(basedir)
+
+    # XXX can't pass Client to it until we've created client
+    # .. circular dep from before
+    i2p_prov = i2p_provider.Provider(basedir, config, reactor)
+    i2p_prov.check_dest_config()
+
+    tor_prov = tor_provider.Provider(basedir, config, reactor)
+    tor_prov.check_onion_config()
 
     # could make this async? worth it? currently not required
-    tub = node.create_main_tub(config, basedir)
-    storage_server = yield _create_storage_server(config, basedir, tub, stats_provider=None)
+    tub = node.create_main_tub(config, basedir, i2p_prov, tor_prov)
+    #storage_server = yield _create_storage_server(config, basedir, tub, stats_provider=None)
+    d = _create_storage_server(config, basedir, tub, stats_provider=None)
 
-    client = Client(storage_client, tub, basedir=basedir)
-    defer.returnValue(client)
+    def got_ss(storage_client):
+        return Client(storage_client, tub, i2p_prov, tor_prov, basedir=basedir)
+        #defer.returnValue(client)
+    d.addCallback(got_ss)
+    return d
 
 
 class Client(node.Node, pollmixin.PollMixin):
@@ -258,15 +271,15 @@ class Client(node.Node, pollmixin.PollMixin):
                                    "max_segment_size": 128*KiB,
                                    }
 
-    def __init__(self, main_tub, storage_server, basedir="."):
-        super(Client, self).__init__(main_tub, basedir=basedir)
+    def __init__(self, main_tub, storage_server, i2p_prov, tor_prov, basedir="."):
+        super(Client, self).__init__(main_tub, i2p_prov, tor_prov, basedir=basedir)
         # All tub.registerReference must happen *after* we upcall, since
         # that's what does tub.setLocation()
         configutil.validate_config(self.config_fname, self.config,
                                    _valid_config_sections())
         self._magic_folder = None
         self.started_timestamp = time.time()
-        self.logSource="Client"
+        self.logSource = "Client"
         self.encoding_params = self.DEFAULT_ENCODING_PARAMETERS.copy()
         self.init_introducer_clients()
         self.init_stats_provider()

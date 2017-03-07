@@ -9,6 +9,8 @@ from twisted.application import service
 
 from .observer import OneShotObserverList
 from .iputil import allocate_tcp_port
+from allmydata.util import configutil
+
 
 def _import_tor():
     # this exists to be overridden by unit tests
@@ -202,10 +204,10 @@ def create_onion(reactor, cli_config):
 # nice error, and startService will throw an ugly error.
 
 class Provider(service.MultiService):
-    def __init__(self, basedir, node_for_config, reactor):
+    def __init__(self, basedir, config, reactor):
         service.MultiService.__init__(self)
         self._basedir = basedir
-        self._node_for_config = node_for_config
+        self._config = config
         self._tor_launched = None
         self._onion_ehs = None
         self._onion_tor_control_proto = None
@@ -214,7 +216,7 @@ class Provider(service.MultiService):
         self._reactor = reactor
 
     def _get_tor_config(self, *args, **kwargs):
-        return self._node_for_config.get_config("tor", *args, **kwargs)
+        return configutil.config_item(self._config, "tor", *args, **kwargs)
 
     def get_tor_handler(self):
         enabled = self._get_tor_config("enabled", True, boolean=True)

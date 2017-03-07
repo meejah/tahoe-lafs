@@ -13,7 +13,7 @@ from allmydata.util.assertutil import _assert
 from allmydata.util.fileutil import abspath_expanduser_unicode
 from allmydata.util.encodingutil import get_filesystem_encoding, quote_output
 from allmydata.util import configutil
-from allmydata.util import i2p_provider, tor_provider
+from allmydata.util.configutil import _None, config_item
 
 def _common_config_sections():
     return {
@@ -79,9 +79,6 @@ such as private keys.  On Unix-like systems, the permissions on this directory
 are set to disallow users other than its owner from reading the contents of
 the files.   See the 'configuration.rst' documentation file for details."""
 
-class _None: # used as a marker in get_config()
-    pass
-
 class MissingConfigEntry(Exception):
     """ A required config entry was not found. """
 
@@ -106,74 +103,13 @@ class PrivacyError(Exception):
     """reveal-IP-address = false, but the node is configured in such a way
     that the IP address could be revealed"""
 
-def _config_item(config, section, option, default=_None, boolean=False, fname=''):
-    try:
-        if boolean:
-            return config.getboolean(section, option)
 
-        item = config.get(section, option)
-        if option.endswith(".furl") and _contains_unescaped_hash(item):
-            raise UnescapedHashError(section, option, item)
+def _make_tcp_handler():
+    # this is always available
+    from foolscap.connections.tcp import default
+    return default()
 
-        return item
-    except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
-        if default is _None:
-            raise MissingConfigEntry("%s is missing the [%s]%s entry"
-                                     % (quote_output(fname), section, option))
-        return default
-
-
-def _maybe_error_about_old_config_files(basedir, generated_files=[]):
-    """
-    If any old configuration files are detected, raise OldConfigError.
-    """
-
-    oldfnames = set()
-    for name in [
-        'nickname', 'webport', 'keepalive_timeout', 'log_gatherer.furl',
-        'disconnect_timeout', 'advertised_ip_addresses', 'introducer.furl',
-        'helper.furl', 'key_generator.furl', 'stats_gatherer.furl',
-        'no_storage', 'readonly_storage', 'sizelimit',
-        'debug_discard_storage', 'run_helper']:
-        if name not in generated_files:
-            fullfname = os.path.join(basedir, name)
-            if os.path.exists(fullfname):
-                oldfnames.add(fullfname)
-    if oldfnames:
-        e = OldConfigError(oldfnames)
-        twlog.msg(e)
-        raise e
-
-
-def _read_config(basedir):
-    """
-    read and return Tahoe's configuration as a ConfigParser
-    """
-    config_fname = os.path.join(basedir, "tahoe.cfg")
-
-    _maybe_error_about_old_config_files(basedir)
-    config = ConfigParser.SafeConfigParser()
-
-    try:
-        config = configutil.get_config(config_fname)
-    except EnvironmentError:
-        if os.path.exists(config_fname):
-            raise
-    return config
-
-
-def _contains_unescaped_hash(item):
-    characters = iter(item)
-    for c in characters:
-        if c == '\\':
-            characters.next()
-        elif c == '#':
-            return True
-
-    return False
-
-
-def _create_foolscap_handlers(config):
+def _create_foolscap_handlers(config, i2p_prov, tor_prov):
     """
     returns a dict of handlers and a dict of 'default handlers'
     """
@@ -182,20 +118,23 @@ def _create_foolscap_handlers(config):
     # We store handlers for everything. None means we were unable to
     # create that handler, so hints which want it will be ignored.
     handlers = {
-        "tcp": self._make_tcp_handler(),
-        "tor": self._make_tor_handler(),
-        "i2p": self._make_i2p_handler(),
+        "tcp": _make_tcp_handler(),
+        "tor": tor_prov.get_tor_handler(),
+        "i2p": i2p_prov.get_i2p_handler(),
         }
-    self.log(format="built Foolscap connection handlers for: %(known_handlers)s",
-             known_handlers=sorted([k for k,v in handlers.items() if v]),
-             facility="tahoe.node", umid="PuLh8g")
+    log.msg(
+        format="built Foolscap connection handlers for: %(known_handlers)s",
+        known_handlers=sorted([k for k,v in handlers.items() if v]),
+        facility="tahoe.node",
+        umid="PuLh8g",
+    )
 
     # then we remember the default mappings from tahoe.cfg
     default_connection_handlers = {
         "tor": "tor",
         "i2p": "i2p",
     }
-    tcp_handler_name = _get_config(config, "connections", "tcp", "tcp").lower()
+    tcp_handler_name = configutil.config_item(config, "connections", "tcp", "tcp").lower()
     if tcp_handler_name == "disabled":
         default_connection_handlers["tcp"] = None
     else:
@@ -210,7 +149,7 @@ def _create_foolscap_handlers(config):
                              % (tcp_handler_name, tcp_handler_name))
         default_connection_handlers["tcp"] = tcp_handler_name
 
-    if not _get_config(config, "node", "reveal-IP-address", True, boolean=True):
+    if not configutil.config_item(config, "node", "reveal-IP-address", True, boolean=True):
         if default_connection_handlers.get("tcp") == "tcp":
             raise PrivacyError("tcp = tcp, must be set to 'tor' or 'disabled'")
     return default_connection_handlers
@@ -225,10 +164,10 @@ def _tub_options_from_config(config):
     }
 
     # see #521 for a discussion of how to pick these timeout values.
-    keepalive_timeout_s = _get_config(config, "node", "timeout.keepalive", "")
+    keepalive_timeout_s = configutil.config_item(config, "node", "timeout.keepalive", "")
     if keepalive_timeout_s:
         tub_options["keepaliveTimeout"] = int(keepalive_timeout_s)
-    disconnect_timeout_s = _get_config(config, "node", "timeout.disconnect", "")
+    disconnect_timeout_s = configutil.config_item(config, "node", "timeout.disconnect", "")
     if disconnect_timeout_s:
         # N.B.: this is in seconds, so use "1800" to get 30min
         tub_options["disconnectTimeout"] = int(disconnect_timeout_s)
@@ -243,11 +182,19 @@ def _create_tub(tub_options, handlers, **kwargs):
         tub.setOption(name, value)
     tub.removeAllConnectionHintHandlers()
     for hint_type, handler_name in handlers.items():
-        handler = self._foolscap_connection_handlers[handler_name]
+        # XXX this was self._foolscap_connection_handlers originally,
+        # which leads me to believe it was *always* using the
+        # 'default' ones?
+        handler = handlers[handler_name]
         if handler:
             tub.addConnectionHintHandler(hint_type, handler)
     return tub
 
+
+def _convert_tub_port(self, s):
+    if re.search(r'^\d+$', s):
+        return "tcp:%d" % int(s)
+    return s
 
 def _tub_portlocation(cfg_tubport, cfg_location, portnumfile):
     """
@@ -279,22 +226,22 @@ def _tub_portlocation(cfg_tubport, cfg_location, portnumfile):
 
     if cfg_tubport is None:
         # For 'tub.port', tahoe.cfg overrides the individual file on
-        # disk. So only read self._portnumfile if tahoe.cfg doesn't
+        # disk. So only read _portnumfile if tahoe.cfg doesn't
         # provide a value.
-        if os.path.exists(self._portnumfile):
-            file_tubport = fileutil.read(self._portnumfile).strip()
-            tubport = self._convert_tub_port(file_tubport)
+        if os.path.exists(portnumfile):
+            file_tubport = fileutil.read(portnumfile).strip()
+            tubport = _convert_tub_port(file_tubport)
         else:
             tubport = "tcp:%d" % iputil.allocate_tcp_port()
-            fileutil.write_atomically(self._portnumfile, tubport + "\n",
+            fileutil.write_atomically(portnumfile, tubport + "\n",
                                       mode="")
     else:
-        tubport = self._convert_tub_port(cfg_tubport)
+        tubport = _convert_tub_port(cfg_tubport)
 
     if cfg_location is None:
         cfg_location = "AUTO"
 
-    reveal_ip = _get_config(config, "node", "reveal-IP-address", True, boolean=True)
+    reveal_ip = configutil.config_item(config, "node", "reveal-IP-address", True, boolean=True)
     # Replace the location "AUTO", if present, with the detected local
     # addresses. Don't probe for local addresses unless necessary.
     split_location = cfg_location.split(",")
@@ -328,18 +275,21 @@ def _tub_portlocation(cfg_tubport, cfg_location, portnumfile):
     return tubport, location
 
 
-def create_main_tub(config, basedir, handler_overrides=dict(), certfile='node.pem', portnum_file='client.port'):
+def create_main_tub(config, basedir, i2p_prov, tor_prov,
+                    handler_overrides=dict(),
+                    certfile='node.pem',
+                    portnum_file='client.port'):
     certfile = os.path.join(basedir, "private", certfile)
 
     # pulled handler_overrides up out of create_tub which used to be in node
-    handlers = _create_foolscap_handlers(config)
+    handlers = _create_foolscap_handlers(config, i2p_prov, tor_prov)
     handlers.update(handler_overrides)
     tub_options = _tub_options_from_config(config)
     tub = _create_tub(tub_options, handlers, certFile=certfile)
 
     # can probably put the next two lines in _tub_portlocation...
-    cfg_tubport = _get_config(config, "node", "tub.port", None)
-    cfg_location = _get_config(config, "node", "tub.location", None)
+    cfg_tubport = configutil.config_item(config, "node", "tub.port", None)
+    cfg_location = configutil.config_item(config, "node", "tub.location", None)
     portnumfile = os.path.join(basedir, portnumfile)
     portlocation = _tub_portlocation(cfg_tubport, cfg_location)
     if portlocation:
@@ -352,6 +302,7 @@ def create_main_tub(config, basedir, handler_overrides=dict(), certfile='node.pe
 
     return tub
 
+
 class Node(service.MultiService):
     # this implements common functionality of both Client nodes and Introducer
     # nodes.
@@ -360,7 +311,7 @@ class Node(service.MultiService):
     CERTFILE = "node.pem"
     GENERATED_FILES = []
 
-    def __init__(self, main_tub, basedir=u"."):
+    def __init__(self, main_tub, i2p_prov, tor_prov, basedir=u"."):
         service.MultiService.__init__(self)
         self.basedir = abspath_expanduser_unicode(unicode(basedir))
         self.config_fname = os.path.join(self.basedir, "tahoe.cfg")
@@ -369,7 +320,7 @@ class Node(service.MultiService):
         with open(os.path.join(self.basedir, "private", "README"), "w") as f:
             f.write(PRIV_README)
 
-        self.config = _read_config(basedir)
+        self.config = configutil.read_node_config(basedir)
         nickname_utf8 = self.get_config("node", "nickname", "<unspecified>")
         self.nickname = nickname_utf8.decode("utf-8")
         assert type(self.nickname) is unicode
@@ -381,8 +332,11 @@ class Node(service.MultiService):
         self.logSource="Node"
         self.setup_logging()
 
-        self.create_i2p_provider()
-        self.create_tor_provider()
+        self._i2p_provider = i2p_prov
+        self._i2p_provider.setServiceParent(self)
+
+        self._tor_provider = tor_prov
+        self._tor_provider.setServiceParent(self)
 
         # the "Node-specific" parts of what used to be create_main_tub
         self.tub = main_tub
@@ -418,7 +372,7 @@ class Node(service.MultiService):
         _assert(os.path.dirname(test_name) == tempdir, test_name, tempdir)
 
     def get_config(self, section, option, default=_None, boolean=False):
-        return _config_item(
+        return config_item(
             self.config, section, option,
             default=default,
             boolean=boolean,
@@ -428,31 +382,6 @@ class Node(service.MultiService):
     def check_privacy(self):
         self._reveal_ip = self.get_config("node", "reveal-IP-address", True,
                                           boolean=True)
-    def create_i2p_provider(self):
-        self._i2p_provider = i2p_provider.Provider(self.basedir, self, reactor)
-        self._i2p_provider.check_dest_config()
-        self._i2p_provider.setServiceParent(self)
-
-    def create_tor_provider(self):
-        self._tor_provider = tor_provider.Provider(self.basedir, self, reactor)
-        self._tor_provider.check_onion_config()
-        self._tor_provider.setServiceParent(self)
-
-    def _make_tcp_handler(self):
-        # this is always available
-        from foolscap.connections.tcp import default
-        return default()
-
-    def _make_tor_handler(self):
-        return self._tor_provider.get_tor_handler()
-
-    def _make_i2p_handler(self):
-        return self._i2p_provider.get_i2p_handler()
-
-    def _convert_tub_port(self, s):
-        if re.search(r'^\d+$', s):
-            return "tcp:%d" % int(s)
-        return s
 
     def create_control_tub(self):
         # the control port uses a localhost-only ephemeral Tub, with no

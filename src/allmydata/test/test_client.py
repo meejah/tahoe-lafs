@@ -8,11 +8,11 @@ import allmydata.frontends.magic_folder
 import allmydata.util.log
 
 from allmydata.node import Node, OldConfigError, OldConfigOptionError, MissingConfigEntry, UnescapedHashError
-from allmydata.node import _contains_unescaped_hash
 from allmydata.frontends.auth import NeedRootcapLookupScheme
 from allmydata import client
 from allmydata.storage_client import StorageFarmBroker
 from allmydata.util import base32, fileutil
+from allmydata.util.configutil import _contains_unescaped_hash
 from allmydata.interfaces import IFilesystemNode, IFileNode, \
      IImmutableFileNode, IMutableFileNode, IDirectoryNode
 from foolscap.api import flushEventualQueue

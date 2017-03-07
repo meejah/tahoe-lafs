@@ -6,6 +6,8 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.internet.endpoints import clientFromString
 from twisted.internet.error import ConnectionRefusedError, ConnectError
 from twisted.application import service
+from allmydata.util import configutil
+
 
 def _import_i2p():
     # this exists to be overridden by unit tests
@@ -126,16 +128,16 @@ def create_dest(reactor, cli_config):
 # a nice error, and startService will throw an ugly error.
 
 class Provider(service.MultiService):
-    def __init__(self, basedir, node_for_config, reactor):
+    def __init__(self, basedir, config, reactor):
         service.MultiService.__init__(self)
         self._basedir = basedir
-        self._node_for_config = node_for_config
+        self._config = config
         self._i2p = _import_i2p()
         self._txi2p = _import_txi2p()
         self._reactor = reactor
 
     def _get_i2p_config(self, *args, **kwargs):
-        return self._node_for_config.get_config("i2p", *args, **kwargs)
+        return configutil.config_item(self._config, "i2p", *args, **kwargs)
 
     def get_i2p_handler(self):
         enabled = self._get_i2p_config("enabled", True, boolean=True)
