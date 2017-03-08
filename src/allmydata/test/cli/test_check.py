@@ -9,23 +9,27 @@ from allmydata.util.encodingutil import quote_output, to_str
 from allmydata.mutable.publish import MutableData
 from allmydata.immutable import upload
 from allmydata.scripts import debug
-from ..no_network import GridTestMixin
+from ..no_network import GridTestMixin, grid_ready
 from .common import CLITestMixin
 
 timeout = 480 # deep_check takes 360s on Zandr's linksys box, others take > 240s
 
 class Check(GridTestMixin, CLITestMixin, unittest.TestCase):
 
+    @grid_ready()
     def test_check(self):
-        self.basedir = "cli/Check/check"
-        self.set_up_grid()
-        c0 = self.g.clients[0]
-        DATA = "data" * 100
-        DATA_uploadable = MutableData(DATA)
-        d = c0.create_mutable_file(DATA_uploadable)
-        def _stash_uri(n):
-            self.uri = n.get_uri()
-        d.addCallback(_stash_uri)
+        d = defer.succeed(None)
+
+        def create_data(ign):
+            c0 = self.g.clients[0]
+            DATA = "data" * 100
+            DATA_uploadable = MutableData(DATA)
+            d2 = c0.create_mutable_file(DATA_uploadable)
+            def _stash_uri(n):
+                self.uri = n.get_uri()
+            d2.addCallback(_stash_uri)
+            return d2
+        d.addCallback(create_data)
 
         d.addCallback(lambda ign: self.do_cli("check", self.uri))
         def _check1((rc, out, err)):
@@ -144,8 +148,8 @@ class Check(GridTestMixin, CLITestMixin, unittest.TestCase):
 
         return d
 
+    @grid_ready()
     def test_deep_check(self):
-        self.basedir = "cli/Check/deep_check"
         self.c0 = None
         self.uris = {}
         self.fileurls = {}
@@ -153,7 +157,6 @@ class Check(GridTestMixin, CLITestMixin, unittest.TestCase):
         quoted_good = quote_output(u"g\u00F6\u00F6d")
 
         d = defer.succeed(None)
-        d.addCallback(lambda ign: self.set_up_grid())
 
         def _setup(ignore):
             self.c0 = self.g.clients[0]
@@ -361,11 +364,10 @@ class Check(GridTestMixin, CLITestMixin, unittest.TestCase):
 
         return d
 
+    @grid_ready(oneshare=True)
     def test_check_without_alias(self):
         # 'tahoe check' should output a sensible error message if it needs to
         # find the default alias and can't
-        self.basedir = "cli/Check/check_without_alias"
-        self.set_up_grid(oneshare=True)
         d = self.do_cli("check")
         def _check((rc, out, err)):
             self.failUnlessReallyEqual(rc, 1)
@@ -376,11 +378,10 @@ class Check(GridTestMixin, CLITestMixin, unittest.TestCase):
         d.addCallback(_check)
         return d
 
+    @grid_ready(oneshare=True)
     def test_check_with_nonexistent_alias(self):
         # 'tahoe check' should output a sensible error message if it needs to
         # find an alias and can't.
-        self.basedir = "cli/Check/check_with_nonexistent_alias"
-        self.set_up_grid(oneshare=True)
         d = self.do_cli("check", "nonexistent:")
         def _check((rc, out, err)):
             self.failUnlessReallyEqual(rc, 1)
@@ -390,11 +391,10 @@ class Check(GridTestMixin, CLITestMixin, unittest.TestCase):
         d.addCallback(_check)
         return d
 
+    @grid_ready(oneshare=True)
     def test_check_with_multiple_aliases(self):
-        self.basedir = "cli/Check/check_with_multiple_aliases"
         self.uriList = []
         d = defer.succeed(None)
-        d.addCallback(lambda ign: self.set_up_grid(oneshare=True))
 
         def _make_dir(ignore):
             return self.g.clients[0].create_dirnode()

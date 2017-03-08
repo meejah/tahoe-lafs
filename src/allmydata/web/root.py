@@ -159,7 +159,10 @@ class Root(MultiFormatPage):
             s = client.getServiceNamed("storage")
         except KeyError:
             s = None
-        self.child_storage = storage.StorageStatus(s, self.client.nickname)
+        self.child_storage = storage.StorageStatus(
+            s, self.client.get_accountant(),
+            nickname=self.client.nickname,
+        )
 
         self.child_uri = URIHandler(client)
         self.child_cap = URIHandler(client)
