@@ -196,6 +196,7 @@ class _Client(node.Node, pollmixin.PollMixin):
         # that's what does tub.setLocation()
         self._magic_folders = dict()
         self._storage_done = OneShotObserverList()
+        self.nodeid = b32decode(main_tub.tubID.upper())
         self.started_timestamp = time.time()
         self.logSource="Client"
         self.encoding_params = self.DEFAULT_ENCODING_PARAMETERS.copy()
