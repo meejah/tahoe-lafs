@@ -346,6 +346,8 @@ class StorageServer(service.MultiService):
         self.add_latency("get", time.time() - start)
         return bucketreaders
 
+    # async
+    @defer.inlineCallbacks
     def client_slot_testv_and_readv_and_writev(self, storage_index,
                                                write_enabler,
                                                test_and_write_vectors,
@@ -402,7 +404,7 @@ class StorageServer(service.MultiService):
                 if new_length == 0:
                     if sharenum in shares:
                         shares[sharenum].unlink()
-                        account.remove_share_and_leases(storage_index, sharenum)
+                        yield account.remove_share_and_leases(storage_index, sharenum)
                 else:
                     if sharenum not in shares:
                         # allocate a new share
@@ -413,24 +415,26 @@ class StorageServer(service.MultiService):
                                                           allocated_size)
                         shares[sharenum] = share
                         shares[sharenum].writev(datav, new_length)
-                        account.add_share(storage_index, sharenum,
-                                          shares[sharenum].get_used_space(), SHARETYPE_MUTABLE)
+                        yield account.add_share(
+                            storage_index, sharenum,
+                            shares[sharenum].get_used_space(), SHARETYPE_MUTABLE
+                        )
                     else:
                         # apply the write vector and update the lease
                         shares[sharenum].writev(datav, new_length)
 
-                    account.add_or_renew_default_lease(storage_index, sharenum)
-                    account.mark_share_as_stable(storage_index, sharenum,
-                                                 shares[sharenum].get_used_space())
+                    yield account.add_or_renew_default_lease(storage_index, sharenum)
+                    yield account.mark_share_as_stable(
+                        storage_index, sharenum, shares[sharenum].get_used_space()
+                    )
 
             if new_length == 0:
                 # delete empty bucket directories
                 if not os.listdir(bucketdir):
                     os.rmdir(bucketdir)
 
-        # all done
         self.add_latency("writev", time.time() - start)
-        return (testv_is_good, read_data)
+        defer.returnValue((testv_is_good, read_data))
 
     def _allocate_slot_share(self, bucketdir, write_enabler, sharenum, allocated_size):
         my_nodeid = self.my_nodeid
