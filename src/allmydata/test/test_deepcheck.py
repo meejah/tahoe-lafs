@@ -17,7 +17,7 @@ from allmydata.test.common import ErrorMixin, _corrupt_mutable_share_data, \
      ShouldFailMixin
 from .common_util import StallMixin, run_cli
 from .common_web import do_http
-from allmydata.test.no_network import GridTestMixin
+from allmydata.test.no_network import GridTestMixin, grid_ready
 from .cli.common import CLITestMixin
 
 timeout = 2400 # One of these took 1046.091s on Zandr's ARM box.
