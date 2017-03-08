@@ -18,9 +18,10 @@ class StorageStatus(MultiFormatPage):
     docFactory = getxmlfile("storage_status.xhtml")
     # the default 'data' argument is the StorageServer instance
 
-    def __init__(self, storage, nickname=""):
+    def __init__(self, storage, accountant, nickname=""):
         rend.Page.__init__(self, storage)
         self.storage = storage
+        self.accountant = accountant
         self.nickname = nickname
 
     def render_JSON(self, req):
@@ -128,11 +129,11 @@ class StorageStatus(MultiFormatPage):
                     cycletime_s]
 
     def render_lease_expiration_enabled(self, ctx, data):
-        ep = self.storage.get_expiration_policy()
+        ep = self.accountant.get_anonymous_account().get_expiration_policy()
         return ctx.tag[ep.describe_enabled()]
 
     def render_lease_expiration_mode(self, ctx, data):
-        ep = self.storage.get_expiration_policy()
+        ep = self.accountant.get_anonymous_account().get_expiration_policy()
         ctx.tag[ep.describe_expiration()]
         return ctx.tag
 
