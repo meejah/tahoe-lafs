@@ -346,6 +346,9 @@ class FakeClient(_Client):
     def get_anonymous_account(self):
         return FakeAccount()
 
+    def get_accounting_crawler(self):
+        return FakeAccountingCrawler()
+
     def get_long_nodeid(self):
         return "v0-nodeid"
     def get_long_tubid(self):
