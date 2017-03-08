@@ -11,7 +11,7 @@ from allmydata.storage.server import storage_index_to_dir
 from allmydata.util import base32, fileutil, spans, log, hashutil
 from allmydata.util.consumer import download_to_data, MemoryConsumer
 from allmydata.immutable import upload, layout
-from allmydata.test.no_network import GridTestMixin, NoNetworkServer
+from allmydata.test.no_network import GridTestMixin, NoNetworkServer, grid_ready
 from allmydata.test.common import ShouldFailMixin
 from allmydata.interfaces import NotEnoughSharesError, NoSharesError, \
      DownloadStopped
@@ -190,9 +190,8 @@ class _Base(GridTestMixin, ShouldFailMixin):
 
 class DownloadTest(_Base, unittest.TestCase):
     timeout = 2400 # It takes longer than 240 seconds on Zandr's ARM box.
+    @grid_ready()
     def test_download(self):
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
 
         # do this to create the shares
@@ -203,9 +202,8 @@ class DownloadTest(_Base, unittest.TestCase):
         d.addCallback(self.download_mutable)
         return d
 
+    @grid_ready()
     def test_download_failover(self):
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
 
         self.load_shares()
@@ -270,12 +268,11 @@ class DownloadTest(_Base, unittest.TestCase):
         d.addCallback(_clobber_all_shares)
         return d
 
+    @grid_ready()
     def test_lost_servers(self):
         # while downloading a file (after seg[0], before seg[1]), lose the
         # three servers that we were using. The download should switch over
         # to other servers.
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
 
         # upload a file with multiple segments, so we can catch the download
@@ -315,13 +312,12 @@ class DownloadTest(_Base, unittest.TestCase):
         d.addCallback(_check_failover)
         return d
 
+    @grid_ready()
     def test_long_offset(self):
         # bug #1154: mplayer doing a seek-to-end results in an offset of type
         # 'long', rather than 'int', and apparently __len__ is required to
         # return an int. Rewrote Spans/DataSpans to provide s.len() instead
         # of len(s) .
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
         self.load_shares()
         n = self.c0.create_node_from_uri(immutable_uri)
@@ -332,9 +328,8 @@ class DownloadTest(_Base, unittest.TestCase):
         d.addCallback(lambda size: self.failUnlessEqual(size, 10))
         return d
 
+    @grid_ready()
     def test_badguess(self):
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
         self.load_shares()
         n = self.c0.create_node_from_uri(immutable_uri)
@@ -356,9 +351,8 @@ class DownloadTest(_Base, unittest.TestCase):
         d.addCallback(_done)
         return d
 
+    @grid_ready()
     def test_simultaneous_badguess(self):
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
 
         # upload a file with multiple segments, and a non-default segsize, to
@@ -382,9 +376,8 @@ class DownloadTest(_Base, unittest.TestCase):
         d.addCallback(_done)
         return d
 
+    @grid_ready()
     def test_simultaneous_goodguess(self):
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
 
         # upload a file with multiple segments, and a non-default segsize, to
@@ -409,9 +402,8 @@ class DownloadTest(_Base, unittest.TestCase):
         d.addCallback(_done)
         return d
 
+    @grid_ready()
     def test_sequential_goodguess(self):
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
         data = (plaintext*100)[:30000] # multiple of k
 
@@ -440,9 +432,8 @@ class DownloadTest(_Base, unittest.TestCase):
         return d
 
 
+    @grid_ready()
     def test_simultaneous_get_blocks(self):
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
 
         self.load_shares()
@@ -479,6 +470,7 @@ class DownloadTest(_Base, unittest.TestCase):
         d.addCallback(_done)
         return d
 
+    @grid_ready()
     def test_simultaneous_onefails_onecancelled(self):
         # This exercises an mplayer behavior in ticket #1154. I believe that
         # mplayer made two simultaneous webapi GET requests: first one for an
@@ -500,8 +492,6 @@ class DownloadTest(_Base, unittest.TestCase):
         # DN._active_segment was None since it was not working on any segment
         # at that time, hence the error in #1154.
 
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
 
         # upload a file with multiple segments, so we can catch the download
@@ -540,9 +530,8 @@ class DownloadTest(_Base, unittest.TestCase):
         d.addCallback(_uploaded)
         return d
 
+    @grid_ready()
     def test_simultaneous_onefails(self):
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
 
         # upload a file with multiple segments, so we can catch the download
@@ -586,9 +575,8 @@ class DownloadTest(_Base, unittest.TestCase):
         d.addCallback(_uploaded)
         return d
 
+    @grid_ready()
     def test_download_no_overrun(self):
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
 
         self.load_shares()
@@ -608,9 +596,8 @@ class DownloadTest(_Base, unittest.TestCase):
         d.addCallback(_got_data)
         return d
 
+    @grid_ready()
     def test_download_segment(self):
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
         self.load_shares()
         n = self.c0.create_node_from_uri(immutable_uri)
@@ -622,9 +609,8 @@ class DownloadTest(_Base, unittest.TestCase):
         d.addCallback(_got_segment)
         return d
 
+    @grid_ready()
     def test_download_segment_cancel(self):
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
         self.load_shares()
         n = self.c0.create_node_from_uri(immutable_uri)
@@ -640,9 +626,8 @@ class DownloadTest(_Base, unittest.TestCase):
         d.addCallback(_check)
         return d
 
+    @grid_ready()
     def test_download_bad_segment(self):
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
         self.load_shares()
         n = self.c0.create_node_from_uri(immutable_uri)
@@ -655,9 +640,8 @@ class DownloadTest(_Base, unittest.TestCase):
                             _try_download)
         return d
 
+    @grid_ready()
     def test_download_segment_terminate(self):
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
         self.load_shares()
         n = self.c0.create_node_from_uri(immutable_uri)
@@ -673,9 +657,8 @@ class DownloadTest(_Base, unittest.TestCase):
         d.addCallback(_check)
         return d
 
+    @grid_ready()
     def test_pause(self):
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
         self.load_shares()
         n = self.c0.create_node_from_uri(immutable_uri)
@@ -687,9 +670,8 @@ class DownloadTest(_Base, unittest.TestCase):
         d.addCallback(_downloaded)
         return d
 
+    @grid_ready()
     def test_pause_then_stop(self):
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
         self.load_shares()
         n = self.c0.create_node_from_uri(immutable_uri)
@@ -699,10 +681,9 @@ class DownloadTest(_Base, unittest.TestCase):
                             n.read, c)
         return d
 
+    @grid_ready()
     def test_stop(self):
         # use a download target that stops after the first segment (#473)
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
         self.load_shares()
         n = self.c0.create_node_from_uri(immutable_uri)
@@ -712,10 +693,9 @@ class DownloadTest(_Base, unittest.TestCase):
                             n.read, c)
         return d
 
+    @grid_ready()
     def test_stop_immediately(self):
         # and a target that stops right after registerProducer (maybe #1154)
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
         self.load_shares()
         n = self.c0.create_node_from_uri(immutable_uri)
@@ -726,10 +706,9 @@ class DownloadTest(_Base, unittest.TestCase):
                             n.read, c)
         return d
 
+    @grid_ready()
     def test_stop_immediately2(self):
         # and a target that stops right after registerProducer (maybe #1154)
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
         self.load_shares()
         n = self.c0.create_node_from_uri(immutable_uri)
@@ -742,6 +721,7 @@ class DownloadTest(_Base, unittest.TestCase):
                             lambda: d0)
         return d
 
+    @grid_ready()
     def test_download_segment_bad_ciphertext_hash(self):
         # The crypttext_hash_tree asserts the integrity of the decoded
         # ciphertext, and exists to detect two sorts of problems. The first
@@ -762,8 +742,6 @@ class DownloadTest(_Base, unittest.TestCase):
         # tampering with the uploader). So instead, we just damage the
         # decoder. The tail decoder is rebuilt each time, so we need to use a
         # file with multiple segments.
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
 
         u = upload.Data(plaintext, None)
@@ -795,9 +773,8 @@ class DownloadTest(_Base, unittest.TestCase):
         d.addCallback(_uploaded)
         return d
 
+    @grid_ready()
     def OFFtest_download_segment_XXX(self):
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
 
         # upload a file with multiple segments, and a non-default segsize, to
@@ -823,9 +800,8 @@ class DownloadTest(_Base, unittest.TestCase):
         #d.addCallback(_done)
         return d
 
+    @grid_ready()
     def test_duplicate_shares(self):
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
 
         self.load_shares()
@@ -851,9 +827,8 @@ class DownloadTest(_Base, unittest.TestCase):
         d = self.download_immutable()
         return d
 
+    @grid_ready()
     def test_verifycap(self):
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
         self.load_shares()
 
@@ -941,6 +916,7 @@ class Corruption(_Base, unittest.TestCase):
             return s[:which] + chr(newvalue) + s[which+1:]
         self.corrupt_shares_numbered(imm_uri, [2], _corruptor)
 
+    @grid_ready()
     def test_each_byte(self):
         # Setting catalog_detection=True performs an exhaustive test of the
         # Downloader's response to corruption in the lsb of each byte of the
@@ -952,8 +928,6 @@ class Corruption(_Base, unittest.TestCase):
         # normally do that.
         self.catalog_detection = False
 
-        self.basedir = "download/Corruption/each_byte"
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
 
         # to exercise the block-hash-tree code properly, we need to have
@@ -1082,12 +1056,11 @@ class Corruption(_Base, unittest.TestCase):
             #  [1309-]: reserved+unused UEB space
         return d
 
+    @grid_ready()
     def test_failure(self):
         # this test corrupts all shares in the same way, and asserts that the
         # download fails.
 
-        self.basedir = "download/Corruption/failure"
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
 
         # to exercise the block-hash-tree code properly, we need to have
@@ -1149,9 +1122,8 @@ class DownloadV2(_Base, unittest.TestCase):
         layout.FORCE_V2 = self.old_force_v2
         return _Base.tearDown(self)
 
+    @grid_ready()
     def test_download(self):
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
 
         # upload a file
@@ -1164,9 +1136,8 @@ class DownloadV2(_Base, unittest.TestCase):
         d.addCallback(_uploaded)
         return d
 
+    @grid_ready()
     def test_download_no_overrun(self):
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
 
         # tweak the client's copies of server-version data, so it believes
@@ -1187,9 +1158,8 @@ class DownloadV2(_Base, unittest.TestCase):
         d.addCallback(_uploaded)
         return d
 
+    @grid_ready()
     def OFF_test_no_overrun_corrupt_shver(self): # unnecessary
-        self.basedir = self.mktemp()
-        self.set_up_grid()
         self.c0 = self.g.clients[0]
 
         for s in self.c0.storage_broker.get_connected_servers():
