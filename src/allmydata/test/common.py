@@ -433,6 +433,11 @@ class CrawlerTestMixin:
         d.addCallback(lambda ign: res)
         return d
 
+    def _after_cycle(self, crawler):
+        d = crawler.set_hook('after_cycle')
+        d.addCallback(lambda ign: crawler.get_state())
+        return d
+
     def _after_prefix(self, prefix, target_prefix, crawler):
         """
         Wait for the crawler to reach a given target_prefix. Return a deferred
@@ -444,9 +449,12 @@ class CrawlerTestMixin:
             return d
 
         crawler.save_state()
-        state = crawler.get_state()
-        self.failUnlessEqual(prefix, state["last-complete-prefix"])
-        return defer.succeed(state)
+        d = crawler.get_state()
+        def _check(state):
+            self.failUnlessEqual(prefix, state["last-complete-prefix"])
+            return state
+        d.addCallback(_check)
+        return d
 
 
 class LoggingServiceParent(service.MultiService):
