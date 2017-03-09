@@ -39,7 +39,6 @@ NUM_RE=re.compile("^[0-9]+$")
 class StorageServer(service.MultiService):
     name = 'storage'
     BucketCounterClass = BucketCountingCrawler
-    DEFAULT_EXPIRATION_POLICY = ExpirationPolicy(enabled=False)
 
     def __init__(self, storedir, nodeid, reserved_space=0,
                  readonly_storage=False,
@@ -47,6 +46,7 @@ class StorageServer(service.MultiService):
         service.MultiService.__init__(self)
         assert isinstance(nodeid, str)
         assert len(nodeid) == 20
+
         self.my_nodeid = nodeid
         self.storedir = storedir
         sharedir = os.path.join(storedir, "shares")
