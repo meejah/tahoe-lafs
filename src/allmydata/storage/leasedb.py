@@ -167,10 +167,6 @@ class LeaseDB(object):
             pass
         return defer.succeed(None)
 
-    def close(self):
-        self._conn.close()
-        return defer.succeed(None)
-
     # share management
 
     @_locked
@@ -319,6 +315,7 @@ class LeaseDB(object):
             # the server and time goes backward by more than 31 days. This needs to be
             # revisited for ticket #1816, which would allow the client to request a lease
             # duration.
+            print("doing a lease", si_s, found_shnum)
             yield self._conn.runOperation("INSERT OR REPLACE INTO `leases` VALUES (?,?,?,?,?)",
                                           (si_s, found_shnum, ownerid, renewal_time, expiration_time))
 
@@ -326,6 +323,7 @@ class LeaseDB(object):
     @defer.inlineCallbacks
     def get_leases(self, storage_index, ownerid):
         si_s = si_b2a(storage_index)
+        print("get leases", si_s, ownerid)
         rows = yield self._conn.runQuery("SELECT `shnum`, `account_id`, `renewal_time`, `expiration_time` FROM `leases`"
                                          " WHERE `storage_index`=? AND `account_id`=?",
                                          (si_s, ownerid))
