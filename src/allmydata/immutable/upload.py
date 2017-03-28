@@ -251,7 +251,7 @@ class PeerSelector(object):
                 preexisting.add(share, server)
         return preexisting
 
-    def get_tasks(self):
+    def get_share_placements(self):
         shares = set(range(self.total_shares))
         self.happiness_mappings = share_placement(self.peers, self.full_peers, shares, self.existing_shares)
         self.happiness = calculate_happiness(self.happiness_mappings)
@@ -432,7 +432,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
 
 
     def _calculate_tasks(self):
-        self.tasks = self.peer_selector.get_tasks()
+        self._share_placements = self.peer_selector.get_share_placements()
 
     def _handle_existing_response(self, res, tracker):
         """
@@ -514,7 +514,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
         assert isinstance(tracker, ServerTracker)
 
         shares_to_ask = set()
-        servermap = self.tasks
+        servermap = self._share_placements
         for shnum, tracker_id in servermap.items():
             if tracker_id == None:
                 continue
