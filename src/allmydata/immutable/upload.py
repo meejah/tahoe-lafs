@@ -117,7 +117,7 @@ EXTENSION_SIZE = 1000
 def pretty_print_shnum_to_servers(s):
     return ', '.join([ "sh%s: %s" % (k, '+'.join([idlib.shortnodeid_b2a(x) for x in v])) for k, v in s.iteritems() ])
 
-class ServerTracker:
+class ServerTracker(object):
     def __init__(self, server,
                  sharesize, blocksize, num_segments, num_share_hashes,
                  storage_index,
