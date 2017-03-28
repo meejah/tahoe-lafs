@@ -203,7 +203,7 @@ def str_shareloc(shnum, bucketwriter):
 
 
 @implementer(IPeerSelector)
-class PeerSelector():
+class PeerSelector(object):
 
     def __init__(self, num_segments, total_shares, needed_shares, servers_of_happiness):
         self.num_segments = num_segments
