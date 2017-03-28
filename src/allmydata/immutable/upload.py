@@ -546,7 +546,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             # 8. Renew the shares on their respective servers from M1 and M2.
             d = tracker.query(shares_to_ask)
 
-            d.addBoth(self._got_response, tracker, shares_to_ask)
+            d.addBoth(self._buckets_allocated, tracker, shares_to_ask)
             return d
 
         else:
@@ -583,7 +583,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                 return (self.use_trackers, self.peer_selector.get_sharemap_of_preexisting_shares())
 
 
-    def _got_response(self, res, tracker, shares_to_ask):
+    def _buckets_allocated(self, res, tracker, shares_to_ask):
         if isinstance(res, failure.Failure):
             # This is unusual, and probably indicates a bug or a network
             # problem.
