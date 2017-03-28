@@ -214,7 +214,7 @@ class PeerSelector(object):
         self.existing_shares = {}
         self.confirmed_allocations = {}
         self.peers = set()
-        self.full_peers = set()
+        self.readonly_peers = set()
         self.bad_peers = set()
 
     def add_peer_with_share(self, peerid, shnum):
@@ -233,15 +233,15 @@ class PeerSelector(object):
         self.peers.add(peerid)
 
     def mark_full_peer(self, peerid):
-        self.full_peers.add(peerid)
+        self.readonly_peers.add(peerid)
         self.peers.remove(peerid)
 
     def mark_bad_peer(self, peerid):
         if peerid in self.peers:
             self.peers.remove(peerid)
             self.bad_peers.add(peerid)
-        elif peerid in self.full_peers:
-            self.full_peers.remove(peerid)
+        elif peerid in self.readonly_peers:
+            self.readonly_peers.remove(peerid)
             self.bad_peers.add(peerid)
 
     def get_sharemap_of_preexisting_shares(self):
@@ -253,7 +253,7 @@ class PeerSelector(object):
 
     def get_share_placements(self):
         shares = set(range(self.total_shares))
-        self.happiness_mappings = share_placement(self.peers, self.full_peers, shares, self.existing_shares)
+        self.happiness_mappings = share_placement(self.peers, self.readonly_peers, shares, self.existing_shares)
         self.happiness = calculate_happiness(self.happiness_mappings)
         return self.happiness_mappings
 
