@@ -31,6 +31,8 @@ def test_upload_immutable(reactor, temp_dir, introducer_furl, flog_gatherer, sto
     print("waiting 5 seconds unil we're maybe ready")
     yield task.deferLater(reactor, 5, lambda: None)
 
+    # upload a file, which should fail because we have don't have 7
+    # storage servers (but happiness is set to 7)
     proto = util._CollectOutputProtocol()
     transport = reactor.spawnProcess(
         proto,
@@ -46,8 +48,6 @@ def test_upload_immutable(reactor, temp_dir, introducer_furl, flog_gatherer, sto
         assert False, "should raise exception"
     except Exception as e:
         assert isinstance(e, ProcessTerminated)
-        print("err", e, dir(e))
 
     output = proto.output.getvalue()
     assert "shares could be placed on only 6 server" in output
-    #yield defer.Deferred()
