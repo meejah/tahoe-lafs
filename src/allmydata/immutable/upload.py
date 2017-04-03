@@ -412,7 +412,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             self.log("asking server %s for any existing shares" %
                      (tracker.get_name(),), level=log.NOISY)
 
-        self.trackers = write_trackers + readonly_trackers
+        self.trackers = set(write_trackers) | set(readonly_trackers)
 
         yield defer.DeferredList(ds)
         self._share_placements = self.peer_selector.get_share_placements()

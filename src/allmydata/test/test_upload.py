@@ -104,7 +104,8 @@ class FakeStorageServer:
     def __init__(self, mode):
         self.mode = mode
         self.allocated = []
-        self.queries = 0
+        self._alloc_queries = 0
+        self._get_queries = 0
         self.version = { "http://allmydata.org/tahoe/protocols/storage/v1" :
                          { "maximum-immutable-share-size": 2**32 - 1 },
                          "application-version": str(allmydata.__full_version__),
@@ -128,12 +129,12 @@ class FakeStorageServer:
                          sharenums, share_size, canary):
         #print "FakeStorageServer.allocate_buckets(num=%d, size=%d)" % (len(sharenums), share_size)
         if self.mode == "first-fail":
-            if self.queries == 0:
+            if self._alloc_queries == 0:
                 raise ServerError
         if self.mode == "second-fail":
-            if self.queries == 1:
+            if self._alloc_queries == 1:
                 raise ServerError
-        self.queries += 1
+        self._alloc_queries += 1
         if self.mode == "full":
             return (set(), {},)
         elif self.mode == "already got them":
@@ -145,6 +146,14 @@ class FakeStorageServer:
                     dict([( shnum, FakeBucketWriter(share_size) )
                           for shnum in sharenums]),
                     )
+
+    def get_buckets(self, storage_index, **kw):
+        return {
+            shnum: FakeBucketReader(share_size)
+            for (si, shnum) in self.allocated
+            if si == storage_index
+        }
+
 
 class FakeBucketWriter:
     # a diagnostic version of storageserver.BucketWriter
@@ -184,7 +193,7 @@ class FakeBucketWriter:
     def remote_abort(self):
         pass
 
-class FakeClient:
+class FakeClient(object):
     DEFAULT_ENCODING_PARAMETERS = {"k":25,
                                    "happy": 25,
                                    "n": 100,
@@ -196,8 +205,10 @@ class FakeClient:
         self.encoding_params = self.DEFAULT_ENCODING_PARAMETERS.copy()
         if type(mode) is str:
             mode = dict([i,mode] for i in range(num_servers))
-        servers = [ ("%20d"%fakeid, FakeStorageServer(mode[fakeid]))
-                    for fakeid in range(self.num_servers) ]
+        servers = [
+            ("%20d" % fakeid, FakeStorageServer(mode[fakeid]))
+            for fakeid in range(self.num_servers)
+        ]
         self.storage_broker = StorageFarmBroker(permute_peers=True, tub_maker=None)
         for (serverid, rref) in servers:
             ann = {"anonymous-storage-FURL": "pb://%s@nowhere/fake" % base32.b2a(serverid),
@@ -431,9 +442,7 @@ class ServerErrors(unittest.TestCase, ShouldFailMixin, SetDEPMixin):
                             "server selection failed",
                             upload_data, self.u, DATA)
         def _check((f,)):
-            self.failUnlessIn("placed 0 shares out of 100 total", str(f.value))
-            # there should also be a 'last failure was' message
-            self.failUnlessIn("ServerError", str(f.value))
+            self.failUnlessIn("shares could be placed or found on only 10 server(s)", str(f.value))
         d.addCallback(_check)
         return d
 
@@ -495,7 +504,7 @@ class ServerSelection(unittest.TestCase):
             for s in self.node.last_servers:
                 allocated = s.allocated
                 self.failUnlessEqual(len(allocated), 1)
-                self.failUnlessEqual(s.queries, 2)
+                self.failUnlessEqual(s._alloc_queries, 1)
         d.addCallback(_check)
         return d
 
@@ -514,7 +523,7 @@ class ServerSelection(unittest.TestCase):
             for s in self.node.last_servers:
                 allocated = s.allocated
                 self.failUnlessEqual(len(allocated), 2)
-                self.failUnlessEqual(s.queries, 2)
+                self.failUnlessEqual(s._alloc_queries, 1)
         d.addCallback(_check)
         return d
 
@@ -535,10 +544,10 @@ class ServerSelection(unittest.TestCase):
                 allocated = s.allocated
                 self.failUnless(len(allocated) in (1,2), len(allocated))
                 if len(allocated) == 1:
-                    self.failUnlessEqual(s.queries, 2)
+                    self.failUnlessEqual(s._alloc_queries, 1)
                     got_one.append(s)
                 else:
-                    self.failUnlessEqual(s.queries, 2)
+                    self.failUnlessEqual(s._alloc_queries, 1)
                     got_two.append(s)
             self.failUnlessEqual(len(got_one), 49)
             self.failUnlessEqual(len(got_two), 1)
@@ -562,7 +571,7 @@ class ServerSelection(unittest.TestCase):
             for s in self.node.last_servers:
                 allocated = s.allocated
                 self.failUnlessEqual(len(allocated), 4)
-                self.failUnlessEqual(s.queries, 2)
+                self.failUnlessEqual(s._alloc_queries, 1)
         d.addCallback(_check)
         return d
 
@@ -624,7 +633,7 @@ class ServerSelection(unittest.TestCase):
         def _check(res):
             servers_contacted = []
             for s in self.node.last_servers:
-                if(s.queries != 0):
+                if(s._alloc_queries != 0):
                     servers_contacted.append(s)
             self.failUnless(len(servers_contacted), 20)
         d.addCallback(_check)
@@ -817,6 +826,7 @@ class EncodingParameters(GridTestMixin, unittest.TestCase, SetDEPMixin,
         ss = self.g.make_server(server_number, readonly)
         log.msg("just created a server, number: %s => %s" % (server_number, ss,))
         self.g.add_server(server_number, ss)
+        self.g.rebuild_serverlist()
 
     def _add_server_with_share(self, server_number, share_number=None,
                                readonly=False):
