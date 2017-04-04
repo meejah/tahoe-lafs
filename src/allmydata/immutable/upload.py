@@ -553,7 +553,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             self.error_count += 1
             self.bad_query_count += 1
             self.homeless_shares |= shares_to_ask
-            if (self.trackers):
+            if self.use_trackers:
                 # there is still hope, so just loop
                 pass
             else:
