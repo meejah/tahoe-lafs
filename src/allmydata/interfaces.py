@@ -777,18 +777,10 @@ class IPeerSelector(Interface):
         with peerid, and will not attempt to assign it any more shares.
         """
 
-    def get_tasks():
+    def get_share_placements():
         """
-        Return a tuple of tasks to our caller.
-
-        Specifically, return (queries, placements), where queries and
-        allocations are both lists of things to do. Each query is a
-        request for our caller to ask a server about the shares it holds
-        for this upload; the results will be fed back into the
-        allocator. Each allocation is a request for some share or shares
-        to be placed on a server. Result may be None, in which case the
-        selector thinks that the share placement is as reliably or
-        correctly placed as it can be.
+        Return the share-placement map (a dict) which maps shares to
+        server-ids
         """
 
 
