@@ -148,11 +148,7 @@ class FakeStorageServer:
                     )
 
     def get_buckets(self, storage_index, **kw):
-        return {
-            shnum: FakeBucketReader(share_size)
-            for (si, shnum) in self.allocated
-            if si == storage_index
-        }
+        raise NotImplemented
 
 
 class FakeBucketWriter:
@@ -732,16 +728,11 @@ def is_happy_enough(servertoshnums, h, k):
     """ I calculate whether servertoshnums achieves happiness level h. I do this with a naïve "brute force search" approach. (See src/allmydata/util/happinessutil.py for a better algorithm.) """
     if len(servertoshnums) < h:
         return False
-    # print "servertoshnums: ", servertoshnums, h, k
     for happysetcombo in combinations(servertoshnums.iterkeys(), h):
-        # print "happysetcombo: ", happysetcombo
         for subsetcombo in combinations(happysetcombo, k):
             shnums = reduce(set.union, [ servertoshnums[s] for s in subsetcombo ])
-            # print "subsetcombo: ", subsetcombo, ", shnums: ", shnums
             if len(shnums) < k:
-                # print "NOT HAAPP{Y", shnums, k
                 return False
-    # print "HAAPP{Y"
     return True
 
 class FakeServerTracker:
@@ -1870,6 +1861,33 @@ class EncodingParameters(GridTestMixin, unittest.TestCase, SetDEPMixin,
             client.upload(upload.Data("data" * 10000, convergence="")))
         d.addCallback(lambda ign:
             self.failUnless(self._has_happy_share_distribution()))
+        return d
+
+    def test_problem_layout_ticket_1118(self):
+        # #1118 includes a report from a user who hit an assertion in
+        # the upload code with this layout.
+        # Note that 'servers of happiness' lets this test work now
+        self.basedir = self.mktemp()
+        d = self._setup_and_upload(k=2, n=4)
+
+        # server 0: no shares
+        # server 1: shares 0, 3
+        # server 3: share 1
+        # server 2: share 2
+        # The order that they get queries is 0, 1, 3, 2
+        def _setup(ign):
+            self._add_server(server_number=0)
+            self._add_server_with_share(server_number=1, share_number=0)
+            self._add_server_with_share(server_number=2, share_number=2)
+            self._add_server_with_share(server_number=3, share_number=1)
+            # Copy shares
+            self._copy_share_to_server(3, 1)
+            self.delete_all_shares(self.get_serverdir(0))
+            client = self.g.clients[0]
+            client.encoding_params['happy'] = 4
+            return client
+
+        d.addCallback(_setup)
         return d
 
     def test_problem_layout_ticket_1128(self):

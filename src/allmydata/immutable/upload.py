@@ -423,7 +423,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             d = tracker.query(shares_to_ask)
             d.addBoth(self._buckets_allocated, tracker, shares_to_ask)
             placements.append(d)
-        res = yield defer.DeferredList(placements)
+        yield defer.DeferredList(placements)
 
         # no more servers. If we haven't placed enough shares, we fail.
         merged = merge_servers(self.peer_selector.get_sharemap_of_preexisting_shares(), self.use_trackers)
