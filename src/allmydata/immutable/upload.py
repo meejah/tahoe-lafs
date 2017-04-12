@@ -276,6 +276,49 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
     def __repr__(self):
         return "<Tahoe2ServerSelector for upload %s>" % self.upload_id
 
+    def _create_trackers(self, candidate_servers, allocated_size,
+                         file_renewal_secret, file_cancel_secret, create_server_tracker):
+
+        # filter the list of servers according to which ones can accomodate
+        # this request. This excludes older servers (which used a 4-byte size
+        # field) from getting large shares (for files larger than about
+        # 12GiB). See #439 for details.
+        def _get_maxsize(server):
+            v0 = server.get_rref().version
+            v1 = v0["http://allmydata.org/tahoe/protocols/storage/v1"]
+            return v1["maximum-immutable-share-size"]
+
+        for server in candidate_servers:
+            self.peer_selector.add_peer(server.get_serverid())
+        writeable_servers = [
+            server for server in candidate_servers
+            if _get_maxsize(server) >= allocated_size
+        ]
+        readonly_servers = set(candidate_servers) - set(writeable_servers)
+        for server in readonly_servers:
+            self.peer_selector.mark_full_peer(server.get_serverid())
+
+        def _make_trackers(servers):
+            trackers = []
+            for s in servers:
+                seed = s.get_lease_seed()
+                renew = bucket_renewal_secret_hash(file_renewal_secret, seed)
+                cancel = bucket_cancel_secret_hash(file_cancel_secret, seed)
+                st = create_server_tracker(s, renew, cancel)
+                trackers.append(st)
+            return trackers
+
+        write_trackers = _make_trackers(writeable_servers)
+
+        # We don't try to allocate shares to these servers, since they've
+        # said that they're incapable of storing shares of the size that we'd
+        # want to store. We ask them about existing shares for this storage
+        # index, which we want to know about for accurate
+        # servers_of_happiness accounting, then we forget about them.
+        readonly_trackers = _make_trackers(readonly_servers)
+
+        return readonly_trackers, write_trackers
+
     @defer.inlineCallbacks
     def get_shareholders(self, storage_broker, secret_holder,
                          storage_index, share_size, block_size,
@@ -322,6 +365,17 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                                              num_share_hashes, EXTENSION_SIZE)
         allocated_size = wbp.get_allocated_size()
 
+        # decide upon the renewal/cancel secrets, to include them in the
+        # allocate_buckets query.
+        file_renewal_secret = file_renewal_secret_hash(
+            secret_holder.get_renewal_secret(),
+            storage_index,
+        )
+        file_cancel_secret = file_cancel_secret_hash(
+            secret_holder.get_cancel_secret(),
+            storage_index,
+        )
+
         # see docs/specifications/servers-of-happiness.rst
         # 0. Start with an ordered list of servers. Maybe *2N* of them.
         #
@@ -330,57 +384,19 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
         if not all_servers:
             raise NoServersError("client gave us zero servers")
 
-        # filter the list of servers according to which ones can accomodate
-        # this request. This excludes older servers (which used a 4-byte size
-        # field) from getting large shares (for files larger than about
-        # 12GiB). See #439 for details.
-        def _get_maxsize(server):
-            v0 = server.get_rref().version
-            v1 = v0["http://allmydata.org/tahoe/protocols/storage/v1"]
-            return v1["maximum-immutable-share-size"]
+        def _create_server_tracker(server, renew, cancel):
+            return ServerTracker(
+                server, share_size, block_size, num_segments, num_share_hashes,
+                storage_index, renew, cancel,
+            )
 
-        candidate_servers = all_servers[:(2 * total_shares)]
-        for server in candidate_servers:
-            self.peer_selector.add_peer(server.get_serverid())
-        writeable_servers = [
-            server for server in candidate_servers
-            if _get_maxsize(server) >= allocated_size
-        ]
-        readonly_servers = set(candidate_servers) - set(writeable_servers)
-        for server in readonly_servers:
-            self.peer_selector.mark_full_peer(server.get_serverid())
-
-        # decide upon the renewal/cancel secrets, to include them in the
-        # allocate_buckets query.
-        client_renewal_secret = secret_holder.get_renewal_secret()
-        client_cancel_secret = secret_holder.get_cancel_secret()
-
-        file_renewal_secret = file_renewal_secret_hash(client_renewal_secret,
-                                                       storage_index)
-        file_cancel_secret = file_cancel_secret_hash(client_cancel_secret,
-                                                     storage_index)
-        def _make_trackers(servers):
-            trackers = []
-            for s in servers:
-                seed = s.get_lease_seed()
-                renew = bucket_renewal_secret_hash(file_renewal_secret, seed)
-                cancel = bucket_cancel_secret_hash(file_cancel_secret, seed)
-                st = ServerTracker(s,
-                                   share_size, block_size,
-                                   num_segments, num_share_hashes,
-                                   storage_index,
-                                   renew, cancel)
-                trackers.append(st)
-            return trackers
-
-        write_trackers = _make_trackers(writeable_servers)
-
-        # We don't try to allocate shares to these servers, since they've
-        # said that they're incapable of storing shares of the size that we'd
-        # want to store. We ask them about existing shares for this storage
-        # index, which we want to know about for accurate
-        # servers_of_happiness accounting, then we forget about them.
-        readonly_trackers = _make_trackers(readonly_servers)
+        readonly_trackers, write_trackers = self._create_trackers(
+            all_servers[:(2 * total_shares)],
+            allocated_size,
+            file_renewal_secret,
+            file_cancel_secret,
+            _create_server_tracker,
+        )
 
         # see docs/specifications/servers-of-happiness.rst
         # 1. Query all servers for existing shares.
@@ -404,7 +420,6 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
         for tracker in write_trackers:
             assert isinstance(tracker, ServerTracker)
             d = tracker.ask_about_existing_shares()
-            #d = tracker.query(set())
             d.addBoth(self._handle_existing_write_response, tracker, set())
             ds.append(d)
             self.num_servers_contacted += 1
