@@ -148,7 +148,15 @@ class FakeStorageServer:
                     )
 
     def get_buckets(self, storage_index, **kw):
-        raise NotImplemented
+        # this should map shnum to a BucketReader but there isn't a
+        # handy FakeBucketReader and we don't actually read the shares
+        # back anyway (just the keys)
+        return {
+            shnum: None
+            for (si, shnum) in self.allocated
+            if si == storage_index
+        }
+
 
 
 class FakeBucketWriter:
