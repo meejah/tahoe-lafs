@@ -6,6 +6,8 @@ from twisted.python import usage
 from allmydata.scripts.default_nodedir import _default_nodedir
 from allmydata.util import fileutil
 from allmydata.util.encodingutil import listdir_unicode, quote_local_unicode_path
+from zope.interface import implementer
+from twisted.application.service import Service
 
 
 class StartOptions(BasedirOptions):
@@ -62,29 +64,49 @@ class RunOptions(StartOptions):
 class MyTwistdConfig(twistd.ServerOptions):
     subCommands = [("StartTahoeNode", None, usage.Options, "node")]
 
-class StartTahoeNodePlugin:
-    tapname = "tahoenode"
-    def __init__(self, nodetype, basedir):
+
+class StartTheRealService(Service):
+
+    def __init__(self, nodetype, basedir, options):
         self.nodetype = nodetype
         self.basedir = basedir
-    def makeService(self, so):
+
+    def startService(self):
         # delay this import as late as possible, to allow twistd's code to
         # accept --reactor= selection. N.B.: this can't actually work until
         # this file, and all the __init__.py files above it, also respect the
         # prohibition on importing anything that transitively imports
         # twisted.internet.reactor . That will take a lot of work.
-        if self.nodetype == "client":
-            from allmydata.client import Client
-            return Client(self.basedir)
-        if self.nodetype == "introducer":
-            from allmydata.introducer.server import IntroducerNode
-            return IntroducerNode(self.basedir)
-        if self.nodetype == "key-generator":
-            raise ValueError("key-generator support removed, see #2783")
-        if self.nodetype == "stats-gatherer":
-            from allmydata.stats import StatsGathererService
-            return StatsGathererService(verbose=True)
-        raise ValueError("unknown nodetype %s" % self.nodetype)
+
+        def start():
+            print("starting")
+            if self.nodetype == "client":
+                from allmydata.client import Client
+                srv = Client(self.basedir)
+            elif self.nodetype == "introducer":
+                from allmydata.introducer.server import IntroducerNode
+                srv = IntroducerNode(self.basedir)
+            elif self.nodetype == "key-generator":
+                raise ValueError("key-generator support removed, see #2783")
+            elif self.nodetype == "stats-gatherer":
+                from allmydata.stats import StatsGathererService
+                srv = StatsGathererService(verbose=True)
+            else:
+                raise ValueError("unknown nodetype %s" % self.nodetype)
+            srv.setServiceParent(self)
+        from twisted.internet import reactor
+        reactor.callWhenRunning(start)
+
+
+class StartTahoeNodePlugin:
+    tapname = "tahoenode"
+    def __init__(self, nodetype, basedir):
+        self.nodetype = nodetype
+        self.basedir = basedir
+
+    def makeService(self, so):
+        return StartTheRealService(self.nodetype, self.basedir, so)
+
 
 def identify_node_type(basedir):
     for fn in listdir_unicode(basedir):
@@ -99,7 +121,9 @@ def identify_node_type(basedir):
             return t
     return None
 
+
 def start(config):
+
     out = config.stdout
     err = config.stderr
     basedir = config['basedir']
@@ -166,8 +190,17 @@ def start(config):
     else:
         verb = "starting"
 
+    runner = twistd._SomeApplicationRunner(twistd_config)
+    print("RUNNER", runner, dir(runner))
+
+    def post_application():
+        import os
+        os.write(2, "hello {}\n".format(hash(self)))
+        return runner.postApplication()
+    runner.postApplication = post_application
     print >>out, "%s node in %s" % (verb, quoted_basedir)
-    twistd.runApp(twistd_config)
+
+    runner.run()
     # we should only reach here if --nodaemon or equivalent was used
     return 0
 
