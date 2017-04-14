@@ -430,6 +430,10 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
         self.trackers = set(write_trackers) | set(readonly_trackers)
 
         yield defer.DeferredList(ds)
+
+        # okay, we've queried the 2N servers, time to get the share
+        # placements and attempt to actually place the shares (or
+        # renew them on read-only servers)
         self._share_placements = self.peer_selector.get_share_placements()
 
         placements = []
