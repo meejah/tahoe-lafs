@@ -390,6 +390,10 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                 storage_index, renew, cancel,
             )
 
+        # XXX should we consider servers out of this list if some of
+        # the 2N servers fail?
+        unused_servers = all_servers[(2 * total_shares):]
+
         readonly_trackers, write_trackers = self._create_trackers(
             all_servers[:(2 * total_shares)],
             allocated_size,
@@ -417,6 +421,8 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             self.log("asking server %s for any existing shares" %
                      (tracker.get_name(),), level=log.NOISY)
 
+        # XXX this doesn't really consider an "indefinitely" hanging
+        # server ...
         for tracker in write_trackers:
             assert isinstance(tracker, ServerTracker)
             d = tracker.ask_about_existing_shares()
@@ -429,6 +435,10 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
 
         self.trackers = set(write_trackers) | set(readonly_trackers)
 
+        # ... that is, we'll stop here until we get responses from
+        # *all* servers contacted. At the very least, we probably want
+        # a timeout. Ideally, once we have responses from "N" servers,
+        # we proceed with the placement step -- but ...
         yield defer.DeferredList(ds)
 
         # okay, we've queried the 2N servers, time to get the share
