@@ -232,7 +232,7 @@ class PeerSelector(object):
     def add_peer(self, peerid):
         self.peers.add(peerid)
 
-    def mark_full_peer(self, peerid):
+    def mark_readonly_peer(self, peerid):
         self.readonly_peers.add(peerid)
         self.peers.remove(peerid)
 
@@ -296,7 +296,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
         ]
         readonly_servers = set(candidate_servers) - set(writeable_servers)
         for server in readonly_servers:
-            self.peer_selector.mark_full_peer(server.get_serverid())
+            self.peer_selector.mark_readonly_peer(server.get_serverid())
 
         def _make_trackers(servers):
             trackers = []

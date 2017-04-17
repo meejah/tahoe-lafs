@@ -762,7 +762,7 @@ class IPeerSelector(Interface):
         potential candidates for storing a file.
         """
 
-    def mark_full_peer(peerid):
+    def mark_readonly_peer(peerid):
         """
         Mark the peer peerid as full. This means that any
         peer-with-share relationships I know about for peerid remain
