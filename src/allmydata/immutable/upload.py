@@ -437,22 +437,46 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
 
         # ... that is, we'll stop here until we get responses from
         # *all* servers contacted. At the very least, we probably want
-        # a timeout. Ideally, once we have responses from "N" servers,
-        # we proceed with the placement step -- but ...
-        yield defer.DeferredList(ds)
+        # a timeout? Perhaps that's better handled at the Foolscap
+        # layer? Ideally, once we have responses from "N" servers, we
+        # proceed with the placement step -- but ... then we aren't
+        # running the algorithm on the full 2N servers.
+        res = yield defer.DeferredList(ds)
 
         # okay, we've queried the 2N servers, time to get the share
         # placements and attempt to actually place the shares (or
         # renew them on read-only servers)
-        self._share_placements = self.peer_selector.get_share_placements()
 
-        placements = []
-        for tracker in write_trackers + readonly_trackers:
-            shares_to_ask = self._allocation_for(tracker)
-            d = tracker.query(shares_to_ask)
-            d.addBoth(self._buckets_allocated, tracker, shares_to_ask)
-            placements.append(d)
-        yield defer.DeferredList(placements)
+        # https://tahoe-lafs.org/trac/tahoe-lafs/ticket/778#comment:48
+        # min_happiness will be 0 for the repairer, so we set current
+        # effective_happiness to less than zero so this loop runs at
+        # least once for the repairer...
+
+        last_placement = None
+        effective_happiness = -1
+        while effective_happiness < min_happiness and \
+              (len(readonly_trackers) + len(write_trackers)):
+            self._share_placements = self.peer_selector.get_share_placements()
+            if self._share_placements == last_placement:
+                break
+            last_placement = self._share_placements
+
+            def _bad_server(fail, tracker):
+                self.last_failure_msg = fail
+                try:
+                    readonly_trackers.remove(tracker)
+                except ValueError:
+                    write_trackers.remove(tracker)
+                return None
+
+            placements = []
+            for tracker in write_trackers + readonly_trackers:
+                shares_to_ask = self._allocation_for(tracker)
+                d = tracker.query(shares_to_ask)
+                d.addBoth(self._buckets_allocated, tracker, shares_to_ask)
+                d.addErrback(lambda f, tr: _bad_server(f, tr), tracker)
+                placements.append(d)
+            yield defer.DeferredList(placements)
 
         # no more servers. If we haven't placed enough shares, we fail.
         merged = merge_servers(self.peer_selector.get_sharemap_of_preexisting_shares(), self.use_trackers)
@@ -582,17 +606,8 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             self.error_count += 1
             self.bad_query_count += 1
             self.homeless_shares |= shares_to_ask
-            if self.use_trackers:
-                # there is still hope, so just loop
-                pass
-            else:
-                # No more servers, so this upload might fail (it depends upon
-                # whether we've hit servers_of_happiness or not). Log the last
-                # failure we got: if a coding error causes all servers to fail
-                # in the same way, this allows the common failure to be seen
-                # by the uploader and should help with debugging
-                msg = ("last failure (from %s) was: %s" % (tracker, res))
-                self.last_failure_msg = msg
+            return res
+
         else:
             (alreadygot, allocated) = res
             self.log("response to allocate_buckets() from server %s: alreadygot=%s, allocated=%s"
