@@ -2,7 +2,7 @@
 import time
 
 from foolscap.api import eventually, fireEventually
-from twisted.internet import defer, reactor
+from twisted.internet import defer, reactor, error
 from twisted.python.failure import Failure
 
 from allmydata.util import log
@@ -25,8 +25,11 @@ def timeout_call(reactor, d, timeout):
         timer_d.errback(Failure(TimeoutError()))
 
     def _got_result(x):
-        timer.cancel()
-        timer_d.callback(x)
+        try:
+            timer.cancel()
+            timer_d.callback(x)
+        except error.AlreadyCalled, defer.AlreadyCalledError:
+            pass
         return None
 
     timer = reactor.callLater(timeout, _timed_out)

@@ -261,7 +261,7 @@ class PeerSelector(object):
 
 class Tahoe2ServerSelector(log.PrefixingLogMixin):
 
-    def __init__(self, upload_id, logparent=None, upload_status=None):
+    def __init__(self, upload_id, logparent=None, upload_status=None, reactor=None):
         self.upload_id = upload_id
         self.query_count, self.good_query_count, self.bad_query_count = 0,0,0
         # Servers that are working normally, but full.
@@ -272,7 +272,9 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
         self._status = IUploadStatus(upload_status)
         log.PrefixingLogMixin.__init__(self, 'tahoe.immutable.upload', logparent, prefix=upload_id)
         self.log("starting", level=log.OPERATIONAL)
-
+        if reactor is None:
+            from twisted.internet import reactor
+        self._reactor = reactor
 
     def __repr__(self):
         return "<Tahoe2ServerSelector for upload %s>" % self.upload_id
@@ -391,10 +393,6 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                 storage_index, renew, cancel,
             )
 
-        # XXX should we consider servers out of this list if some of
-        # the 2N servers fail? e.g.:
-        # unused_servers = all_servers[(2 * total_shares):]
-
         readonly_trackers, write_trackers = self._create_trackers(
             all_servers[:(2 * total_shares)],
             allocated_size,
@@ -417,8 +415,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             )
         for tracker in readonly_trackers:
             assert isinstance(tracker, ServerTracker)
-            from twisted.internet import reactor
-            d = timeout_call(reactor, tracker.ask_about_existing_shares(), 15)
+            d = timeout_call(self._reactor, tracker.ask_about_existing_shares(), 15)
             d.addBoth(self._handle_existing_response, tracker)
             ds.append(d)
             self.num_servers_contacted += 1
@@ -428,7 +425,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
 
         for tracker in write_trackers:
             assert isinstance(tracker, ServerTracker)
-            d = tracker.ask_about_existing_shares()
+            d = timeout_call(self._reactor, tracker.ask_about_existing_shares(), 15)
             d.addBoth(self._handle_existing_write_response, tracker, set())
             ds.append(d)
             self.num_servers_contacted += 1
@@ -438,12 +435,8 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
 
         self.trackers = set(write_trackers) | set(readonly_trackers)
 
-        # ... that is, we'll stop here until we get responses from
-        # *all* servers contacted. At the very least, we probably want
-        # a timeout? Perhaps that's better handled at the Foolscap
-        # layer? Ideally, once we have responses from "N" servers, we
-        # proceed with the placement step -- but ... then we aren't
-        # running the algorithm on the full 2N servers.
+        # these will always be (True, None) because errors are handled
+        # in the _handle_existing_write_response etc callbacks
         yield defer.DeferredList(ds)
 
         # okay, we've queried the 2N servers, time to get the share
@@ -457,8 +450,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
 
         last_placement = None
         effective_happiness = -1
-        while effective_happiness < min_happiness and \
-              (len(readonly_trackers) + len(write_trackers)):
+        while effective_happiness < min_happiness and len(self.trackers):
             self._share_placements = self.peer_selector.get_share_placements()
             if self._share_placements == last_placement:
                 break
@@ -475,7 +467,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             placements = []
             for tracker in write_trackers + readonly_trackers:
                 shares_to_ask = self._allocation_for(tracker)
-                d = tracker.query(shares_to_ask)
+                d = timeout_call(self._reactor, tracker.query(shares_to_ask), 15)
                 d.addBoth(self._buckets_allocated, tracker, shares_to_ask)
                 d.addErrback(lambda f, tr: _bad_server(f, tr), tracker)
                 placements.append(d)
@@ -527,6 +519,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             self.peer_selector.mark_bad_peer(serverid)
             self.error_count += 1
             self.bad_query_count += 1
+            self.trackers.remove(tracker)
         else:
             buckets = res
             if buckets:
@@ -958,7 +951,7 @@ class UploadStatus(object):
 
 class CHKUploader(object):
 
-    def __init__(self, storage_broker, secret_holder, progress=None):
+    def __init__(self, storage_broker, secret_holder, progress=None, reactor=None):
         # server_selector needs storage_broker and secret_holder
         self._storage_broker = storage_broker
         self._secret_holder = secret_holder
@@ -969,6 +962,7 @@ class CHKUploader(object):
         self._upload_status.set_helper(False)
         self._upload_status.set_active(True)
         self._progress = progress
+        self._reactor = reactor
 
         # locate_all_shareholders() will create the following attribute:
         # self._server_trackers = {} # k: shnum, v: instance of ServerTracker
@@ -1043,6 +1037,7 @@ class CHKUploader(object):
             upload_id,
             self._log_number,
             self._upload_status,
+            reactor=self._reactor,
         )
 
         share_size = encoder.get_param("share_size")
@@ -1627,7 +1622,7 @@ class Uploader(service.MultiService, log.PrefixingLogMixin):
         return (self._helper_furl, bool(self._helper))
 
 
-    def upload(self, uploadable, progress=None):
+    def upload(self, uploadable, progress=None, reactor=None):
         """
         Returns a Deferred that will fire with the UploadResults instance.
         """
@@ -1663,7 +1658,7 @@ class Uploader(service.MultiService, log.PrefixingLogMixin):
                 else:
                     storage_broker = self.parent.get_storage_broker()
                     secret_holder = self.parent._secret_holder
-                    uploader = CHKUploader(storage_broker, secret_holder, progress=progress)
+                    uploader = CHKUploader(storage_broker, secret_holder, progress=progress, reactor=reactor)
                     d2.addCallback(lambda x: uploader.start(eu))
 
                 self._all_uploads[uploader] = None

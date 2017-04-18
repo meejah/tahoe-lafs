@@ -4,7 +4,7 @@ import os, shutil
 from cStringIO import StringIO
 from twisted.trial import unittest
 from twisted.python.failure import Failure
-from twisted.internet import defer
+from twisted.internet import defer, task
 from foolscap.api import fireEventually
 
 import allmydata # for __full_version__
@@ -101,20 +101,26 @@ class SetDEPMixin:
         self.node.encoding_params = p
 
 class FakeStorageServer:
-    def __init__(self, mode):
+    def __init__(self, mode, reactor=None):
         self.mode = mode
         self.allocated = []
         self._alloc_queries = 0
         self._get_queries = 0
-        self.version = { "http://allmydata.org/tahoe/protocols/storage/v1" :
-                         { "maximum-immutable-share-size": 2**32 - 1 },
-                         "application-version": str(allmydata.__full_version__),
-                         }
+        self.version = {
+            "http://allmydata.org/tahoe/protocols/storage/v1" :
+            {
+                "maximum-immutable-share-size": 2**32 - 1,
+            },
+            "application-version": str(allmydata.__full_version__),
+        }
         if mode == "small":
-            self.version = { "http://allmydata.org/tahoe/protocols/storage/v1" :
-                             { "maximum-immutable-share-size": 10 },
-                             "application-version": str(allmydata.__full_version__),
-                             }
+            self.version = {
+                "http://allmydata.org/tahoe/protocols/storage/v1" :
+                {
+                    "maximum-immutable-share-size": 10,
+                },
+                "application-version": str(allmydata.__full_version__),
+            }
 
 
     def callRemote(self, methname, *args, **kwargs):
@@ -127,7 +133,9 @@ class FakeStorageServer:
 
     def allocate_buckets(self, storage_index, renew_secret, cancel_secret,
                          sharenums, share_size, canary):
-        #print "FakeStorageServer.allocate_buckets(num=%d, size=%d)" % (len(sharenums), share_size)
+        # print "FakeStorageServer.allocate_buckets(num=%d, size=%d)" % (len(sharenums), share_size)
+        if self.mode == "timeout":
+            return defer.Deferred()
         if self.mode == "first-fail":
             if self._alloc_queries == 0:
                 raise ServerError
@@ -198,19 +206,20 @@ class FakeBucketWriter:
         pass
 
 class FakeClient(object):
-    DEFAULT_ENCODING_PARAMETERS = {"k":25,
-                                   "happy": 25,
-                                   "n": 100,
-                                   "max_segment_size": 1*MiB,
-                                   }
+    DEFAULT_ENCODING_PARAMETERS = {
+        "k":25,
+        "happy": 25,
+        "n": 100,
+        "max_segment_size": 1 * MiB,
+    }
 
-    def __init__(self, mode="good", num_servers=50):
+    def __init__(self, mode="good", num_servers=50, reactor=None):
         self.num_servers = num_servers
         self.encoding_params = self.DEFAULT_ENCODING_PARAMETERS.copy()
         if type(mode) is str:
             mode = dict([i,mode] for i in range(num_servers))
         servers = [
-            ("%20d" % fakeid, FakeStorageServer(mode[fakeid]))
+            ("%20d" % fakeid, FakeStorageServer(mode[fakeid], reactor=reactor))
             for fakeid in range(self.num_servers)
         ]
         self.storage_broker = StorageFarmBroker(permute_peers=True, tub_maker=None)
@@ -263,15 +272,21 @@ SIZE_ZERO = 0
 SIZE_SMALL = 16
 SIZE_LARGE = len(DATA)
 
-def upload_data(uploader, data):
+
+def upload_data(uploader, data, reactor=None):
     u = upload.Data(data, convergence=None)
-    return uploader.upload(u)
-def upload_filename(uploader, filename):
+    return uploader.upload(u, reactor=reactor)
+
+
+def upload_filename(uploader, filename, reactor=None):
     u = upload.FileName(filename, convergence=None)
-    return uploader.upload(u)
-def upload_filehandle(uploader, fh):
+    return uploader.upload(u, reactor=reactor)
+
+
+def upload_filehandle(uploader, fh, reactor=None):
     u = upload.FileHandle(fh, convergence=None)
-    return uploader.upload(u)
+    return uploader.upload(u, reactor=reactor)
+
 
 class GoodServer(unittest.TestCase, ShouldFailMixin, SetDEPMixin):
     def setUp(self):
@@ -449,6 +464,21 @@ class ServerErrors(unittest.TestCase, ShouldFailMixin, SetDEPMixin):
             self.failUnlessIn("shares could be placed or found on only 10 server(s)", str(f.value))
         d.addCallback(_check)
         return d
+
+    def test_timeout(self):
+        clock = task.Clock()
+        self.make_node("timeout")
+        self.set_encoding_parameters(k=25, happy=1, n=50)
+        d = self.shouldFail(
+            UploadUnhappinessError, __name__,
+            "server selection failed",
+            upload_data, self.u, DATA, reactor=clock,
+        )
+        clock.advance(15)
+        clock.advance(15)
+        return d
+
+
 
 class FullServer(unittest.TestCase):
     def setUp(self):
