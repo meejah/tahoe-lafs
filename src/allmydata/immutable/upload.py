@@ -9,6 +9,7 @@ from allmydata.util.hashutil import file_renewal_secret_hash, \
      file_cancel_secret_hash, bucket_renewal_secret_hash, \
      bucket_cancel_secret_hash, plaintext_hasher, \
      storage_index_hash, plaintext_segment_hasher, convergence_hasher
+from allmydata.util.deferredutil import timeout_call
 from allmydata import hashtree, uri
 from allmydata.storage.server import si_b2a
 from allmydata.immutable import encode
@@ -405,6 +406,9 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
         # see docs/specifications/servers-of-happiness.rst
         # 1. Query all servers for existing shares.
         #
+        # The spec doesn't say what to do for timeouts/errors. This
+        # adds a timeout to each request, and rejects any that reply
+        # with error (i.e. just removed from the list)
 
         ds = []
         if self._status and readonly_trackers:
@@ -413,7 +417,8 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             )
         for tracker in readonly_trackers:
             assert isinstance(tracker, ServerTracker)
-            d = tracker.ask_about_existing_shares()
+            from twisted.internet import reactor
+            d = timeout_call(reactor, tracker.ask_about_existing_shares(), 15)
             d.addBoth(self._handle_existing_response, tracker)
             ds.append(d)
             self.num_servers_contacted += 1
@@ -421,8 +426,6 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             self.log("asking server %s for any existing shares" %
                      (tracker.get_name(),), level=log.NOISY)
 
-        # XXX this doesn't really consider an "indefinitely" hanging
-        # server ...
         for tracker in write_trackers:
             assert isinstance(tracker, ServerTracker)
             d = tracker.ask_about_existing_shares()
@@ -441,7 +444,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
         # layer? Ideally, once we have responses from "N" servers, we
         # proceed with the placement step -- but ... then we aren't
         # running the algorithm on the full 2N servers.
-        res = yield defer.DeferredList(ds)
+        yield defer.DeferredList(ds)
 
         # okay, we've queried the 2N servers, time to get the share
         # placements and attempt to actually place the shares (or

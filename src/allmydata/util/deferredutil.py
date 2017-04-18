@@ -3,10 +3,36 @@ import time
 
 from foolscap.api import eventually, fireEventually
 from twisted.internet import defer, reactor
+from twisted.python.failure import Failure
 
 from allmydata.util import log
 from allmydata.util.assertutil import _assert
 from allmydata.util.pollmixin import PollMixin
+
+
+class TimeoutError(Exception):
+    pass
+
+
+def timeout_call(reactor, d, timeout):
+    """
+    This returns the result of 'd', unless 'timeout' expires before
+    'd' is completed in which case a TimeoutError is raised.
+    """
+    timer_d = defer.Deferred()
+
+    def _timed_out():
+        timer_d.errback(Failure(TimeoutError()))
+
+    def _got_result(x):
+        timer.cancel()
+        timer_d.callback(x)
+        return None
+
+    timer = reactor.callLater(timeout, _timed_out)
+    d.addBoth(_got_result)
+    return timer_d
+
 
 
 # utility wrapper for DeferredList
