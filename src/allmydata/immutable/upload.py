@@ -459,6 +459,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                     readonly_trackers.remove(tracker)
                 except ValueError:
                     write_trackers.remove(tracker)
+                assert tracker not in self.trackers
                 return None
 
             placements = []
@@ -604,6 +605,11 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             self.error_count += 1
             self.bad_query_count += 1
             self.homeless_shares |= shares_to_ask
+            try:
+                self.trackers.remove(tracker)
+            except ValueError:
+                self.log("Tracker for %s already gone" % (tracker.get_serverid(),))
+            self.peer_selector.mark_bad_peer(tracker.get_serverid())
             return res
 
         else:
