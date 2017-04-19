@@ -133,7 +133,7 @@ class FakeStorageServer:
 
     def allocate_buckets(self, storage_index, renew_secret, cancel_secret,
                          sharenums, share_size, canary):
-        # print "FakeStorageServer.allocate_buckets(num=%d, size=%d)" % (len(sharenums), share_size)
+        # print "FakeStorageServer.allocate_buckets(num=%d, size=%d, mode=%s, queries=%d)" % (len(sharenums), share_size, self.mode, self._alloc_queries)
         if self.mode == "timeout":
             return defer.Deferred()
         if self.mode == "first-fail":
@@ -462,6 +462,55 @@ class ServerErrors(unittest.TestCase, ShouldFailMixin, SetDEPMixin):
                             upload_data, self.u, DATA)
         def _check((f,)):
             self.failUnlessIn("shares could be placed or found on only 10 server(s)", str(f.value))
+        d.addCallback(_check)
+        return d
+
+    def test_allocation_error_some(self):
+        self.make_node({
+            0: "good",
+            1: "good",
+            2: "good",
+            3: "good",
+            4: "good",
+            5: "first-fail",
+            6: "first-fail",
+            7: "first-fail",
+            8: "first-fail",
+            9: "first-fail",
+        })
+        self.set_encoding_parameters(3, 7, 10)
+        d = self.shouldFail(UploadUnhappinessError, "second_error_some",
+                            "server selection failed",
+                            upload_data, self.u, DATA)
+        def _check((f,)):
+            self.failUnlessIn("shares could be placed on only 5 server(s)", str(f.value))
+        d.addCallback(_check)
+        return d
+
+    def test_allocation_error_recovery(self):
+        self.make_node({
+            0: "good",
+            1: "good",
+            2: "good",
+            3: "good",
+            4: "second-fail",
+            5: "second-fail",
+            6: "first-fail",
+            7: "first-fail",
+            8: "first-fail",
+            9: "first-fail",
+        })
+        self.set_encoding_parameters(3, 7, 10)
+        # we placed shares on 0 through 5, which wasn't enough. so
+        # then we looped and only placed on 0-3 (because now 4-9 have
+        # all failed) ... so the error message should say we only
+        # placed on 6 servers (not 4) because those two shares *did*
+        # at some point succeed.
+        d = self.shouldFail(UploadUnhappinessError, "second_error_some",
+                            "server selection failed",
+                            upload_data, self.u, DATA)
+        def _check((f,)):
+            self.failUnlessIn("shares could be placed on only 6 server(s)", str(f.value))
         d.addCallback(_check)
         return d
 
