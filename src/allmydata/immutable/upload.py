@@ -448,13 +448,10 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
         # effective_happiness to less than zero so this loop runs at
         # least once for the repairer...
 
-        last_placement = None
+        last_happiness = None
         effective_happiness = -1
         while effective_happiness < min_happiness and len(self.trackers):
             self._share_placements = self.peer_selector.get_share_placements()
-            if self._share_placements == last_placement:
-                break
-            last_placement = self._share_placements
 
             def _bad_server(fail, tracker):
                 self.last_failure_msg = fail
@@ -472,6 +469,11 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                 d.addErrback(lambda f, tr: _bad_server(f, tr), tracker)
                 placements.append(d)
             yield defer.DeferredList(placements)
+            effective_happiness = servers_of_happiness(self.peer_selector.get_allocations())
+            if effective_happiness == last_happiness:
+                # we haven't improved over the last iteration; give up
+                break;
+            last_happiness = effective_happiness
 
         # no more servers. If we haven't placed enough shares, we fail.
         merged = merge_servers(self.peer_selector.get_sharemap_of_preexisting_shares(), self.use_trackers)
