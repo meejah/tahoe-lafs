@@ -465,7 +465,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                 return None
 
             placements = []
-            for tracker in write_trackers + readonly_trackers:
+            for tracker in self.trackers:
                 shares_to_ask = self._allocation_for(tracker)
                 d = timeout_call(self._reactor, tracker.query(shares_to_ask), 15)
                 d.addBoth(self._buckets_allocated, tracker, shares_to_ask)
