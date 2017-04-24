@@ -450,7 +450,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             self.log("asking server %s for any existing shares" %
                      (tracker.get_name(),), level=log.NOISY)
 
-        self.trackers = set(write_trackers) | set(readonly_trackers)
+        trackers = set(write_trackers) | set(readonly_trackers)
 
         # these will always be (True, None) because errors are handled
         # in the _handle_existing_write_response etc callbacks
@@ -486,7 +486,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                 return None
 
             placements = []
-            for tracker in self.trackers:
+            for tracker in trackers:
                 shares_to_ask = self._allocation_for(tracker)
                 self.query_count += 1
                 self.num_servers_contacted += 1
