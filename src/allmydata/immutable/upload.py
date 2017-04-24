@@ -458,32 +458,34 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
 
         # okay, we've queried the 2N servers, time to get the share
         # placements and attempt to actually place the shares (or
-        # renew them on read-only servers)
+        # renew them on read-only servers). We want to run the loop
+        # below *at least once* because even read-only servers won't
+        # renew their shares until "allocate_buckets" is called (via
+        # tracker.query())
 
         # https://tahoe-lafs.org/trac/tahoe-lafs/ticket/778#comment:48
         # min_happiness will be 0 for the repairer, so we set current
         # effective_happiness to less than zero so this loop runs at
         # least once for the repairer...
 
+        def _bad_server(fail, tracker):
+            self.last_failure_msg = fail
+            return _make_readonly(tracker)
+
+        def _make_readonly(tracker):
+            try:
+                write_trackers.remove(tracker)
+            except ValueError:
+                pass
+            # XXX can we just use a set() or does order matter?
+            if tracker not in readonly_trackers:
+                readonly_trackers.append(tracker)
+            return None
+
         last_happiness = None
         effective_happiness = -1
         while effective_happiness < min_happiness and len(write_trackers):
             self._share_placements = self.peer_selector.get_share_placements()
-
-            def _bad_server(fail, tracker):
-                self.last_failure_msg = fail
-                # we are marking this server as bad, but a previous loop-iteraion could have successfully placed a share on that server; if so, put those shares in the "readonly
-                return _make_readonly(tracker)
-
-            def _make_readonly(tracker):
-                try:
-                    write_trackers.remove(tracker)
-                except ValueError:
-                    pass
-                # XXX can we just use a set() or does order matter?
-                if tracker not in readonly_trackers:
-                    readonly_trackers.append(tracker)
-                return None
 
             placements = []
             for tracker in trackers:
