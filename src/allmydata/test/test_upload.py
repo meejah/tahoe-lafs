@@ -523,6 +523,8 @@ class ServerErrors(unittest.TestCase, ShouldFailMixin, SetDEPMixin):
             "server selection failed",
             upload_data, self.u, DATA, reactor=clock,
         )
+        # XXX double-check; it's doing 3 iterations?
+        # XXX should only do 1!
         clock.advance(15)
         clock.advance(15)
         return d
@@ -1702,7 +1704,7 @@ class EncodingParameters(GridTestMixin, unittest.TestCase, SetDEPMixin,
         d.addCallback(_then)
         d.addCallback(lambda c:
             self.shouldFail(UploadUnhappinessError, "test_query_counting",
-                            "2 placed none (of which 2 placed none due to "
+                            "4 placed none (of which 4 placed none due to "
                             "the server being full",
                             c.upload, upload.Data("data" * 10000,
                                                   convergence="")))
