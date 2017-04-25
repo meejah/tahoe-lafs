@@ -213,7 +213,6 @@ class PeerSelector(object):
         self.min_happiness = min_happiness
 
         self.existing_shares = {}
-        self.confirmed_allocations = {}
         self.peers = set()
         self.readonly_peers = set()
         self.bad_peers = set()
@@ -223,12 +222,6 @@ class PeerSelector(object):
             self.existing_shares[peerid].add(shnum)
         except KeyError:
             self.existing_shares[peerid] = set([shnum])
-
-    def confirm_share_allocation(self, shnum, peer):
-        self.confirmed_allocations.setdefault(shnum, set()).add(peer)
-
-    def get_allocations(self):
-        return self.confirmed_allocations
 
     def add_peer(self, peerid):
         self.peers.add(peerid)
@@ -673,7 +666,6 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                     level=log.NOISY)
             progress = False
             for s in alreadygot:
-                self.peer_selector.confirm_share_allocation(s, tracker.get_serverid())
                 self.preexisting_shares.setdefault(s, set()).add(tracker.get_serverid())
                 if s in self.homeless_shares:
                     self.homeless_shares.remove(s)
@@ -686,8 +678,6 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             if allocated:
                 self.use_trackers.add(tracker)
                 progress = True
-                for s in allocated:
-                    self.peer_selector.confirm_share_allocation(s, tracker.get_serverid())
 
             if allocated or alreadygot:
                 self.serverids_with_shares.add(tracker.get_serverid())
