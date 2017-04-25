@@ -514,6 +514,33 @@ class ServerErrors(unittest.TestCase, ShouldFailMixin, SetDEPMixin):
         d.addCallback(_check)
         return d
 
+    def test_good_servers_stay_writable(self):
+        self.make_node({
+            0: "good",
+            1: "good",
+            2: "second-fail",
+            3: "second-fail",
+            4: "second-fail",
+            5: "first-fail",
+            6: "first-fail",
+            7: "first-fail",
+            8: "first-fail",
+            9: "first-fail",
+        })
+        self.set_encoding_parameters(3, 7, 10)
+        # we placed shares on 0 through 5, which wasn't enough. so
+        # then we looped and only placed on 0-3 (because now 4-9 have
+        # all failed) ... so the error message should say we only
+        # placed on 6 servers (not 4) because those two shares *did*
+        # at some point succeed.
+        d = self.shouldFail(UploadUnhappinessError, "good_servers_stay_writable",
+                            "server selection failed",
+                            upload_data, self.u, DATA)
+        def _check((f,)):
+            self.failUnlessIn("shares could be placed on only 5 server(s)", str(f.value))
+        d.addCallback(_check)
+        return d
+
     def test_timeout(self):
         clock = task.Clock()
         self.make_node("timeout")

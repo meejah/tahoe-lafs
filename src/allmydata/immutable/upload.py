@@ -464,9 +464,10 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
 
         def _bad_server(fail, tracker):
             self.last_failure_msg = fail
-            return _make_readonly(tracker)
+            return False  # will mark it readonly
 
         def _make_readonly(tracker):
+            # print("making {} read-only".format(tracker.get_serverid()))
             try:
                 write_trackers.remove(tracker)
             except ValueError:
@@ -479,6 +480,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
         last_happiness = None
         effective_happiness = -1
         while effective_happiness < min_happiness and len(write_trackers):
+            # print("doing loop {} < {}".format(effective_happiness, min_happiness))
             self._share_placements = self.peer_selector.get_share_placements()
 
             placements = []
@@ -489,15 +491,17 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                 d = timeout_call(self._reactor, tracker.query(shares_to_ask), 15)
                 d.addBoth(self._buckets_allocated, tracker, shares_to_ask)
                 d.addErrback(lambda f, tr: _bad_server(f, tr), tracker)
-                d.addCallback(lambda x, tr: _make_readonly(tr), tracker)
+                d.addCallback(lambda x, tr: _make_readonly(tr) if not x else x, tracker)
                 placements.append(d)
             yield defer.DeferredList(placements)
             merged = merge_servers(self.peer_selector.get_sharemap_of_preexisting_shares(), self.use_trackers)
             effective_happiness = servers_of_happiness(merged)
             if effective_happiness == last_happiness:
+                # print("effective happiness still {}".format(last_happiness))
                 # we haven't improved over the last iteration; give up
                 break;
             last_happiness = effective_happiness
+            # print("write trackers left: {}".format(len(write_trackers)))
 
         # note: peer_selector.get_allocations() only maps "things we
         # uploaded in the above loop" and specificaly does *not*
@@ -509,6 +513,10 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
         # and so 'merged' must be (re-)computed here.
         merged = merge_servers(self.peer_selector.get_sharemap_of_preexisting_shares(), self.use_trackers)
         effective_happiness = servers_of_happiness(merged)
+
+        # print("placements completed {} vs {}".format(effective_happiness, min_happiness))
+        # for k, v in merged.items():
+        #     print("  {} -> {}".format(k, v))
 
         if effective_happiness < min_happiness:
             msg = failure_message(
@@ -539,7 +547,6 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                   pretty_print_shnum_to_servers(self.preexisting_shares))
         self.log(msg, level=log.OPERATIONAL)
         defer.returnValue((self.use_trackers, self.peer_selector.get_sharemap_of_preexisting_shares()))
-
 
     def _handle_existing_response(self, res, tracker):
         """
@@ -644,6 +651,10 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
         return shares_to_ask
 
     def _buckets_allocated(self, res, tracker, shares_to_ask):
+        """
+        Internal helper. If this returns an error or False, the server
+        will be considered read-only for any future iterations.
+        """
         if isinstance(res, failure.Failure):
             # This is unusual, and probably indicates a bug or a network
             # problem.
