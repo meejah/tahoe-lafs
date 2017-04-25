@@ -337,7 +337,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                  already have the share.
         """
 
-        # XXX move the self._initialize_counts or something
+        # re-initialize statistics
         self._query_status = _QueryStatistics()
 
         if self._status:
@@ -347,7 +347,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                                           needed_shares, min_happiness)
 
         self.total_shares = total_shares
-        self.servers_of_happiness = min_happiness
+        self.min_happiness = min_happiness
         self.needed_shares = needed_shares
 
         self.homeless_shares = set(range(total_shares))
@@ -615,7 +615,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             "{good} queries placed some shares, {bad} placed none "
             "(of which {full} placed none due to the server being"
             " full and {error} placed none due to an error)".format(
-                happy=self.servers_of_happiness,
+                happy=self.min_happiness,
                 needed=self.needed_shares,
                 queries=self._query_stats.total,
                 servers=self._query_stats.contacted,
