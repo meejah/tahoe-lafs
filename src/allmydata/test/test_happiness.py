@@ -220,6 +220,7 @@ class Happiness(unittest.TestCase):
 
 
 class PlacementTests(unittest.TestCase):
+
     @given(
         sets(elements=text(min_size=1), min_size=4, max_size=4),
         sets(elements=text(min_size=1), min_size=4),
@@ -237,7 +238,6 @@ class PlacementTests(unittest.TestCase):
         happiness = happiness_upload.calculate_happiness(places)
         assert set(places.keys()) == shares
         assert happiness == 4
-
 
     @given(
         sets(elements=text(min_size=1), min_size=1, max_size=10),
