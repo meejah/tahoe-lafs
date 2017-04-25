@@ -17,8 +17,8 @@ def test_upload_immutable(reactor, temp_dir, introducer_furl, flog_gatherer, sto
 
     # hmm, for some reason this still gets storage enabled ...
     process = yield util._create_node(
-        reactor, request, temp_dir, introducer_furl, flog_gatherer, "carol",
-        web_port="tcp:9981:interface=localhost",
+        reactor, request, temp_dir, introducer_furl, flog_gatherer, "dave",
+        web_port="tcp:9983:interface=localhost",
         storage=False,
         needed=3,
         happy=7,
@@ -26,7 +26,7 @@ def test_upload_immutable(reactor, temp_dir, introducer_furl, flog_gatherer, sto
     )
 
 
-    node_dir = join(temp_dir, 'carol')
+    node_dir = join(temp_dir, 'dave')
 
     print("waiting 5 seconds unil we're maybe ready")
     yield task.deferLater(reactor, 5, lambda: None)
