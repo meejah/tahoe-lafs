@@ -10,7 +10,7 @@ from zope.interface import implementer
 from twisted.application.service import Service
 
 
-class StartOptions(BasedirOptions):
+class DaemonizeOptions(BasedirOptions):
     subcommand_name = "start"
     optParameters = [
         ("basedir", "C", None,
@@ -54,18 +54,18 @@ class StopOptions(BasedirOptions):
         return ("Usage:  %s [global-options] stop [options] [NODEDIR]"
                 % (self.command_name,))
 
-class RestartOptions(StartOptions):
+class RestartOptions(DaemonizeOptions):
     subcommand_name = "restart"
 
-class RunOptions(StartOptions):
+class RunOptions(DaemonizeOptions):
     subcommand_name = "run"
 
 
 class MyTwistdConfig(twistd.ServerOptions):
-    subCommands = [("StartTahoeNode", None, usage.Options, "node")]
+    subCommands = [("DaemonizeTahoeNode", None, usage.Options, "node")]
 
 
-class StartTheRealService(Service):
+class DaemonizeTheRealService(Service):
 
     def __init__(self, nodetype, basedir, options):
         self.nodetype = nodetype
@@ -98,14 +98,14 @@ class StartTheRealService(Service):
         reactor.callWhenRunning(start)
 
 
-class StartTahoeNodePlugin:
+class DaemonizeTahoeNodePlugin:
     tapname = "tahoenode"
     def __init__(self, nodetype, basedir):
         self.nodetype = nodetype
         self.basedir = basedir
 
     def makeService(self, so):
-        return StartTheRealService(self.nodetype, self.basedir, so)
+        return DaemonizeTheRealService(self.nodetype, self.basedir, so)
 
 
 def identify_node_type(basedir):
@@ -147,7 +147,7 @@ def start(config):
         fileutil.make_dirs(os.path.join(basedir, u"logs"))
         twistd_args.extend(["--logfile", os.path.join("logs", "twistd.log")])
     twistd_args.extend(config.twistd_args)
-    twistd_args.append("StartTahoeNode") # point at our StartTahoeNodePlugin
+    twistd_args.append("DaemonizeTahoeNode") # point at our DaemonizeTahoeNodePlugin
 
     twistd_config = MyTwistdConfig()
     try:
@@ -157,7 +157,7 @@ def start(config):
         print >>err, config
         print >>err, "tahoe %s: usage error from twistd: %s\n" % (config.subcommand_name, ue)
         return 1
-    twistd_config.loadedPlugins = {"StartTahoeNode": StartTahoeNodePlugin(nodetype, basedir)}
+    twistd_config.loadedPlugins = {"DaemonizeTahoeNode": DaemonizeTahoeNodePlugin(nodetype, basedir)}
 
     # On Unix-like platforms:
     #   Unless --nodaemon was provided, the twistd.runApp() below spawns off a
@@ -286,7 +286,7 @@ def run(config):
 
 
 subCommands = [
-    ["start", None, StartOptions, "Start a node (of any type)."],
+    ["start", None, DaemonizeOptions, "Daemonize a node (of any type)."],
     ["stop", None, StopOptions, "Stop a node."],
     ["restart", None, RestartOptions, "Restart a node."],
     ["run", None, RunOptions, "Run a node synchronously."],
