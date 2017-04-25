@@ -259,15 +259,22 @@ class PeerSelector(object):
         return self.happiness_mappings
 
 
+class _QueryStatistics(object):
+
+    def __init__(self):
+        self.total = 0
+        self.good = 0
+        self.bad = 0
+        self.full = 0
+        self.error = 0
+        self.contacted = 0
+
+
 class Tahoe2ServerSelector(log.PrefixingLogMixin):
 
     def __init__(self, upload_id, logparent=None, upload_status=None, reactor=None):
         self.upload_id = upload_id
-        self.query_count, self.good_query_count, self.bad_query_count = 0,0,0
-        # Servers that are working normally, but full.
-        self.full_count = 0
-        self.error_count = 0
-        self.num_servers_contacted = 0
+        self._query_stats = _QueryStatistics()
         self.last_failure_msg = None
         self._status = IUploadStatus(upload_status)
         log.PrefixingLogMixin.__init__(self, 'tahoe.immutable.upload', logparent, prefix=upload_id)
@@ -338,13 +345,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
         """
 
         # XXX move the self._initialize_counts or something
-        self.query_count, self.good_query_count, self.bad_query_count = 0,0,0
-        self.query_count = 0
-        self.bad_query_count = 0
-        self.good_query_count = 0
-        self.full_count = 0
-        self.error_count = 0
-        self.num_servers_contacted = 0
+        self._query_status = _QueryStatistics()
 
         if self._status:
             self._status.set_status("Contacting Servers..")
@@ -428,8 +429,8 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             d = timeout_call(self._reactor, tracker.ask_about_existing_shares(), 15)
             d.addBoth(self._handle_existing_response, tracker)
             ds.append(d)
-            self.num_servers_contacted += 1
-            self.query_count += 1
+            self._query_stats.contacted += 1
+            self._query_stats.total += 1
             self.log("asking server %s for any existing shares" %
                      (tracker.get_name(),), level=log.NOISY)
 
@@ -445,8 +446,8 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             d.addErrback(timed_out, tracker)
             d.addBoth(self._handle_existing_write_response, tracker, set())
             ds.append(d)
-            self.num_servers_contacted += 1
-            self.query_count += 1
+            self._query_stats.contacted += 1
+            self._query_stats.total += 1
             self.log("asking server %s for any existing shares" %
                      (tracker.get_name(),), level=log.NOISY)
 
@@ -490,8 +491,8 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             placements = []
             for tracker in trackers:
                 shares_to_ask = self._allocation_for(tracker)
-                self.query_count += 1
-                self.num_servers_contacted += 1
+                self._query_stats.total += 1
+                self._query_stats.contacted += 1
                 d = timeout_call(self._reactor, tracker.query(shares_to_ask), 15)
                 d.addBoth(self._buckets_allocated, tracker, shares_to_ask)
                 d.addErrback(lambda f, tr: _bad_server(f, tr), tracker)
@@ -557,16 +558,16 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             self.log("%s got error during existing shares check: %s"
                     % (tracker.get_name(), res), level=log.UNUSUAL)
             self.peer_selector.mark_bad_peer(serverid)
-            self.error_count += 1
-            self.bad_query_count += 1
+            self._query_stats.error += 1
+            self._query_stats.bad += 1
         else:
             buckets = res
             if buckets:
                 self.serverids_with_shares.add(serverid)
-                self.good_query_count += 1
+                self._query_stats.good += 1
             else:
-                self.full_count += 1
-                self.bad_query_count += 1
+                self._query_stats.full += 1
+                self._query_stats.bad += 1
             self.log("response to get_buckets() from server %s: alreadygot=%s"
                     % (tracker.get_name(), tuple(sorted(buckets))),
                     level=log.NOISY)
@@ -587,13 +588,13 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                     level=log.UNUSUAL)
             self.homeless_shares |= shares_to_ask
 
-            self.error_count += 1
-            self.bad_query_count += 1
+            self._query_stats.error += 1
+            self._query_stats.bad += 1
 
             msg = ("last failure (from %s) was: %s" % (tracker, res))
             self.last_failure_msg = msg
         else:
-            self.good_query_count += 1
+            self._query_stats.good += 1
             for share in res.keys():
                 self.peer_selector.add_peer_with_share(tracker.get_serverid(), share)
 
@@ -606,7 +607,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                    (self.total_shares - len(self.homeless_shares),
                     self.total_shares,
                     len(self.homeless_shares)))
-        assert self.bad_query_count == (self.full_count + self.error_count)
+        assert self._query_stats.bad == (self._query_stats.full + self._query_stats.error)
         return (
             msg + "want to place shares on at least {happy} servers such that "
             "any {needed} of them have enough shares to recover the file, "
@@ -616,12 +617,12 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             " full and {error} placed none due to an error)".format(
                 happy=self.servers_of_happiness,
                 needed=self.needed_shares,
-                queries=self.query_count,
-                servers=self.num_servers_contacted,
-                good=self.good_query_count,
-                bad=self.bad_query_count,
-                full=self.full_count,
-                error=self.error_count
+                queries=self._query_stats.total,
+                servers=self._query_stats.contacted,
+                good=self._query_stats.good,
+                bad=self._query_stats.bad,
+                full=self._query_stats.full,
+                error=self._query_stats.error
             )
         )
 
@@ -655,8 +656,8 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             # problem.
             self.log("%s got error during server selection: %s" % (tracker, res),
                     level=log.UNUSUAL)
-            self.error_count += 1
-            self.bad_query_count += 1
+            self._query_stats.error += 1
+            self._query_stats.bad += 1
             self.homeless_shares |= shares_to_ask
             try:
                 self.peer_selector.mark_readonly_peer(tracker.get_serverid())
@@ -713,12 +714,12 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                 # them to accept, or they had a share that we didn't ask
                 # them to accept but that we hadn't placed yet, so this
                 # was a productive query
-                self.good_query_count += 1
+                self._query_stats.good += 1
             else:
                 # XXX semantically, what does this mean? "full" or
                 # "error", or ...?
-                self.full_count += 1  # right?
-                self.bad_query_count += 1
+                self._query_stats.full += 1  # right?
+                self._query_stats.bad += 1
             return progress
 
     def _failed(self, msg):
