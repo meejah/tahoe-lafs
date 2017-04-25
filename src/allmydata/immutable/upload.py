@@ -262,6 +262,17 @@ class _QueryStatistics(object):
         self.error = 0
         self.contacted = 0
 
+    def __str__(self):
+        return "QueryStatistics(total={} good={} bad={} full={} " \
+            "error={} contacted={})".format(
+                self.total,
+                self.good,
+                self.bad,
+                self.full,
+                self.error,
+                self.contacted,
+            )
+
 
 class Tahoe2ServerSelector(log.PrefixingLogMixin):
 
