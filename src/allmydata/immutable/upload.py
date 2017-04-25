@@ -428,13 +428,19 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             self._status.set_status(
                 "Contacting readonly servers to find any existing shares"
             )
+
+        # in the "pre servers-of-happiness" code, it was a little
+        # ambigious whether "merely asking" counted as a "query" or
+        # not, because "allocate_buckets" with nothing to allocate was
+        # used to "ask" a write-able server what it held. Now we count
+        # "actual allocation queries" only, because those are the only
+        # things that actually affect what the server does.
+
         for tracker in readonly_trackers:
             assert isinstance(tracker, ServerTracker)
             d = timeout_call(self._reactor, tracker.ask_about_existing_shares(), 15)
             d.addBoth(self._handle_existing_response, tracker)
             ds.append(d)
-            self._query_stats.contacted += 1
-            self._query_stats.total += 1
             self.log("asking server %s for any existing shares" %
                      (tracker.get_name(),), level=log.NOISY)
 
@@ -450,8 +456,6 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             d.addErrback(timed_out, tracker)
             d.addBoth(self._handle_existing_write_response, tracker, set())
             ds.append(d)
-            self._query_stats.contacted += 1
-            self._query_stats.total += 1
             self.log("asking server %s for any existing shares" %
                      (tracker.get_name(),), level=log.NOISY)
 
@@ -488,28 +492,48 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                 readonly_trackers.append(tracker)
             return None
 
+        # so we *always* want to run this loop at least once, even if
+        # we only have read-only servers -- because asking them to
+        # allocate buckets renews those shares they already have. For
+        # subsequent loops, we give up if we've achieved happiness OR
+        # if we have zero writable servers left
+
         last_happiness = None
         effective_happiness = -1
-        while effective_happiness < min_happiness and len(write_trackers):
-            # print("doing loop {} < {}".format(effective_happiness, min_happiness))
+        while effective_happiness < min_happiness and \
+              (last_happiness is None or len(write_trackers)):
+            errors_before = self._query_stats.bad
             self._share_placements = self.peer_selector.get_share_placements()
 
             placements = []
             for tracker in trackers:
                 shares_to_ask = self._allocation_for(tracker)
-                self._query_stats.total += 1
-                self._query_stats.contacted += 1
-                d = timeout_call(self._reactor, tracker.query(shares_to_ask), 15)
-                d.addBoth(self._buckets_allocated, tracker, shares_to_ask)
-                d.addErrback(lambda f, tr: _bad_server(f, tr), tracker)
-                d.addCallback(lambda x, tr: _make_readonly(tr) if not x else x, tracker)
-                placements.append(d)
+
+                # if we already tried to upload share X to this very
+                # same server in a previous iteration, we should *not*
+                # ask again. If we *do* ask, there's no real harm, but
+                # the server will respond with an empty dict and that
+                # confuses our statistics. However, if the server is a
+                # readonly sever, we *do* want to ask so it refreshes
+                # the share.
+                if shares_to_ask != set(tracker.buckets.keys()) or tracker in readonly_trackers:
+                    self._query_stats.total += 1
+                    self._query_stats.contacted += 1
+                    d = timeout_call(self._reactor, tracker.query(shares_to_ask), 15)
+                    d.addBoth(self._buckets_allocated, tracker, shares_to_ask)
+                    d.addErrback(lambda f, tr: _bad_server(f, tr), tracker)
+                    d.addCallback(lambda x, tr: _make_readonly(tr) if not x else x, tracker)
+                    placements.append(d)
+
             yield defer.DeferredList(placements)
             merged = merge_servers(self.peer_selector.get_sharemap_of_preexisting_shares(), self.use_trackers)
             effective_happiness = servers_of_happiness(merged)
             if effective_happiness == last_happiness:
                 # print("effective happiness still {}".format(last_happiness))
                 # we haven't improved over the last iteration; give up
+                break;
+            if errors_before == self._query_stats.bad:
+                if False: print("no more errors; break")
                 break;
             last_happiness = effective_happiness
             # print("write trackers left: {}".format(len(write_trackers)))
@@ -569,16 +593,10 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             self.log("%s got error during existing shares check: %s"
                     % (tracker.get_name(), res), level=log.UNUSUAL)
             self.peer_selector.mark_bad_peer(serverid)
-            self._query_stats.error += 1
-            self._query_stats.bad += 1
         else:
             buckets = res
             if buckets:
                 self.serverids_with_shares.add(serverid)
-                self._query_stats.good += 1
-            else:
-                self._query_stats.full += 1
-                self._query_stats.bad += 1
             self.log("response to get_buckets() from server %s: alreadygot=%s"
                     % (tracker.get_name(), tuple(sorted(buckets))),
                     level=log.NOISY)
@@ -586,7 +604,6 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                 self.peer_selector.add_peer_with_share(serverid, bucket)
                 self.preexisting_shares.setdefault(bucket, set()).add(serverid)
                 self.homeless_shares.discard(bucket)
-
 
     def _handle_existing_write_response(self, res, tracker, shares_to_ask):
         """
@@ -598,17 +615,11 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             self.log("%s got error during server selection: %s" % (tracker, res),
                     level=log.UNUSUAL)
             self.homeless_shares |= shares_to_ask
-
-            self._query_stats.error += 1
-            self._query_stats.bad += 1
-
             msg = ("last failure (from %s) was: %s" % (tracker, res))
             self.last_failure_msg = msg
         else:
-            self._query_stats.good += 1
             for share in res.keys():
                 self.peer_selector.add_peer_with_share(tracker.get_serverid(), share)
-
 
     def _get_progress_message(self):
         if not self.homeless_shares:
@@ -728,9 +739,10 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                 # was a productive query
                 self._query_stats.good += 1
             else:
-                # XXX semantically, what does this mean? "full" or
-                # "error", or ...?
-                self._query_stats.full += 1  # right?
+                # if we asked for some allocations, but the server
+                # didn't return any at all (i.e. empty dict) it must
+                # be full
+                self._query_stats.full += 1
                 self._query_stats.bad += 1
             return progress
 
