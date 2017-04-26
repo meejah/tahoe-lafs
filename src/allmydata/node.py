@@ -115,9 +115,6 @@ class Node(service.MultiService):
     GENERATED_FILES = []
 
     def __init__(self, basedir=u"."):
-
-        raise Exception("bad stuff happened")
-
         service.MultiService.__init__(self)
         self.basedir = abspath_expanduser_unicode(unicode(basedir))
         self.config_fname = os.path.join(self.basedir, "tahoe.cfg")
