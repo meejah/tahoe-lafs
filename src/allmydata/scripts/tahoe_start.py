@@ -7,7 +7,8 @@ from os.path import join, exists
 from allmydata.scripts.common import BasedirOptions
 from allmydata.scripts.default_nodedir import _default_nodedir
 from allmydata.util.encodingutil import listdir_unicode, quote_local_unicode_path
-from allmydata.util import fileutil
+
+from .tahoe_daemonize import MyTwistdConfig
 
 
 class StartOptions(BasedirOptions):
