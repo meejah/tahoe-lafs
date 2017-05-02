@@ -265,7 +265,7 @@ class _QueryStatistics(object):
         self.bad = 0
         self.full = 0
         self.error = 0
-        self.contacted = 0
+        self.contacted = set()
 
     def __str__(self):
         return "QueryStatistics(total={} good={} bad={} full={} " \
@@ -275,7 +275,7 @@ class _QueryStatistics(object):
                 self.bad,
                 self.full,
                 self.error,
-                self.contacted,
+                len(self.contacted),
             )
 
 
@@ -356,7 +356,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
         """
 
         # re-initialize statistics
-        self._query_status = _QueryStatistics()
+        self._query_stats = _QueryStatistics()
 
         if self._status:
             self._status.set_status("Contacting Servers..")
@@ -448,6 +448,8 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             d = timeout_call(self._reactor, tracker.ask_about_existing_shares(), 15)
             d.addBoth(self._handle_existing_response, tracker)
             ds.append(d)
+            self._query_stats.total += 1
+            self._query_stats.contacted.add(tracker)
             self.log("asking server %s for any existing shares" %
                      (tracker.get_name(),), level=log.NOISY)
 
@@ -463,6 +465,8 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             d.addErrback(timed_out, tracker)
             d.addBoth(self._handle_existing_write_response, tracker, set())
             ds.append(d)
+            self._query_stats.total += 1
+            self._query_stats.contacted.add(tracker)
             self.log("asking server %s for any existing shares" %
                      (tracker.get_name(),), level=log.NOISY)
 
@@ -577,7 +581,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                 # the share.
                 if shares_to_ask:
                     self._query_stats.total += 1
-                    self._query_stats.contacted += 1
+                    self._query_stats.contacted.add(tracker)
                     d = timeout_call(self._reactor, tracker.query(shares_to_ask), 15)
                     d.addBoth(self._buckets_allocated, tracker, shares_to_ask)
                     d.addErrback(lambda f, tr: _bad_server(f, tr), tracker)
@@ -653,10 +657,13 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
         """
         serverid = tracker.get_serverid()
         if isinstance(res, failure.Failure):
+            self._query_stats.bad += 1
+            self._query_stats.error += 1
             self.log("%s got error during existing shares check: %s"
                     % (tracker.get_name(), res), level=log.UNUSUAL)
             self.peer_selector.mark_bad_peer(serverid)
         else:
+            self._query_stats.good += 1
             buckets = res
             if buckets:
                 self.serverids_with_shares.add(serverid)
@@ -674,6 +681,8 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
         when inquiring about what shares each server already has.
         """
         if isinstance(res, failure.Failure):
+            self._query_stats.bad += 1
+            self._query_stats.error += 1
             self.peer_selector.mark_bad_peer(tracker.get_serverid())
             self.log("%s got error during server selection: %s" % (tracker, res),
                     level=log.UNUSUAL)
@@ -681,6 +690,8 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             msg = ("last failure (from %s) was: %s" % (tracker, res))
             self.last_failure_msg = msg
         else:
+            self._query_stats.good += 1
+
             for share in res.keys():
                 self.peer_selector.add_peer_with_share(tracker.get_serverid(), share)
 
@@ -703,7 +714,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                 happy=self.min_happiness,
                 needed=self.needed_shares,
                 queries=self._query_stats.total,
-                servers=self._query_stats.contacted,
+                servers=len(self._query_stats.contacted),
                 good=self._query_stats.good,
                 bad=self._query_stats.bad,
                 full=self._query_stats.full,
