@@ -1708,7 +1708,7 @@ class EncodingParameters(GridTestMixin, unittest.TestCase, SetDEPMixin,
         d.addCallback(_setup)
         d.addCallback(lambda c:
             self.shouldFail(UploadUnhappinessError, "test_query_counting",
-                            "0 queries placed some shares",
+                            "Out of 10 queries, 0 failed and 10 succeeded",
                             c.upload, upload.Data("data" * 10000,
                                                   convergence="")))
         # Now try with some readonly servers. We want to make sure that
@@ -1731,8 +1731,7 @@ class EncodingParameters(GridTestMixin, unittest.TestCase, SetDEPMixin,
         d.addCallback(_then)
         d.addCallback(lambda c:
             self.shouldFail(UploadUnhappinessError, "test_query_counting",
-                            "4 placed none (of which 4 placed none due to "
-                            "the server being full",
+                            "Out of 12 queries, 0 failed and 12 succeeded.",
                             c.upload, upload.Data("data" * 10000,
                                                   convergence="")))
         # Now try the case where the upload process finds a bunch of the
@@ -1761,7 +1760,7 @@ class EncodingParameters(GridTestMixin, unittest.TestCase, SetDEPMixin,
         d.addCallback(_next)
         d.addCallback(lambda c:
             self.shouldFail(UploadUnhappinessError, "test_query_counting",
-                            "0 queries placed some shares",
+                            "10 allocations placed some shares",
                             c.upload, upload.Data("data" * 10000,
                                                   convergence="")))
         return d
