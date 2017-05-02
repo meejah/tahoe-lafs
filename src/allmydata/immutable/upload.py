@@ -599,8 +599,10 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
 
             # XXX double-check: no side-effects from get_* thing right?
             next_placement = self.peer_selector.get_share_placements()
-            # XXX this is wrong, somehow:
-            next_merged = merge_servers(next_placement, self.use_trackers)
+            next_merged = {
+                k: set([v]) for k, v in next_placement.items()
+            }
+            next_merged = merge_servers(next_merged, self.use_trackers)
             next_happy  = servers_of_happiness(next_merged)
             #if "happiness of next_placement is > effective_happiness"
             if next_happy <= effective_happiness:
