@@ -152,6 +152,11 @@ class ServerTracker(object):
     def get_name(self):
         return self._server.get_name()
 
+    # XXX not a good name -- split between "allocate" and
+    # "renew_leases" or something? i.e. split between read-only and
+    # writable ..
+
+    # XXX at least note that this does renew on everything
     def query(self, sharenums):
         rref = self._server.get_rref()
         d = rref.callRemote("allocate_buckets",
@@ -297,6 +302,8 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
         # this request. This excludes older servers (which used a 4-byte size
         # field) from getting large shares (for files larger than about
         # 12GiB). See #439 for details.
+
+        # XXX just use server.get_available_space() instead
         def _get_maxsize(server):
             v0 = server.get_rref().version
             v1 = v0["http://allmydata.org/tahoe/protocols/storage/v1"]
@@ -498,13 +505,65 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
         # subsequent loops, we give up if we've achieved happiness OR
         # if we have zero writable servers left
 
-        last_happiness = None
-        effective_happiness = -1
-        while effective_happiness < min_happiness and \
-              (last_happiness is None or len(write_trackers)):
-            errors_before = self._query_stats.bad
-            self._share_placements = self.peer_selector.get_share_placements()
+        # XXX discussing halting conditions for this:
 
+        # - maybe we want to base it *all* on happiness: if
+        #   "get_share_placements()" proposes a plan that *doesn't* increase happiness, exit loop
+        #
+        # - could base it strictly on errors, like the spec: if we did
+        #   a loop and got zero errors, then we're done.
+
+        # XXX can this return an error? or, what happens if we can't
+        # place anything at all? what about can't place enough?
+        self._share_placements = self.peer_selector.get_share_placements()
+
+        # might want some "consider more servers" code here: loop on
+        # "make a placement". if happiness is < N, *and* we have more
+        # (potentially) writeable servers, pull in 2 * (N - happy)
+        # more servers.
+
+        # note: real goal here is to not regress; previous code would
+        # (eventually) look at every server. So even if we get
+        # "happy", we should keep looking for more placements until we
+        # get to N. aka "maximize happiness". we *do* want to reach
+        # maximal happiness if that's (maybe) possible. to the
+        # unit-tests!
+
+        """
+        current_happiness = -1
+        while True:
+
+            effective_happiness = -1
+            while effective_happiness < N:
+                proposed_placement = self.peer_seelctor.get_share_placements()
+                merged = merge_servers(proposed_placement, self.use_trackers)
+                effective_happiness = servers_of_happiness(merged)
+                if effective_happiness >= N:
+                    break
+                # XXX probably make a "more servers" generator.
+                # XXX okay, just try grabbing "one more server" at a
+                # time (because get_share_placements() is fairly fast
+                # -- benchmarks?)
+                more_servers = leftover_servers[:2 * (N - effective_happiness)]
+                leftover_servers = [2 * (N - effective_happiness):]
+
+                new_read, new_write = self._create_trackers(more_servers, ...)
+                # XXX query them etc, to see if they have space
+                # add them to readonly_server / write_server
+
+            if effective_happiness <= current_happiness:
+                # we can't do better than we've already done, so stop
+                # (we could be done because we're happy, or because we
+                # don't think we can get any happier)
+                break
+
+            # XXX do stuff in the below loop, basically -- try placing
+            # everything, check our happiness, maybe loop again
+            merged = merge_servers(actual_placement, self.use_trackers)
+            current_happiness = servers_of_happiness(merged)
+        """
+
+        while True:
             placements = []
             for tracker in trackers:
                 shares_to_ask = self._allocation_for(tracker)
@@ -516,7 +575,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                 # confuses our statistics. However, if the server is a
                 # readonly sever, we *do* want to ask so it refreshes
                 # the share.
-                if shares_to_ask != set(tracker.buckets.keys()) or tracker in readonly_trackers:
+                if shares_to_ask:
                     self._query_stats.total += 1
                     self._query_stats.contacted += 1
                     d = timeout_call(self._reactor, tracker.query(shares_to_ask), 15)
@@ -525,29 +584,29 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                     d.addCallback(lambda x, tr: _make_readonly(tr) if not x else x, tracker)
                     placements.append(d)
 
+                # note: the allocate_buckets (and renew_lease) calls
+                # are essentially "all or nothing": they will renew
+                # leases for *all* shares for that storage-index, not
+                # necessarily just the ones we care about.
+
             yield defer.DeferredList(placements)
             merged = merge_servers(self.peer_selector.get_sharemap_of_preexisting_shares(), self.use_trackers)
             effective_happiness = servers_of_happiness(merged)
-            if effective_happiness == last_happiness:
-                # print("effective happiness still {}".format(last_happiness))
-                # we haven't improved over the last iteration; give up
-                break;
-            if errors_before == self._query_stats.bad:
-                if False: print("no more errors; break")
-                break;
-            last_happiness = effective_happiness
-            # print("write trackers left: {}".format(len(write_trackers)))
+
+            # XXX double-check: no side-effects from get_* thing right?
+            next_placement = self.peer_selector.get_share_placements()
+            # XXX this is wrong, somehow:
+            next_merged = merge_servers(next_placement, self.use_trackers)
+            next_happy  = servers_of_happiness(next_merged)
+            #if "happiness of next_placement is > effective_happiness"
+            if next_happy <= effective_happiness:
+                break
+            self._share_placements = next_placement
 
         # note: peer_selector.get_allocations() only maps "things we
         # uploaded in the above loop" and specificaly does *not*
         # include any pre-existing shares on read-only servers .. but
         # we *do* want to count those shares towards total happiness.
-
-        # no more servers. If we haven't placed enough shares, we fail.
-        # XXX note sometimes we're not running the loop at least once,
-        # and so 'merged' must be (re-)computed here.
-        merged = merge_servers(self.peer_selector.get_sharemap_of_preexisting_shares(), self.use_trackers)
-        effective_happiness = servers_of_happiness(merged)
 
         # print("placements completed {} vs {}".format(effective_happiness, min_happiness))
         # for k, v in merged.items():
@@ -566,22 +625,26 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             if self.last_failure_msg:
                 msg += " (%s)" % (self.last_failure_msg,)
             self.log(msg, level=log.UNUSUAL)
-            self._failed(msg)  # raises UploadUnhappinessError
-            return
 
-        # we placed (or already had) enough to be happy, so we're done
-        if self._status:
-            self._status.set_status("Placed all shares")
-        msg = ("server selection successful for %s: %s: pretty_print_merged: %s, "
-               "self.use_trackers: %s, self.preexisting_shares: %s") \
-               % (self, self._get_progress_message(),
-                  pretty_print_shnum_to_servers(merged),
-                  [', '.join([str_shareloc(k,v)
-                              for k,v in st.buckets.iteritems()])
-                   for st in self.use_trackers],
-                  pretty_print_shnum_to_servers(self.preexisting_shares))
-        self.log(msg, level=log.OPERATIONAL)
-        defer.returnValue((self.use_trackers, self.peer_selector.get_sharemap_of_preexisting_shares()))
+            self._fail(msg)  # raises UploadUnhappinessError
+            # the above _fail() also calls .abort() on all our
+            # trackers, so that will de-allocate any allocations we
+            # did already (because we're not going to actually do any
+            # uploads)
+        else:
+            # we placed (or already had) enough to be happy, so we're done
+            if self._status:
+                self._status.set_status("Placed all shares")
+            msg = ("server selection successful for %s: %s: pretty_print_merged: %s, "
+                   "self.use_trackers: %s, self.preexisting_shares: %s") \
+                   % (self, self._get_progress_message(),
+                      pretty_print_shnum_to_servers(merged),
+                      [', '.join([str_shareloc(k,v)
+                                  for k,v in st.buckets.iteritems()])
+                       for st in self.use_trackers],
+                      pretty_print_shnum_to_servers(self.preexisting_shares))
+            self.log(msg, level=log.OPERATIONAL)
+            defer.returnValue((self.use_trackers, self.peer_selector.get_sharemap_of_preexisting_shares()))
 
     def _handle_existing_response(self, res, tracker):
         """
@@ -746,7 +809,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
                 self._query_stats.bad += 1
             return progress
 
-    def _failed(self, msg):
+    def _fail(self, msg):
         """
         I am called when server selection fails. I first abort all of the
         remote buckets that I allocated during my unsuccessful attempt to
