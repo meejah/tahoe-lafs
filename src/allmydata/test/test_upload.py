@@ -1782,7 +1782,7 @@ class EncodingParameters(GridTestMixin, unittest.TestCase, SetDEPMixin,
         d.addCallback(lambda client:
             self.shouldFail(UploadUnhappinessError,
                             "test_upper_limit_on_readonly_queries",
-                            "sent 8 queries to 8 servers",
+                            "sent 8 queries and 0 allocation requests to 8 servers",
                             client.upload,
                             upload.Data('data' * 10000, convergence="")))
         return d
@@ -1816,17 +1816,19 @@ class EncodingParameters(GridTestMixin, unittest.TestCase, SetDEPMixin,
             return client
         d.addCallback(_reset_encoding_parameters)
         d.addCallback(lambda client:
-            self.shouldFail(UploadUnhappinessError, "test_selection_exceptions",
-                            "placed 0 shares out of 10 "
-                            "total (10 homeless), want to place shares on at "
-                            "least 4 servers such that any 3 of them have "
-                            "enough shares to recover the file, "
-                            "sent 5 queries to 5 servers, 0 queries placed "
-                            "some shares, 5 placed none "
-                            "(of which 5 placed none due to the server being "
-                            "full and 0 placed none due to an error)",
-                            client.upload,
-                            upload.Data("data" * 10000, convergence="")))
+            self.shouldFail(
+                UploadUnhappinessError, "test_selection_exceptions",
+                "placed 0 shares out of 10 total (10 homeless), want to place "
+                "shares on at least 4 servers such that any 3 of them have "
+                "enough shares to recover the file, sent 5 queries and 0 "
+                "allocation requests to 5 servers, 0 allocations placed some "
+                "shares, 0 placed none (of which 0 placed none due to the "
+                "server being full and 0 placed none due to an error). Out of 5 "
+                "queries, 0 failed and 5 succeeded.",
+                client.upload,
+                upload.Data("data" * 10000, convergence="")
+            )
+        )
 
 
         # server 1: read-only, no shares
@@ -1858,14 +1860,7 @@ class EncodingParameters(GridTestMixin, unittest.TestCase, SetDEPMixin,
         d.addCallback(_reset_encoding_parameters)
         d.addCallback(lambda client:
             self.shouldFail(UploadUnhappinessError, "test_selection_exceptions",
-                            "placed 0 shares out of 10 "
-                            "total (10 homeless), want to place shares on at "
-                            "least 4 servers such that any 3 of them have "
-                            "enough shares to recover the file, "
-                            "sent 5 queries to 5 servers, 0 queries placed "
-                            "some shares, 5 placed none "
-                            "(of which 4 placed none due to the server being "
-                            "full and 1 placed none due to an error)",
+                            "Out of 5 queries, 1 failed and 4 succeeded.",
                             client.upload,
                             upload.Data("data" * 10000, convergence="")))
         # server 0, server 1 = empty, accepting shares

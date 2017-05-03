@@ -456,6 +456,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             assert isinstance(tracker, ServerTracker)
             d = timeout_call(self._reactor, tracker.ask_about_existing_shares(), 15)
             self._query_stats.queries += 1
+            self._query_stats.contacted.add(tracker)
             d.addBoth(self._handle_existing_response, tracker)
             ds.append(d)
             self.log("asking server %s for any existing shares" %
@@ -465,6 +466,7 @@ class Tahoe2ServerSelector(log.PrefixingLogMixin):
             assert isinstance(tracker, ServerTracker)
             d = timeout_call(self._reactor, tracker.ask_about_existing_shares(), 15)
             self._query_stats.queries += 1
+            self._query_stats.contacted.add(tracker)
 
             def timed_out(f, tracker):
                 # print("TIMEOUT {}: {}".format(tracker, f))
