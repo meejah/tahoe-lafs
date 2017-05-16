@@ -8,7 +8,7 @@ from twisted.internet import defer, task, threads
 from allmydata.scripts.common import get_default_nodedir
 from allmydata.scripts import debug, create_node, cli, \
     stats_gatherer, admin, magic_folder_cli, tahoe_daemonize, tahoe_start, \
-    tahoe_stop, tahoe_restart
+    tahoe_stop, tahoe_restart, tahoe_run
 from allmydata.util.encodingutil import quote_output, quote_local_unicode_path, get_io_encoding
 
 def GROUP(s):
@@ -35,6 +35,7 @@ if _default_nodedir:
 _control_node_dispatch = {
     "daemonize": tahoe_daemonize.daemonize,
     "start": tahoe_start.start,
+    "run": tahoe_run.run,
     "stop": tahoe_stop.stop,
     "restart": tahoe_restart.restart,
 }
@@ -55,6 +56,7 @@ class Options(usage.Options):
                     + [
                         ["daemonize", None, tahoe_daemonize.DaemonizeOptions, "run a node disconnected from terminal"],
                         ["start", None, tahoe_start.StartOptions, "start a node"],
+                        ["run", None, tahoe_run.RunOptions, "run a node"],
                         ["stop", None, tahoe_stop.StopOptions, "stop a node"],
                         ["restart", None, tahoe_restart.RestartOptions, "restart a node"],
                     ]
