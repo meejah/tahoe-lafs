@@ -9,7 +9,19 @@ from allmydata.util.encodingutil import listdir_unicode, quote_local_unicode_pat
 from zope.interface import implementer
 from twisted.application.service import Service
 
-from .tahoe_start import identify_node_type
+
+def identify_node_type(basedir):
+    for fn in listdir_unicode(basedir):
+        if fn.endswith(u".tac"):
+            tac = str(fn)
+            break
+    else:
+        return None
+
+    for t in ("client", "introducer", "key-generator", "stats-gatherer"):
+        if t in tac:
+            return t
+    return None
 
 
 class DaemonizeOptions(BasedirOptions):
@@ -103,7 +115,7 @@ def daemonize(config):
     err = config.stderr
     basedir = config['basedir']
     quoted_basedir = quote_local_unicode_path(basedir)
-    print >>out, "STARTING", quoted_basedir
+    print >>out, "daemonizing in '{}'".format(quoted_basedir)
     if not os.path.isdir(basedir):
         print >>err, "%s does not look like a directory at all" % quoted_basedir
         return 1

@@ -8,7 +8,7 @@ from allmydata.scripts.common import BasedirOptions
 from allmydata.scripts.default_nodedir import _default_nodedir
 from allmydata.util.encodingutil import listdir_unicode, quote_local_unicode_path
 
-from .tahoe_daemonize import MyTwistdConfig
+from .tahoe_daemonize import MyTwistdConfig, identify_node_type
 
 
 class StartOptions(BasedirOptions):
@@ -46,20 +46,6 @@ Note that if any twistd-options are used, NODEDIR must be specified explicitly
 the twistd-options.
 """
         return t
-
-
-def identify_node_type(basedir):
-    for fn in listdir_unicode(basedir):
-        if fn.endswith(u".tac"):
-            tac = str(fn)
-            break
-    else:
-        return None
-
-    for t in ("client", "introducer", "key-generator", "stats-gatherer"):
-        if t in tac:
-            return t
-    return None
 
 
 def start(config):
