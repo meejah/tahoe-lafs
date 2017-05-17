@@ -21,11 +21,11 @@ from pycryptopp.publickey import ed25519
 from allmydata.scripts import create_node, debug, tahoe_start, tahoe_restart, \
     tahoe_add_alias, tahoe_backup, tahoe_check, tahoe_cp, tahoe_get, tahoe_ls, \
     tahoe_manifest, tahoe_mkdir, tahoe_mv, tahoe_put, tahoe_unlink, tahoe_webopen, \
-    tahoe_stop, tahoe_daemonize
+    tahoe_stop, tahoe_daemonize, tahoe_run
 _hush_pyflakes = [create_node, debug, tahoe_start, tahoe_restart, tahoe_stop,
     tahoe_add_alias, tahoe_backup, tahoe_check, tahoe_cp, tahoe_get, tahoe_ls,
     tahoe_manifest, tahoe_mkdir, tahoe_mv, tahoe_put, tahoe_unlink, tahoe_webopen,
-    tahoe_damonize]
+    tahoe_daemonize, tahoe_run]
 
 from allmydata.scripts import common
 from allmydata.scripts.common import DEFAULT_ALIAS, get_aliases, get_alias, \
@@ -642,7 +642,7 @@ class Help(unittest.TestCase):
         self.failUnlessIn("[options] [NODEDIR [twistd-options]]", help)
 
     def test_run(self):
-        help = str(startstop_node.RunOptions())
+        help = str(tahoe_run.RunOptions())
         self.failUnlessIn("[options] [NODEDIR [twistd-options]]", help)
 
     def test_create_client(self):

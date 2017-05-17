@@ -1,12 +1,11 @@
 
-import os, sys, signal, time
+import os, sys
 from allmydata.scripts.common import BasedirOptions
 from twisted.scripts import twistd
 from twisted.python import usage
 from allmydata.scripts.default_nodedir import _default_nodedir
 from allmydata.util import fileutil
 from allmydata.util.encodingutil import listdir_unicode, quote_local_unicode_path
-from zope.interface import implementer
 from twisted.application.service import Service
 
 
@@ -79,7 +78,6 @@ class DaemonizeTheRealService(Service):
         # twisted.internet.reactor . That will take a lot of work.
 
         def start():
-            print("starting")
             if self.nodetype == "client":
                 from allmydata.client import Client
                 srv = Client(self.basedir)
@@ -110,7 +108,6 @@ class DaemonizeTahoeNodePlugin:
 
 
 def daemonize(config):
-
     out = config.stdout
     err = config.stderr
     basedir = config['basedir']

@@ -6,7 +6,7 @@ from os.path import join, exists
 
 from allmydata.scripts.common import BasedirOptions
 from allmydata.scripts.default_nodedir import _default_nodedir
-from allmydata.util.encodingutil import listdir_unicode, quote_local_unicode_path
+from allmydata.util.encodingutil import quote_local_unicode_path
 
 from .tahoe_daemonize import MyTwistdConfig, identify_node_type
 
@@ -84,7 +84,13 @@ def start(config):
     # "pretty fast" and with a zero return-code, or else something
     # Very Bad has happened.
     try:
-        subprocess.check_call(['tahoe', 'daemonize'] + sys.argv[2:])
+        args = [sys.executable]
+        for i, arg in enumerate(sys.argv):
+            if arg in ['start', 'restart']:
+                args.append('daemonize')
+            else:
+                args.append(arg)
+        subprocess.check_call(args)
     except subprocess.CalledProcessError as e:
         sys.exit(e.returncode)
 
@@ -101,7 +107,8 @@ def start(config):
         while time.time() - start < 5:
             collected += f.read()
             if magic_string in collected:
-                print("Node has started successfully")
+                if not config.parent['quiet']:
+                    print("Node has started successfully")
                 sys.exit(0)
             time.sleep(0.1)
 
