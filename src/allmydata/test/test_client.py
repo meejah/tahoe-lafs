@@ -321,7 +321,7 @@ class Basic(testutil.ReallyEqualMixin, testutil.NonASCIIPathMixin, unittest.Test
             c = client.Client(basedir)
             c.startService()
             yield c.when_ready()
-            server = c.getServiceNamed("storage")
+            #server = c.getServiceNamed("storage")
             aa = c.get_accountant().get_anonymous_account()
             verdict = aa.remote_get_version()
             self.failUnlessReallyEqual(verdict["application-version"],

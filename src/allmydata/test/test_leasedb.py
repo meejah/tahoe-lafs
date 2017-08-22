@@ -7,7 +7,6 @@ from twisted.internet import defer
 
 from allmydata.test.common import ShouldFailMixin
 from allmydata.util import fileutil
-from allmydata.util.dbutil import IntegrityError
 from allmydata.storage.leasedb import LeaseDB, LeaseInfo, NonExistentShareError, \
      SHARETYPE_IMMUTABLE, create_lease_db
 

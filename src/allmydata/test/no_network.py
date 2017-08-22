@@ -31,7 +31,6 @@ from allmydata.storage.server import StorageServer, storage_index_to_dir
 from allmydata.util import fileutil, idlib, hashutil
 from allmydata.util.hashutil import permute_server_hash
 from allmydata.util.observer import OneShotObserverList
-from allmydata.test.common_web import HTTPClientGETFactory
 from allmydata.interfaces import IStorageBroker, IServer
 from allmydata.storage.accountant import create_accountant
 from .common import TEST_RSA_KEY_SIZE
@@ -331,8 +330,8 @@ class NoNetworkGrid(service.MultiService):
         d = create_accountant(ss, "dbfile_{}".format(i), "statefile_{}".format(i))
 
         def got_accountant(accountant):
-            print("DING", accountant, dir(accountant))
-            #accountant.setServiceParent(middleman)
+            print("got accountant {}".format(accountant))
+            accountant.setServiceParent(middleman)
             aa = accountant.get_anonymous_account()
             wrapper = wrap_storage_server(aa)
             self.server_accountant[ss] = accountant

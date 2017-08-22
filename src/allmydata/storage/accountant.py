@@ -17,9 +17,9 @@ import weakref
 from twisted.application import service
 from twisted.internet import defer
 
-from allmydata.storage.leasedb import create_lease_db, LeaseDB
+from allmydata.storage.leasedb import create_lease_db
 from allmydata.storage.accounting_crawler import AccountingCrawler
-from allmydata.storage.account import create_anonymous_account, create_starter_account
+from allmydata.storage.account import create_anonymous_account, create_starter_account, Account
 from allmydata.storage.expiration import ExpirationPolicy
 
 

@@ -9,13 +9,14 @@ class DBError(Exception):
     pass
 
 def get_db(dbfile, stderr=sys.stderr,
-           create_version=(None, None), updaters={}, just_create=False):
+           create_version=(None, None), updaters={}, just_create=False, dbname="db"):
     """Open or create the given db file. The parent directory must exist.
     create_version=(SCHEMA, VERNUM), and SCHEMA must have a 'version' table.
     Updaters is a {newver: commands} mapping, where e.g. updaters[2] is used
     to get from ver=1 to ver=2. Returns a (sqlite,db) tuple, or raises
     DBError.
     """
+
     try:
         import sqlite3
         sqlite = sqlite3 # pyflakes whines about 'import sqlite3 as sqlite' ..
@@ -24,11 +25,10 @@ def get_db(dbfile, stderr=sys.stderr,
         sqlite = dbapi2 # .. when this clause does it too
         # This import should never fail, because setuptools requires that the
         # "pysqlite" distribution is present at start time (if on Python < 2.5).
-
     must_create = not os.path.exists(dbfile)
     try:
         db = sqlite.connect(dbfile)
-    except (EnvironmentError, sqlite.OperationalError), e:
+    except EnvironmentError as e:
         raise DBError("Unable to create/open db file %s: %s" % (dbfile, e))
 
     schema, target_version = create_version
@@ -37,12 +37,6 @@ def get_db(dbfile, stderr=sys.stderr,
     # Enabling foreign keys allows stricter integrity checking.
     # The default is unspecified according to <http://www.sqlite.org/foreignkeys.html#fk_enable>.
     c.execute("PRAGMA foreign_keys = ON;")
-
-    if journal_mode is not None:
-        c.execute("PRAGMA journal_mode = %s;" % (journal_mode,))
-
-    if synchronous is not None:
-        c.execute("PRAGMA synchronous = %s;" % (synchronous,))
 
     if must_create:
         c.executescript(schema)
@@ -115,9 +109,9 @@ def get_async_db(dbfile_name, stderr=sys.stderr,
     must_create = not os.path.exists(dbfile_name)
     try:
         conn = adbapi.ConnectionPool("sqlite3", dbfile_name, check_same_thread=False)
-    except (EnvironmentError, sqlite3.OperationalError), e:
+    except EnvironmentError as e:
         raise DBError("Unable to create/open %s file %s: %s" % (dbname, dbfile_name, e))
-    except Exception, e:
+    except Exception as e:
         print "wtf %s" % e
     schema, target_version = create_version
 
@@ -135,12 +129,13 @@ def get_async_db(dbfile_name, stderr=sys.stderr,
     try:
         fetchall_val = yield conn.runQuery("SELECT version FROM version")
         version = fetchall_val[0][0]
-    except sqlite3.DatabaseError, e:
+    except Exception as e:
         # this indicates that the file is not a compatible database format.
         # Perhaps it was created with an old version, or it might be junk.
         raise DBError("%s file is unusable: %s" % (dbname, e))
 
     if just_create: # for tests
+        import sqlite3
         defer.returnValue((sqlite3, conn))
 
     while version < target_version and version+1 in updaters:
@@ -149,4 +144,5 @@ def get_async_db(dbfile_name, stderr=sys.stderr,
     if version != target_version:
         raise DBError("Unable to handle %s version %s" % (dbname, version))
 
+    import sqlite3
     defer.returnValue((sqlite3, conn))

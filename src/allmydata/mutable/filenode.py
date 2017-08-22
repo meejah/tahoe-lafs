@@ -676,6 +676,7 @@ class MutableFileNode(object):
         """
         assert self._pubkey, "update_servermap must be called before publish"
 
+        print("uploading")
         # Define IPublishInvoker with a set_downloader_hints method?
         # Then have the publisher call that method when it's done publishing?
         p = Publish(self, self._storage_broker, servermap)
@@ -692,6 +693,7 @@ class MutableFileNode(object):
 
     def _did_upload(self, res, size):
         self._most_recent_size = size
+        print("did upload {} {}".format(res, size))
         return res
 
 

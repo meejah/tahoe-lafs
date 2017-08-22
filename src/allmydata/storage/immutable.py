@@ -1,6 +1,8 @@
 
 import os, struct, time
 
+from twisted.internet import defer
+
 from foolscap.api import Referenceable
 
 from zope.interface import implementer

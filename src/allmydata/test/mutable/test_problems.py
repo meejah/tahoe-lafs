@@ -212,7 +212,8 @@ class Problems(GridTestMixin, unittest.TestCase, testutil.ShouldFailMixin):
         def _break_peer0(res):
             si = self._storage_index
             servers = nm.storage_broker.get_servers_for_psi(si)
-            self.g.break_server(servers[0].get_serverid())
+#            self.g.break_server(servers[0].get_serverid())
+#            print("broke server 0 {}".format(repr(servers[0].get_serverid())))
             self.server1 = servers[1]
         d.addCallback(_break_peer0)
         # now "create" the file, using the pre-established key, and let the
@@ -220,10 +221,12 @@ class Problems(GridTestMixin, unittest.TestCase, testutil.ShouldFailMixin):
         d.addCallback(lambda res: nm.create_mutable_file(MutableData("contents 1")))
         # that ought to work
         def _got_node(n):
+            print("_got_node {}".format(n))
             d = n.download_best_version()
             d.addCallback(lambda res: self.failUnlessEqual(res, "contents 1"))
             # now break the second peer
             def _break_peer1(res):
+                print("breaking second server")
                 self.g.break_server(self.server1.get_serverid())
             d.addCallback(_break_peer1)
             d.addCallback(lambda res: n.overwrite(MutableData("contents 2")))

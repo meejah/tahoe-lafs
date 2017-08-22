@@ -1,7 +1,6 @@
 
-import sys
-
-import time, simplejson
+import time
+import json
 
 from twisted.internet import defer
 from twisted._threads import AlreadyQuit
@@ -382,7 +381,7 @@ class LeaseDB(object):
     @defer.inlineCallbacks
     def add_history_entry(self, cycle, entry):
         if self.debug: print "ADD_HISTORY_ENTRY", cycle, entry
-        json = simplejson.dumps(entry)
+        js = json.dumps(entry)
         rows = yield self._conn.runQuery("SELECT `cycle` FROM `crawler_history`")
         if len(rows) >= self.retained_history_entries:
             first_cycle_to_retain = list(sorted(rows))[-(self.retained_history_entries - 1)][0]
@@ -390,13 +389,13 @@ class LeaseDB(object):
                                           (first_cycle_to_retain,))
 
         yield self._conn.runOperation("INSERT OR REPLACE INTO `crawler_history` VALUES (?,?)",
-                                      (cycle, json))
+                                      (cycle, js))
 
     @_locked
     @defer.inlineCallbacks
     def get_history(self):
         rows = yield self._conn.runQuery("SELECT `cycle`,`json` FROM `crawler_history`")
-        decoded = [(row[0], simplejson.loads(row[1])) for row in rows]
+        decoded = [(row[0], json.loads(row[1])) for row in rows]
         defer.returnValue(dict(decoded))
 
     @_locked

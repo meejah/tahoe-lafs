@@ -9,7 +9,7 @@ from allmydata.immutable import upload
 from allmydata.mutable.common import UnrecoverableFileError
 from allmydata.mutable.publish import MutableData
 from allmydata.storage.common import storage_index_to_dir
-from allmydata.test.no_network import GridTestMixin
+from allmydata.test.no_network import GridTestMixin, grid_ready
 from allmydata.test.common import ShouldFailMixin
 from allmydata.util.pollmixin import PollMixin
 from allmydata.interfaces import NotEnoughSharesError
@@ -234,7 +234,7 @@ class HungServerDownloadTest(GridTestMixin, ShouldFailMixin, PollMixin,
         # quickly. If we didn't have OVERDUE timers, this test would fail by
         # timing out.
         done = []
-        d = self._set_up(False))
+        d = self._set_up(False)
         def _reduce_max_outstanding_requests_and_download(ign):
             # we need to hang the first 5 servers, so we have to
             # figure out where the shares were placed.

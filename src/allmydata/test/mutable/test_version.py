@@ -11,7 +11,7 @@ from allmydata.mutable.filenode import MutableFileNode
 from allmydata.mutable.common import MODE_WRITE, MODE_READ, UnrecoverableFileError
 from allmydata.mutable.publish import MutableData
 from allmydata.scripts import debug
-from ..no_network import GridTestMixin, grid_ready
+from ..no_network import GridTestMixin
 from .util import PublishMixin
 from .. import common_util as testutil
 

@@ -1,9 +1,10 @@
 
 import os, re, weakref, struct, time
 
+from twisted.internet import defer
 from twisted.application import service
+from zope.interface import implementer
 
-from zope.interface import implements
 from allmydata.interfaces import IStatsProducer
 from allmydata.util import fileutil, idlib, log, time_format
 import allmydata # for __full_version__
@@ -15,7 +16,6 @@ from allmydata.storage.mutable import MutableShareFile, EmptyShare, \
 from allmydata.mutable.layout import MAX_MUTABLE_SHARE_SIZE
 from allmydata.storage.immutable import ShareFile, BucketWriter, BucketReader
 from allmydata.storage.crawler import BucketCountingCrawler
-from allmydata.storage.accountant import Accountant
 from allmydata.storage.leasedb import SHARETYPE_MUTABLE
 
 

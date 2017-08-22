@@ -351,6 +351,7 @@ class Publish(object):
         simultaneous write.
         """
 
+        print("publish {}".format(newdata))
         # 0. Setup encoding parameters, encoder, and other such things.
         # 1. Encrypt, encode, and publish segments.
         assert IMutableUploadable.providedBy(newdata)
@@ -390,6 +391,7 @@ class Publish(object):
         self.log(format="new seqnum will be %(seqnum)d",
                  seqnum=self._new_seqnum, level=log.NOISY)
 
+        print("SEQNUM {}".format(self._new_seqnum))
         # having an up-to-date servermap (or using a filenode that was just
         # created for the first time) also guarantees that the following
         # fields are available
@@ -641,16 +643,14 @@ class Publish(object):
             return self.push_segment(self._current_segment)
 
         elif self._state == PUSHING_EVERYTHING_ELSE_STATE:
-            print("pushing_everything_else_state")
-
             d = self.push_everything_else()
-            print("PUSH EVERYTHING", d)
+            print("pushing_everything_else_state {}".format(d))
             return d
-        elif self._state == DONE_STATE:
-            print("done, somehow")
-            # If we make it to this point, we were successful in placing the
-            # file.
-            return self._done()
+        assert self._state == DONE_STATE
+        print("done, somehow")
+        # If we make it to this point, we were successful in placing the
+        # file.
+        return self._done()
 
     def push_segment(self, segnum):
         if self.num_segments == 0 and self._version == SDMF_VERSION:
@@ -669,7 +669,8 @@ class Publish(object):
         # should be handled within push_segment.
         d.addCallback(_increment_segnum)
         d.addCallback(self._turn_barrier)
-        d.addCallback(lambda ign: self.push_segment(self._current_segment))
+        d.addCallback(self._push)
+        #d.addCallback(lambda ign: self.push_segment(self._current_segment))
         d.addErrback(self._failure)
 
 
@@ -783,9 +784,16 @@ class Publish(object):
         self.push_toplevel_hashes_and_signature()
         d = self.finish_publishing()
         def _change_state(ignored):
+            print("CHANGE {}".format(ignored))
             self._state = DONE_STATE
+            #return ignored
         d.addCallback(_change_state)
         d.addCallback(self._push)
+
+        def the_badness(f):
+            print("bad stuff: {}".format(f))
+            return f
+        d.addErrback(the_badness)
         return d
 
 
@@ -874,21 +882,26 @@ class Publish(object):
         verification_key = self._pubkey.serialize()
 
         for (shnum, writers) in self.writers.copy().iteritems():
+            print("WRITERS {}".format(writers))
             for writer in writers:
                 d0 = writer.put_verification_key(verification_key)
                 def put_key(res):
+                    print("put key {}".format(res))
                     self.num_outstanding += 1
                     def _no_longer_outstanding(res):
+                        print("finished {}".format(type(res)))
                         self.num_outstanding -= 1
                         return res
 
                     d = writer.finish_publishing()
+                    print("DEEEEEE {}: {}".format(writer, d))
                     d.addBoth(_no_longer_outstanding)
                     d.addErrback(self._connection_problem, writer)
                     d.addCallback(self._got_write_answer, writer, started)
                     return d
                 d0.addCallback(put_key)
                 ds.append(d0)
+                print("WORK {}".format(d0))
         self._record_verinfo()
         self._status.timings['pack'] = time.time() - started
         return defer.DeferredList(ds, consumeErrors=True)
@@ -903,9 +916,11 @@ class Publish(object):
         We ran into a connection problem while working with writer, and
         need to deal with that.
         """
+        print("connection problem {} {}".format(f, writer))
         self.log("found problem: %s" % str(f))
         self._last_failure = f
         self.writers.discard(writer.shnum, writer)
+        return None
 
 
     def log_goal(self, goal, message=""):
@@ -1184,6 +1199,7 @@ class Publish(object):
         hints['segsize'] = self.segment_size
         hints['k'] = self.required_shares
         self._node.set_downloader_hints(hints)
+        print("going to eventually-callback")
         eventually(self.done_deferred.callback, None)
 
     def _failure(self, f=None):

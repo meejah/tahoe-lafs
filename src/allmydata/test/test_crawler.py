@@ -109,7 +109,7 @@ class Basic(unittest.TestCase, StallMixin, CrawlerTestMixin):
         self.failUnlessEqual(s["current-cycle"], None)
         self.failUnlessEqual(p["cycle-in-progress"], False)
 
-        state = yield self._after_prefix(None, 'sg', c)
+        yield self._after_prefix(None, 'sg', c)  # returns 'state'
         p = c.get_progress()
         self.failUnlessEqual(p["cycle-in-progress"], True)
         pct = p["cycle-complete-percentage"]

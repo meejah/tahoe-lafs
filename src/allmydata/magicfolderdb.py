@@ -32,7 +32,7 @@ def get_magicfolderdb(dbfile, stderr=sys.stderr,
     # exist.
     try:
         (sqlite3, db) = get_db(dbfile, stderr, create_version,
-                               just_create=just_create, dbname="magicfolderdb")
+                               just_create=just_create)#, dbname="magicfolderdb")
         if create_version[1] in (1, 2):
             return MagicFolderDB(sqlite3, db)
         else:

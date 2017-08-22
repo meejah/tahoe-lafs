@@ -31,7 +31,6 @@ from allmydata.mutable.common import NotWriteableError
 from allmydata.util.consumer import download_to_data
 from allmydata.immutable import upload
 from allmydata.mutable import publish
-from allmydata.test.no_network import GridTestMixin
 from allmydata.test.common import ShouldFailMixin
 from allmydata.test.common_util import ReallyEqualMixin
 

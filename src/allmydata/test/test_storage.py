@@ -5,7 +5,6 @@ from twisted.trial import unittest
 
 from twisted.internet import defer, reactor
 from twisted.application import service
-from twisted.python.failure import Failure
 from foolscap.api import fireEventually
 import itertools
 
@@ -2736,7 +2735,6 @@ class MDMFProxies(unittest.TestCase, ShouldFailMixin):
         @defer.inlineCallbacks
         def _then_again(results):
             self.failUnless(results[0])
-            read = self.aa.remote_slot_readv
             read_data = yield self.aa.remote_slot_readv("si1", [0], [(1, 8)])
             self.failUnlessEqual(read_data, {0: [struct.pack(">Q", 1)]})
             read_data = yield self.aa.remote_slot_readv("si1", [0], [(9, len(data) - 9)])
@@ -3191,7 +3189,7 @@ class AccountingCrawlerTest(unittest.TestCase, CrawlerTestMixin, WebRenderingMix
 
         d.addCallback(lambda ign: self.render_json(webstatus))
         def _check_json_after_cycle(json):
-            data = simplejson.loads(json)
+            data = json.loads(json)
             self.failUnlessIn("lease-checker", data)
             self.failUnlessIn("lease-checker-progress", data)
         d.addCallback(_check_json_after_cycle)
@@ -3535,7 +3533,7 @@ class AccountingCrawlerTest(unittest.TestCase, CrawlerTestMixin, WebRenderingMix
 
         # create a few shares, with some leases on them
         yield self.make_shares(server, accountant)
-        crawler_done = ac.set_hook('yield')
+        # crawler_done = ac.set_hook('yield')
 
         server.setServiceParent(self.s)
 
@@ -3561,9 +3559,10 @@ class AccountingCrawlerTest(unittest.TestCase, CrawlerTestMixin, WebRenderingMix
     def OFF_test_unpredictable_future(self):
         basedir = "storage/AccountingCrawler/unpredictable_future"
         fileutil.make_dirs(basedir)
+        name = "fixme"
         server = StorageServer(basedir, "\x00" * 20)
-        dbfile = os.path.join(workdir, 'leases_{}.db'.format(name))
-        statefile = os.path.join(workdir, 'state_{}'.format(name))
+        dbfile = os.path.join(basedir, 'leases_{}.db'.format(name))
+        statefile = os.path.join(basedir, 'state_{}'.format(name))
         accountant = yield create_accountant(server, dbfile, statefile)
         # make it start sooner than usual.
         ac = accountant.get_accounting_crawler()

@@ -2,8 +2,8 @@
 import os, time
 
 from twisted.internet import defer
+from twisted.python.failure import Failure
 
-from allmydata.util.deferredutil import for_items
 from allmydata.util.fileutil import get_used_space
 from allmydata.util import log
 from allmydata.storage.crawler import ShareCrawler

@@ -9,7 +9,7 @@ from allmydata.util import hashutil
 from allmydata.util.assertutil import _assert
 from allmydata.util.consumer import download_to_data
 from allmydata.interfaces import IStorageBucketWriter, IStorageBucketReader
-from allmydata.test.no_network import GridTestMixin
+from allmydata.test.no_network import GridTestMixin, grid_ready
 
 class LostPeerError(Exception):
     pass

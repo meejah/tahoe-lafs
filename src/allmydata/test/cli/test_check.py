@@ -11,6 +11,7 @@ from allmydata.immutable import upload
 from allmydata.scripts import debug
 from ..no_network import GridTestMixin, grid_ready
 from .common import CLITestMixin
+from twisted.internet import defer
 
 timeout = 480 # deep_check takes 360s on Zandr's linksys box, others take > 240s
 
@@ -49,7 +50,7 @@ class Check(GridTestMixin, CLITestMixin, unittest.TestCase):
             self.failUnlessReallyEqual(data["results"]["healthy"], True)
         d.addCallback(_check2)
 
-        d.addCallback(lambda ign: c0.upload(upload.Data("literal", convergence="")))
+        d.addCallback(lambda ign: self.g.clients[0].upload(upload.Data("literal", convergence="")))
         def _stash_lit_uri(n):
             self.lit_uri = n.get_uri()
         d.addCallback(_stash_lit_uri)
@@ -70,7 +71,7 @@ class Check(GridTestMixin, CLITestMixin, unittest.TestCase):
             self.failUnlessReallyEqual(data["results"]["healthy"], True)
         d.addCallback(_check_lit_raw)
 
-        d.addCallback(lambda ign: c0.create_immutable_dirnode({}, convergence=""))
+        d.addCallback(lambda ign: self.g.clients[0].create_immutable_dirnode({}, convergence=""))
         def _stash_lit_dir_uri(n):
             self.lit_dir_uri = n.get_uri()
         d.addCallback(_stash_lit_dir_uri)

@@ -9,9 +9,9 @@ from allmydata.interfaces import IDirectoryNode
 from allmydata.util.assertutil import precondition
 
 from allmydata.util import fake_inotify, fileutil
-from allmydata.util.encodingutil import get_filesystem_encoding, to_filepath
+from allmydata.util.encodingutil import to_filepath
 from allmydata.util.consumer import download_to_data
-from allmydata.test.no_network import GridTestMixin
+from allmydata.test.no_network import GridTestMixin, grid_ready
 from allmydata.test.common_util import ReallyEqualMixin
 from allmydata.test.common import ShouldFailMixin
 from .cli.test_magic_folder import MagicFolderCLITestMixin

@@ -5,7 +5,6 @@ import re
 
 from twisted.trial import unittest
 from twisted.python.monkey import MonkeyPatcher
-from twisted.internet import defer
 
 import __builtin__
 from allmydata.util import fileutil
