@@ -181,6 +181,9 @@ class _Config(object):
         self.nickname = nickname_utf8.decode("utf-8")
         assert type(self.nickname) is unicode
 
+    def validate(self, valid_config_sections):
+        configutil.validate_config(self._config_fname, self.config, valid_config_sections)
+
     def read_config(self):
 
         try:

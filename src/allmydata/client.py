@@ -153,21 +153,21 @@ class Terminator(service.Service):
         return service.Service.stopService(self)
 
 
-@defer.inlineCallbacks
+#@defer.inlineCallbacks
 def create_client(basedir=u"."):
     from allmydata.node import read_config
     config = read_config(basedir, u"client.port")
-    configutil.validate_config(config.config_fname, config, _valid_config_sections())
-    defer.returnValue(
-        Client(
+    config.validate(_valid_config_sections())
+    #defer.returnValue(
+    return _Client(
             config,
             basedir=basedir
         )
-    )
+    #)
 
 
 @implementer(IStatsProducer)
-class Client(node.Node, pollmixin.PollMixin):
+class _Client(node.Node, pollmixin.PollMixin):
 
     PORTNUMFILE = "client.port"
     STOREDIR = 'storage'
