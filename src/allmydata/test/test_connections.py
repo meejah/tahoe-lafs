@@ -12,7 +12,7 @@ from ..util import connection_status
 class FakeNode(Node):
     def __init__(self, config_str):
         from allmydata.node import config_from_string
-        self.config = config_from_string(config_str)
+        self.config = config_from_string(config_str, "fake.port")
         self.basedir = "BASEDIR"
         self._reveal_ip = True
         self.services = []

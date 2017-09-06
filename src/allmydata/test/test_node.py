@@ -257,7 +257,7 @@ class PortLocation(unittest.TestCase):
         n = EmptyNode()
         basedir = os.path.join("test_node/portlocation/%s/%s" % (tp, tl))
         fileutil.make_dirs(basedir)
-        n._portnumfile = os.path.join(basedir, "node.port")
+        config = n.config = read_config(basedir, "node.port")
         n._reveal_ip = True
 
         if exp in ("ERR1", "ERR2", "ERR3", "ERR4"):
@@ -286,7 +286,7 @@ class PortLocation(unittest.TestCase):
                     port, location = n.get_tub_portlocation(cfg_tubport,
                                                             cfg_location)
             try:
-                with open(n._portnumfile, "r") as f:
+                with open(config.portnum_fname, "r") as f:
                     saved_port = f.read().strip()
             except EnvironmentError:
                 saved_port = None
@@ -431,5 +431,5 @@ class IntroducerNotListening(unittest.TestCase):
         f.write("tub.port = disabled\n")
         f.write("tub.location = disabled\n")
         f.close()
-        e = self.assertRaises(ValueError, IntroducerNode, basedir)
+        e = self.assertRaises(ValueError, IntroducerNode, read_config(basedir, "introducer.port"), basedir)
         self.assertIn("we are Introducer, but tub is not listening", str(e))

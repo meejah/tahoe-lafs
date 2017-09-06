@@ -19,6 +19,7 @@ from allmydata.introducer.common import get_tubid_string_from_ann, \
 # test compatibility with old introducer .tac files
 from allmydata.introducer import IntroducerNode
 from allmydata.web import introweb
+from allmydata.node import read_config
 from allmydata.client import Client as TahoeClient
 from allmydata.util import pollmixin, keyutil, idlib, fileutil, iputil, yamlutil
 import allmydata.test.common_util as testutil
@@ -34,7 +35,7 @@ class Node(testutil.SignalMixin, testutil.ReallyEqualMixin, unittest.TestCase):
         public_fn = os.path.join(basedir, "introducer.furl")
         private_fn = os.path.join(basedir, "private", "introducer.furl")
 
-        q1 = IntroducerNode(basedir)
+        q1 = IntroducerNode(read_config(basedir, "introducer.port", is_introducer=True), basedir)
         del q1
         # new nodes create unguessable furls in private/introducer.furl
         ifurl = fileutil.read(private_fn)
@@ -48,13 +49,13 @@ class Node(testutil.SignalMixin, testutil.ReallyEqualMixin, unittest.TestCase):
 
         # if we see both files, throw an error
         self.failUnlessRaises(FurlFileConflictError,
-                              IntroducerNode, basedir)
+                              IntroducerNode, read_config(basedir, "client.port", is_introducer=True), basedir)
 
         # when we see only the public one, move it to private/ and use
         # the existing furl instead of creating a new one
         os.unlink(private_fn)
 
-        q2 = IntroducerNode(basedir)
+        q2 = IntroducerNode(read_config(basedir, "introducer.port", is_introducer=True), basedir)
         del q2
         self.failIf(os.path.exists(public_fn))
         ifurl2 = fileutil.read(private_fn)
@@ -68,7 +69,7 @@ class Node(testutil.SignalMixin, testutil.ReallyEqualMixin, unittest.TestCase):
                        "[node]\n" +
                        "web.port = tcp:0:interface=127.0.0.1\n" +
                        "web.static = relative\n")
-        c = IntroducerNode(basedir)
+        c = IntroducerNode(read_config(basedir, "introducer.port", is_introducer=True), basedir)
         w = c.getServiceNamed("webish")
         abs_basedir = fileutil.abspath_expanduser_unicode(basedir)
         expected = fileutil.abspath_expanduser_unicode(u"relative", abs_basedir)
@@ -740,7 +741,7 @@ class Announcements(unittest.TestCase):
         f.write("enabled = false\n")
         f.close()
 
-        c = TahoeClient(basedir)
+        c = TahoeClient(read_config(basedir, "client.port"), basedir)
         ic = c.introducer_clients[0]
         sk_s, vk_s = keyutil.make_keypair()
         sk, _ignored = keyutil.parse_privkey(sk_s)
@@ -808,7 +809,7 @@ class Announcements(unittest.TestCase):
         self.failUnlessEqual(announcements[pub2]["anonymous-storage-FURL"],
                              furl3)
 
-        c2 = TahoeClient(basedir)
+        c2 = TahoeClient(read_config(basedir, "client.port"), basedir)
         c2.introducer_clients[0]._load_announcements()
         yield flushEventualQueue()
         self.assertEqual(c2.storage_broker.get_all_serverids(),
@@ -829,7 +830,7 @@ class ClientSeqnums(unittest.TestCase):
         f.write("enabled = false\n")
         f.close()
 
-        c = TahoeClient(basedir)
+        c = TahoeClient(read_config(basedir, "client.port"), basedir)
         ic = c.introducer_clients[0]
         outbound = ic._outbound_announcements
         published = ic._published_announcements

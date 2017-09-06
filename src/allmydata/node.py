@@ -108,11 +108,13 @@ class PrivacyError(Exception):
     that the IP address could be revealed"""
 
 
-def read_config(basedir, portnumfile):
+def read_config(basedir, portnumfile, is_introducer=False, _valid_config_sections=None):
     basedir = abspath_expanduser_unicode(unicode(basedir))
+    if _valid_config_sections is None:
+        _valid_config_sections = _common_config_sections
 
     # complain if there's bad stuff in the config dir
-    _error_about_old_config_files(basedir)
+    _error_about_old_config_files(basedir, is_introducer)
 
     # canonicalize the portnum file
     portnumfile = os.path.join(basedir, portnumfile)
@@ -125,6 +127,7 @@ def read_config(basedir, portnumfile):
     except EnvironmentError:
         if os.path.exists(config_fname):
             raise
+        configutil.validate_config(config_fname, parser, _valid_config_sections())
     return _Config(parser, portnumfile, config_fname)
 
 
@@ -134,20 +137,22 @@ def config_from_string(config_str, portnumfile):
     return _Config(parser, portnumfile, '<in-memory>')
 
 
-def _error_about_old_config_files(basedir):
+def _error_about_old_config_files(basedir, is_introducer):
     """
     If any old configuration files are detected, raise
     OldConfigError.
     """
-
     oldfnames = set()
-    for name in [
+    old_names = [
         'nickname', 'webport', 'keepalive_timeout', 'log_gatherer.furl',
-        'disconnect_timeout', 'advertised_ip_addresses', # 'introducer.furl',
+        'disconnect_timeout', 'advertised_ip_addresses', 'introducer.furl',
         'helper.furl', 'key_generator.furl', 'stats_gatherer.furl',
         'no_storage', 'readonly_storage', 'sizelimit',
-        'debug_discard_storage', 'run_helper']:
-        # GENERATED_FILES only ever has nothing or 'introducer.furl' in it...
+        'debug_discard_storage', 'run_helper'
+    ]
+    if is_introducer:
+        old_names.remove('introducer.furl')
+    for name in old_names:
         fullfname = os.path.join(basedir, name)
         if os.path.exists(fullfname):
             oldfnames.add(fullfname)
