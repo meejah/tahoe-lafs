@@ -7,7 +7,7 @@ import allmydata
 import allmydata.frontends.magic_folder
 import allmydata.util.log
 
-from allmydata.node import Node, OldConfigError, OldConfigOptionError, MissingConfigEntry, UnescapedHashError, _Config, read_config
+from allmydata.node import OldConfigError, OldConfigOptionError, MissingConfigEntry, UnescapedHashError, _Config, read_config
 from allmydata.frontends.auth import NeedRootcapLookupScheme
 from allmydata import client
 from allmydata.storage_client import StorageFarmBroker

@@ -5,7 +5,7 @@ from twisted.application import service
 from foolscap.api import Referenceable
 import allmydata
 from allmydata import node
-from allmydata.util import log, rrefutil, configutil
+from allmydata.util import log, rrefutil
 from allmydata.util.fileutil import abspath_expanduser_unicode
 from allmydata.introducer.interfaces import \
      RIIntroducerPublisherAndSubscriberService_v2

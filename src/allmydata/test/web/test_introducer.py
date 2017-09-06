@@ -1,7 +1,5 @@
-import os.path
 from twisted.trial import unittest
 from foolscap.api import fireEventually, flushEventualQueue
-from allmydata.util import fileutil
 from twisted.internet import defer
 from allmydata.introducer import IntroducerNode
 from .common import FAVICON_MARKUP

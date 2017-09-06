@@ -1,10 +1,8 @@
 import os
 import mock
-from io import BytesIO
 from twisted.trial import unittest
 from twisted.internet import reactor, endpoints, defer
 from twisted.internet.interfaces import IStreamClientEndpoint
-from ConfigParser import SafeConfigParser
 from foolscap.connections import tcp
 from ..node import Node, PrivacyError
 from ..util import connection_status
