@@ -128,10 +128,10 @@ def read_config(basedir, portnumfile):
     return _Config(parser, portnumfile, config_fname)
 
 
-def config_from_string(config_str):
+def config_from_string(config_str, portnumfile):
     parser = ConfigParser.SafeConfigParser()
     parser.readfp(BytesIO(config_str))
-    return _Config(parser, None, '<in-memory>')
+    return _Config(parser, portnumfile, '<in-memory>')
 
 
 def _error_about_old_config_files(basedir):
@@ -165,9 +165,9 @@ class _Config(object):
     as a helper instead.
     """
 
-    def __init__(self, configparser, portnumfile, config_fname):
+    def __init__(self, configparser, portnum_fname, config_fname):
         # XXX I think this portnumfile thing is just legacy?
-        self._portnumfile = portnumfile
+        self.portnum_fname = portnum_fname
         self._config_fname = config_fname
 
         self.config = configparser
@@ -204,6 +204,18 @@ class _Config(object):
                     )
                 )
             return default
+
+    @staticmethod
+    def _contains_unescaped_hash(item):
+        characters = iter(item)
+        for c in characters:
+            if c == '\\':
+                characters.next()
+            elif c == '#':
+                return True
+
+        return False
+
 
 
 class Node(service.MultiService):
@@ -255,17 +267,6 @@ class Node(service.MultiService):
         # which is frequently too small.
         test_name = tempfile.mktemp()
         _assert(os.path.dirname(test_name) == tempdir, test_name, tempdir)
-
-    @staticmethod
-    def _contains_unescaped_hash(item):
-        characters = iter(item)
-        for c in characters:
-            if c == '\\':
-                characters.next()
-            elif c == '#':
-                return True
-
-        return False
 
     def check_privacy(self):
         self._reveal_ip = self.config.get_config("node", "reveal-IP-address", True,
@@ -391,12 +392,12 @@ class Node(service.MultiService):
             # For 'tub.port', tahoe.cfg overrides the individual file on
             # disk. So only read self._portnumfile if tahoe.cfg doesn't
             # provide a value.
-            if os.path.exists(self._portnumfile):
-                file_tubport = fileutil.read(self._portnumfile).strip()
+            if os.path.exists(self.config.portnum_fname):
+                file_tubport = fileutil.read(self.config.portnum_fname).strip()
                 tubport = self._convert_tub_port(file_tubport)
             else:
                 tubport = "tcp:%d" % iputil.allocate_tcp_port()
-                fileutil.write_atomically(self._portnumfile, tubport + "\n",
+                fileutil.write_atomically(self.config.portnum_fname, tubport + "\n",
                                           mode="")
         else:
             tubport = self._convert_tub_port(cfg_tubport)
