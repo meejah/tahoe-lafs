@@ -24,8 +24,8 @@ class IntroducerNode(node.Node):
     NODETYPE = "introducer"
     GENERATED_FILES = ['introducer.furl']
 
-    def __init__(self, basedir=u"."):
-        node.Node.__init__(self, basedir)
+    def __init__(self, config, basedir=u"."):
+        node.Node.__init__(self, config, basedir=basedir)
         configutil.validate_config(self.config_fname, self.config, _valid_config_sections())
         self.init_introducer()
         webport = self.get_config("node", "web.port", None)

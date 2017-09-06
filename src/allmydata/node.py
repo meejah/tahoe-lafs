@@ -1,4 +1,5 @@
 import datetime, os.path, re, types, ConfigParser, tempfile
+from io import BytesIO
 from base64 import b32decode, b32encode
 
 from twisted.internet import reactor
@@ -106,28 +107,124 @@ class PrivacyError(Exception):
     """reveal-IP-address = false, but the node is configured in such a way
     that the IP address could be revealed"""
 
+
+def read_config(basedir, portnumfile):
+    basedir = abspath_expanduser_unicode(unicode(basedir))
+
+    # complain if there's bad stuff in the config dir
+    _error_about_old_config_files(basedir)
+
+    # canonicalize the portnum file
+    portnumfile = os.path.join(basedir, portnumfile)
+
+    # (try to) read the main config file
+    config_fname = os.path.join(basedir, "tahoe.cfg")
+    parser = ConfigParser.SafeConfigParser()
+    try:
+        parser = configutil.get_config(config_fname)
+    except EnvironmentError:
+        if os.path.exists(config_fname):
+            raise
+    return _Config(parser, portnumfile, config_fname)
+
+
+def config_from_string(config_str):
+    parser = ConfigParser.SafeConfigParser()
+    parser.readfp(BytesIO(config_str))
+    return _Config(parser, None, '<in-memory>')
+
+
+def _error_about_old_config_files(basedir):
+    """
+    If any old configuration files are detected, raise
+    OldConfigError.
+    """
+
+    oldfnames = set()
+    for name in [
+        'nickname', 'webport', 'keepalive_timeout', 'log_gatherer.furl',
+        'disconnect_timeout', 'advertised_ip_addresses', # 'introducer.furl',
+        'helper.furl', 'key_generator.furl', 'stats_gatherer.furl',
+        'no_storage', 'readonly_storage', 'sizelimit',
+        'debug_discard_storage', 'run_helper']:
+        # GENERATED_FILES only ever has nothing or 'introducer.furl' in it...
+        fullfname = os.path.join(basedir, name)
+        if os.path.exists(fullfname):
+            oldfnames.add(fullfname)
+    if oldfnames:
+        e = OldConfigError(oldfnames)
+        twlog.msg(e)
+        raise e
+
+
+class _Config(object):
+    """
+    FIXME better name
+
+    pulling out all the 'config' stuff from Node, so we can pass it in
+    as a helper instead.
+    """
+
+    def __init__(self, configparser, portnumfile, config_fname):
+        # XXX I think this portnumfile thing is just legacy?
+        self._portnumfile = portnumfile
+        self._config_fname = config_fname
+
+        self.config = configparser
+
+        nickname_utf8 = self.get_config("node", "nickname", "<unspecified>")
+        self.nickname = nickname_utf8.decode("utf-8")
+        assert type(self.nickname) is unicode
+
+    def read_config(self):
+
+        try:
+            self.config = configutil.get_config(self.config_fname)
+        except EnvironmentError:
+            if os.path.exists(self.config_fname):
+                raise
+
+    def get_config(self, section, option, default=_None, boolean=False):
+        try:
+            if boolean:
+                return self.config.getboolean(section, option)
+
+            item = self.config.get(section, option)
+            if option.endswith(".furl") and self._contains_unescaped_hash(item):
+                raise UnescapedHashError(section, option, item)
+
+            return item
+        except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
+            if default is _None:
+                raise MissingConfigEntry(
+                    "{} is missing the [{}]{} entry".format(
+                        quote_output(self._config_fname),
+                        section,
+                        option,
+                    )
+                )
+            return default
+
+
 class Node(service.MultiService):
     # this implements common functionality of both Client nodes and Introducer
     # nodes.
     NODETYPE = "unknown NODETYPE"
-    PORTNUMFILE = None
     CERTFILE = "node.pem"
     GENERATED_FILES = []
 
-    def __init__(self, basedir=u"."):
+    def __init__(self, config, basedir=u"."):
         service.MultiService.__init__(self)
+        # ideally, this would only be in _Config (or otherwise abstracted)
         self.basedir = abspath_expanduser_unicode(unicode(basedir))
-        self.config_fname = os.path.join(self.basedir, "tahoe.cfg")
-        self._portnumfile = os.path.join(self.basedir, self.PORTNUMFILE)
+        # XXX don't write files in ctor!
         fileutil.make_dirs(os.path.join(self.basedir, "private"), 0700)
         with open(os.path.join(self.basedir, "private", "README"), "w") as f:
             f.write(PRIV_README)
 
-        # creates self.config
-        self.read_config()
-        nickname_utf8 = self.get_config("node", "nickname", "<unspecified>")
-        self.nickname = nickname_utf8.decode("utf-8")
-        assert type(self.nickname) is unicode
+        self.config = config
+        self.get_config = config.get_config # XXX stopgap
+        self.nickname = config.nickname # XXX stopgap
 
         self.init_tempdir()
         self.check_privacy()
@@ -147,7 +244,7 @@ class Node(service.MultiService):
         iputil.increase_rlimits()
 
     def init_tempdir(self):
-        tempdir_config = self.get_config("node", "tempdir", "tmp").decode('utf-8')
+        tempdir_config = self.config.get_config("node", "tempdir", "tmp").decode('utf-8')
         tempdir = abspath_expanduser_unicode(tempdir_config, base=self.basedir)
         if not os.path.exists(tempdir):
             fileutil.make_dirs(tempdir)
@@ -170,62 +267,16 @@ class Node(service.MultiService):
 
         return False
 
-    def get_config(self, section, option, default=_None, boolean=False):
-        try:
-            if boolean:
-                return self.config.getboolean(section, option)
-
-            item = self.config.get(section, option)
-            if option.endswith(".furl") and self._contains_unescaped_hash(item):
-                raise UnescapedHashError(section, option, item)
-
-            return item
-        except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
-            if default is _None:
-                fn = os.path.join(self.basedir, u"tahoe.cfg")
-                raise MissingConfigEntry("%s is missing the [%s]%s entry"
-                                         % (quote_output(fn), section, option))
-            return default
-
-    def read_config(self):
-        self.error_about_old_config_files()
-        self.config = ConfigParser.SafeConfigParser()
-
-        try:
-            self.config = configutil.get_config(self.config_fname)
-        except EnvironmentError:
-            if os.path.exists(self.config_fname):
-                raise
-
-    def error_about_old_config_files(self):
-        """ If any old configuration files are detected, raise OldConfigError. """
-
-        oldfnames = set()
-        for name in [
-            'nickname', 'webport', 'keepalive_timeout', 'log_gatherer.furl',
-            'disconnect_timeout', 'advertised_ip_addresses', 'introducer.furl',
-            'helper.furl', 'key_generator.furl', 'stats_gatherer.furl',
-            'no_storage', 'readonly_storage', 'sizelimit',
-            'debug_discard_storage', 'run_helper']:
-            if name not in self.GENERATED_FILES:
-                fullfname = os.path.join(self.basedir, name)
-                if os.path.exists(fullfname):
-                    oldfnames.add(fullfname)
-        if oldfnames:
-            e = OldConfigError(oldfnames)
-            twlog.msg(e)
-            raise e
-
     def check_privacy(self):
-        self._reveal_ip = self.get_config("node", "reveal-IP-address", True,
+        self._reveal_ip = self.config.get_config("node", "reveal-IP-address", True,
                                           boolean=True)
     def create_i2p_provider(self):
-        self._i2p_provider = i2p_provider.Provider(self.basedir, self, reactor)
+        self._i2p_provider = i2p_provider.Provider(self.basedir, self.config, reactor)
         self._i2p_provider.check_dest_config()
         self._i2p_provider.setServiceParent(self)
 
     def create_tor_provider(self):
-        self._tor_provider = tor_provider.Provider(self.basedir, self, reactor)
+        self._tor_provider = tor_provider.Provider(self.basedir, self.config, reactor)
         self._tor_provider.check_onion_config()
         self._tor_provider.setServiceParent(self)
 
@@ -254,7 +305,7 @@ class Node(service.MultiService):
 
         # then we remember the default mappings from tahoe.cfg
         self._default_connection_handlers = {"tor": "tor", "i2p": "i2p"}
-        tcp_handler_name = self.get_config("connections", "tcp", "tcp").lower()
+        tcp_handler_name = self.config.get_config("connections", "tcp", "tcp").lower()
         if tcp_handler_name == "disabled":
             self._default_connection_handlers["tcp"] = None
         else:
@@ -282,10 +333,10 @@ class Node(service.MultiService):
             }
 
         # see #521 for a discussion of how to pick these timeout values.
-        keepalive_timeout_s = self.get_config("node", "timeout.keepalive", "")
+        keepalive_timeout_s = self.config.get_config("node", "timeout.keepalive", "")
         if keepalive_timeout_s:
             self.tub_options["keepaliveTimeout"] = int(keepalive_timeout_s)
-        disconnect_timeout_s = self.get_config("node", "timeout.disconnect", "")
+        disconnect_timeout_s = self.config.get_config("node", "timeout.disconnect", "")
         if disconnect_timeout_s:
             # N.B.: this is in seconds, so use "1800" to get 30min
             self.tub_options["disconnectTimeout"] = int(disconnect_timeout_s)
@@ -392,8 +443,8 @@ class Node(service.MultiService):
         self.nodeid = b32decode(self.tub.tubID.upper()) # binary format
         self.write_config("my_nodeid", b32encode(self.nodeid).lower() + "\n")
         self.short_nodeid = b32encode(self.nodeid).lower()[:8] # for printing
-        cfg_tubport = self.get_config("node", "tub.port", None)
-        cfg_location = self.get_config("node", "tub.location", None)
+        cfg_tubport = self.config.get_config("node", "tub.port", None)
+        cfg_location = self.config.get_config("node", "tub.location", None)
         portlocation = self.get_tub_portlocation(cfg_tubport, cfg_location)
         if portlocation:
             tubport, location = portlocation
@@ -562,7 +613,7 @@ class Node(service.MultiService):
         if os.path.exists(lgfurl_file):
             os.remove(lgfurl_file)
         self.log_tub.setOption("logport-furlfile", lgfurl_file)
-        lgfurl = self.get_config("node", "log_gatherer.furl", "")
+        lgfurl = self.config.get_config("node", "log_gatherer.furl", "")
         if lgfurl:
             # this is in addition to the contents of log-gatherer-furlfile
             self.log_tub.setOption("log-gatherer-furl", lgfurl)

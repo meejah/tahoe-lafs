@@ -11,10 +11,10 @@ from ..util import connection_status
 
 class FakeNode(Node):
     def __init__(self, config_str):
-        self.config = SafeConfigParser()
-        self.config.readfp(BytesIO(config_str))
-        self._reveal_ip = True
+        from allmydata.node import config_from_string
+        self.config = config_from_string(config_str)
         self.basedir = "BASEDIR"
+        self._reveal_ip = True
         self.services = []
         self.create_i2p_provider()
         self.create_tor_provider()
