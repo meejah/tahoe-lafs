@@ -9,7 +9,7 @@ from foolscap.api import flushEventualQueue
 import foolscap.logging.log
 
 from twisted.application import service
-from allmydata.node import Node, formatTimeTahoeStyle, MissingConfigEntry
+from allmydata.node import Node, formatTimeTahoeStyle, MissingConfigEntry, read_config, config_from_string
 from allmydata.introducer.server import IntroducerNode
 from allmydata.client import Client
 from allmydata.util import fileutil, iputil
@@ -23,7 +23,11 @@ class LoggingMultiService(service.MultiService):
 
 class TestNode(Node):
     CERTFILE='DEFAULT_CERTFILE_BLANK'
-    PORTNUMFILE='DEFAULT_PORTNUMFILE_BLANK'
+
+    def __init__(self, basedir):
+        config = read_config(basedir, 'DEFAULT_PORTNUMFILE_BLANK')
+        Node.__init__(self, config, basedir)
+
 
 class TestCase(testutil.SignalMixin, unittest.TestCase):
 
@@ -198,7 +202,8 @@ class TestCase(testutil.SignalMixin, unittest.TestCase):
 
 class EmptyNode(Node):
     def __init__(self):
-        pass
+        config = config_from_string("", "no portfile")
+        Node.__init__(self, config, 'no basedir')
 
 EXPECTED = {
     # top-level key is tub.port category
@@ -367,7 +372,8 @@ class MultiplePorts(unittest.TestCase):
             f.write("tub.location = %s\n" % location)
         # we're doing a lot of calling-into-setup-methods here, it might be
         # better to just create a real Node instance, I'm not sure.
-        n.read_config()
+        n.config = read_config(n.basedir, "client.port")
+#        n.read_config()
         n.check_privacy()
         n.services = []
         n.create_i2p_provider()
@@ -390,7 +396,7 @@ class ClientNotListening(unittest.TestCase):
         f.write(NOLISTEN)
         f.write(DISABLE_STORAGE)
         f.close()
-        n = Client(basedir)
+        n = Client(read_config(basedir, 'client.port'), basedir)
         self.assertEqual(n.tub.getListeners(), [])
 
     def test_disabled_but_storage(self):
@@ -401,7 +407,7 @@ class ClientNotListening(unittest.TestCase):
         f.write(NOLISTEN)
         f.write(ENABLE_STORAGE)
         f.close()
-        e = self.assertRaises(ValueError, Client, basedir)
+        e = self.assertRaises(ValueError, Client, read_config(basedir, "client.port"), basedir)
         self.assertIn("storage is enabled, but tub is not listening", str(e))
 
     def test_disabled_but_helper(self):
@@ -413,7 +419,7 @@ class ClientNotListening(unittest.TestCase):
         f.write(DISABLE_STORAGE)
         f.write(ENABLE_HELPER)
         f.close()
-        e = self.assertRaises(ValueError, Client, basedir)
+        e = self.assertRaises(ValueError, Client, read_config(basedir, "client.port"), basedir)
         self.assertIn("helper is enabled, but tub is not listening", str(e))
 
 class IntroducerNotListening(unittest.TestCase):
