@@ -242,7 +242,7 @@ class Basic(testutil.ReallyEqualMixin, unittest.TestCase):
                   "backend = cloud.s3\n" +
                   "s3.access_key_id = keyid\n" +
                   "s3.bucket = test\n" +
-                  "s3.key_prefix = foo\n"
+                  "s3.prefix = foo\n\n"
         )
         fileutil.write(os.path.join(basedir, "tahoe.cfg"), config)
 
