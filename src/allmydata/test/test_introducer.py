@@ -16,12 +16,9 @@ from allmydata.introducer.server import IntroducerService, FurlFileConflictError
 from allmydata.introducer.common import get_tubid_string_from_ann, \
      get_tubid_string, sign_to_foolscap, unsign_from_foolscap, \
      UnknownKeyError
-# test compatibility with old introducer .tac files
-from allmydata.introducer import IntroducerNode
 # the "new way" to create introducer node instance
 from allmydata.introducer.server import create_introducer
 from allmydata.web import introweb
-from allmydata.node import read_config
 from allmydata.client import create_client
 from allmydata.util import pollmixin, keyutil, idlib, fileutil, iputil, yamlutil
 import allmydata.test.common_util as testutil
@@ -31,6 +28,12 @@ class LoggingMultiService(service.MultiService):
         log.msg(msg, **kw)
 
 class Node(testutil.SignalMixin, testutil.ReallyEqualMixin, unittest.TestCase):
+
+    def test_backwards_compat_import(self):
+        # for old introducer .tac files
+        from allmydata.introducer import IntroducerNode
+        IntroducerNode  # pyflakes
+
     def test_furl(self):
         basedir = "introducer.IntroducerNode.test_furl"
         os.mkdir(basedir)

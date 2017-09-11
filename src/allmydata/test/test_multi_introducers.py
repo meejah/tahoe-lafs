@@ -5,7 +5,6 @@ from twisted.python.filepath import FilePath
 from twisted.trial import unittest
 from allmydata.util import yamlutil
 from allmydata.client import create_client
-from allmydata.node import read_config
 from allmydata.scripts.create_node import write_node_config
 
 INTRODUCERS_CFG_FURLS=['furl1', 'furl2']

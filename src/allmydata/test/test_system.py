@@ -6,7 +6,7 @@ from twisted.internet import defer
 from twisted.application import service
 
 import allmydata
-from allmydata import client, uri, node
+from allmydata import client, uri
 from allmydata.introducer.server import create_introducer
 from allmydata.storage.mutable import MutableShareFile
 from allmydata.storage.server import si_a2b
