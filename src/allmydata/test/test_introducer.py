@@ -18,6 +18,8 @@ from allmydata.introducer.common import get_tubid_string_from_ann, \
      UnknownKeyError
 # test compatibility with old introducer .tac files
 from allmydata.introducer import IntroducerNode
+# the "new way" to create introducer node instance
+from allmydata.introducer.server import create_introducer
 from allmydata.web import introweb
 from allmydata.node import read_config
 from allmydata.client import create_client
@@ -35,7 +37,7 @@ class Node(testutil.SignalMixin, testutil.ReallyEqualMixin, unittest.TestCase):
         public_fn = os.path.join(basedir, "introducer.furl")
         private_fn = os.path.join(basedir, "private", "introducer.furl")
 
-        q1 = IntroducerNode(read_config(basedir, "introducer.port", is_introducer=True), basedir)
+        q1 = create_introducer(basedir)
         del q1
         # new nodes create unguessable furls in private/introducer.furl
         ifurl = fileutil.read(private_fn)
@@ -49,13 +51,13 @@ class Node(testutil.SignalMixin, testutil.ReallyEqualMixin, unittest.TestCase):
 
         # if we see both files, throw an error
         self.failUnlessRaises(FurlFileConflictError,
-                              IntroducerNode, read_config(basedir, "client.port", is_introducer=True), basedir)
+                              create_introducer, basedir)
 
         # when we see only the public one, move it to private/ and use
         # the existing furl instead of creating a new one
         os.unlink(private_fn)
 
-        q2 = IntroducerNode(read_config(basedir, "introducer.port", is_introducer=True), basedir)
+        q2 = create_introducer(basedir)
         del q2
         self.failIf(os.path.exists(public_fn))
         ifurl2 = fileutil.read(private_fn)
@@ -69,7 +71,7 @@ class Node(testutil.SignalMixin, testutil.ReallyEqualMixin, unittest.TestCase):
                        "[node]\n" +
                        "web.port = tcp:0:interface=127.0.0.1\n" +
                        "web.static = relative\n")
-        c = IntroducerNode(read_config(basedir, "introducer.port", is_introducer=True), basedir)
+        c = create_introducer(basedir)
         w = c.getServiceNamed("webish")
         abs_basedir = fileutil.abspath_expanduser_unicode(basedir)
         expected = fileutil.abspath_expanduser_unicode(u"relative", abs_basedir)

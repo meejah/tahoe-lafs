@@ -22,7 +22,7 @@ class FurlFileConflictError(Exception):
 #@defer.inlineCallbacks
 def create_introducer(basedir=u"."):
     from allmydata.node import read_config
-    config = read_config(basedir, u"client.port", is_introducer=True)
+    config = read_config(basedir, u"client.port", generated_files=["introducer.furl"])
     config.validate(_valid_config_sections())
     #defer.returnValue(
     return _IntroducerNode(

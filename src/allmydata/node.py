@@ -108,15 +108,13 @@ class PrivacyError(Exception):
     that the IP address could be revealed"""
 
 
-# XXX could maybe get rid of is_introducer and use something like what
-# was here before ("GENERATED_FILES")
-def read_config(basedir, portnumfile, is_introducer=False, _valid_config_sections=None):
+def read_config(basedir, portnumfile, generated_files=[], _valid_config_sections=None):
     basedir = abspath_expanduser_unicode(unicode(basedir))
     if _valid_config_sections is None:
         _valid_config_sections = _common_config_sections
 
     # complain if there's bad stuff in the config dir
-    _error_about_old_config_files(basedir, is_introducer)
+    _error_about_old_config_files(basedir, generated_files)
 
     # canonicalize the portnum file
     portnumfile = os.path.join(basedir, portnumfile)
@@ -139,7 +137,7 @@ def config_from_string(config_str, portnumfile):
     return _Config(parser, portnumfile, '<in-memory>')
 
 
-def _error_about_old_config_files(basedir, is_introducer):
+def _error_about_old_config_files(basedir, generated_files):
     """
     If any old configuration files are detected, raise
     OldConfigError.
@@ -152,8 +150,8 @@ def _error_about_old_config_files(basedir, is_introducer):
         'no_storage', 'readonly_storage', 'sizelimit',
         'debug_discard_storage', 'run_helper'
     ]
-    if is_introducer:
-        old_names.remove('introducer.furl')
+    for fn in generated_files:
+        old_names.remove(fn)
     for name in old_names:
         fullfname = os.path.join(basedir, name)
         if os.path.exists(fullfname):
