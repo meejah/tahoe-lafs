@@ -11,7 +11,7 @@ import foolscap.logging.log
 from twisted.application import service
 from allmydata.node import Node, formatTimeTahoeStyle, MissingConfigEntry, read_config, config_from_string
 from allmydata.introducer.server import IntroducerNode
-from allmydata.client import Client
+from allmydata.client import create_client
 from allmydata.util import fileutil, iputil
 from allmydata.util.namespace import Namespace
 import allmydata.test.common_util as testutil
@@ -396,7 +396,7 @@ class ClientNotListening(unittest.TestCase):
         f.write(NOLISTEN)
         f.write(DISABLE_STORAGE)
         f.close()
-        n = Client(read_config(basedir, 'client.port'), basedir)
+        n = create_client(basedir)
         self.assertEqual(n.tub.getListeners(), [])
 
     def test_disabled_but_storage(self):
@@ -407,7 +407,7 @@ class ClientNotListening(unittest.TestCase):
         f.write(NOLISTEN)
         f.write(ENABLE_STORAGE)
         f.close()
-        e = self.assertRaises(ValueError, Client, read_config(basedir, "client.port"), basedir)
+        e = self.assertRaises(ValueError, create_client, basedir)
         self.assertIn("storage is enabled, but tub is not listening", str(e))
 
     def test_disabled_but_helper(self):
@@ -419,7 +419,7 @@ class ClientNotListening(unittest.TestCase):
         f.write(DISABLE_STORAGE)
         f.write(ENABLE_HELPER)
         f.close()
-        e = self.assertRaises(ValueError, Client, read_config(basedir, "client.port"), basedir)
+        e = self.assertRaises(ValueError, create_client, basedir)
         self.assertIn("helper is enabled, but tub is not listening", str(e))
 
 class IntroducerNotListening(unittest.TestCase):

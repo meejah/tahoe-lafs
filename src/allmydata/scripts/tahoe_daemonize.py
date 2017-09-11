@@ -85,7 +85,7 @@ class DaemonizeTheRealService(Service):
 
         def start():
             node_to_instance = {
-                u"client": lambda: namedAny("allmydata.client.Client")(read_config(self.basedir, "client.port"), self.basedir),
+                u"client": lambda: namedAny("allmydata.client.create_client")(self.basedir),
                 u"introducer": lambda: namedAny("allmydata.introducer.server.IntroducerNode")(read_config(self.basedir, "introducer.port"), self.basedir),
                 u"stats-gatherer": lambda: namedAny("allmydata.stats.StatsGathererService")(read_config(self.basedir, None), self.basedir, verbose=True),
                 u"key-generator": key_generator_removed,

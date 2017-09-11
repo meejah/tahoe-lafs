@@ -26,7 +26,7 @@ import treq
 from allmydata.util.assertutil import _assert
 
 from allmydata import uri as tahoe_uri
-from allmydata.client import Client
+from allmydata.client import _Client
 from allmydata.storage.server import StorageServer, storage_index_to_dir
 from allmydata.util import fileutil, idlib, hashutil
 from allmydata.util.hashutil import permute_server_hash
@@ -192,7 +192,7 @@ def NoNetworkClient(basedir):
     return _NoNetworkClient(config, basedir=basedir)
 
 
-class _NoNetworkClient(Client):
+class _NoNetworkClient(_Client):
 
     def init_connections(self):
         pass

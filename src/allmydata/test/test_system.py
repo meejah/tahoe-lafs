@@ -520,7 +520,7 @@ class SystemTestMixin(pollmixin.PollMixin, testutil.StallMixin):
 
         # start clients[0], wait for it's tub to be ready (at which point it
         # will have registered the helper furl).
-        c = self.add_service(client.Client(node.read_config(basedirs[0], "client.port"), basedir=basedirs[0]))
+        c = self.add_service(client.create_client(basedirs[0]))
         self.clients.append(c)
         c.set_default_mutable_keysize(TEST_RSA_KEY_SIZE)
 
@@ -537,7 +537,7 @@ class SystemTestMixin(pollmixin.PollMixin, testutil.StallMixin):
 
         # this starts the rest of the clients
         for i in range(1, self.numclients):
-            c = self.add_service(client.Client(node.read_config(basedirs[i], "client.port"), basedir=basedirs[i]))
+            c = self.add_service(client.create_client(basedirs[i]))
             self.clients.append(c)
             c.set_default_mutable_keysize(TEST_RSA_KEY_SIZE)
         log.msg("STARTING")
@@ -569,7 +569,7 @@ class SystemTestMixin(pollmixin.PollMixin, testutil.StallMixin):
         # better than blindly waiting for a second.
         d.addCallback(self.stall, 1.0)
         def _stopped(res):
-            new_c = client.Client(node.read_config(self.getdir("client%d" % num), "client.port"), basedir=self.getdir("client%d" % num))
+            new_c = client.create_client(self.getdir("client%d" % num))
             self.clients[num] = new_c
             new_c.set_default_mutable_keysize(TEST_RSA_KEY_SIZE)
             self.add_service(new_c)
@@ -596,7 +596,7 @@ class SystemTestMixin(pollmixin.PollMixin, testutil.StallMixin):
             config += "helper.furl = %s\n" % helper_furl
         fileutil.write(os.path.join(basedir, 'tahoe.cfg'), config)
 
-        c = client.Client(node.read_config(basedir, "client.port"), basedir=basedir)
+        c = client.create_client(basedir)
         self.clients.append(c)
         c.set_default_mutable_keysize(TEST_RSA_KEY_SIZE)
         self.numclients += 1

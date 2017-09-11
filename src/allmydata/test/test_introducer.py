@@ -20,7 +20,7 @@ from allmydata.introducer.common import get_tubid_string_from_ann, \
 from allmydata.introducer import IntroducerNode
 from allmydata.web import introweb
 from allmydata.node import read_config
-from allmydata.client import Client as TahoeClient
+from allmydata.client import create_client
 from allmydata.util import pollmixin, keyutil, idlib, fileutil, iputil, yamlutil
 import allmydata.test.common_util as testutil
 
@@ -741,7 +741,7 @@ class Announcements(unittest.TestCase):
         f.write("enabled = false\n")
         f.close()
 
-        c = TahoeClient(read_config(basedir, "client.port"), basedir)
+        c = create_client(basedir)
         ic = c.introducer_clients[0]
         sk_s, vk_s = keyutil.make_keypair()
         sk, _ignored = keyutil.parse_privkey(sk_s)
@@ -809,7 +809,7 @@ class Announcements(unittest.TestCase):
         self.failUnlessEqual(announcements[pub2]["anonymous-storage-FURL"],
                              furl3)
 
-        c2 = TahoeClient(read_config(basedir, "client.port"), basedir)
+        c2 = create_client(basedir)
         c2.introducer_clients[0]._load_announcements()
         yield flushEventualQueue()
         self.assertEqual(c2.storage_broker.get_all_serverids(),
@@ -830,7 +830,7 @@ class ClientSeqnums(unittest.TestCase):
         f.write("enabled = false\n")
         f.close()
 
-        c = TahoeClient(read_config(basedir, "client.port"), basedir)
+        c = create_client(basedir)
         ic = c.introducer_clients[0]
         outbound = ic._outbound_announcements
         published = ic._published_announcements
