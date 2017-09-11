@@ -169,7 +169,6 @@ def create_client(basedir=u"."):
 @implementer(IStatsProducer)
 class _Client(node.Node, pollmixin.PollMixin):
 
-    PORTNUMFILE = "client.port"
     STOREDIR = 'storage'
     NODETYPE = "client"
     EXIT_TRIGGER_FILE = "exit_trigger"

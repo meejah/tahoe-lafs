@@ -10,7 +10,7 @@ import foolscap.logging.log
 
 from twisted.application import service
 from allmydata.node import Node, formatTimeTahoeStyle, MissingConfigEntry, read_config, config_from_string
-from allmydata.introducer.server import IntroducerNode
+from allmydata.introducer.server import create_introducer
 from allmydata.client import create_client
 from allmydata.util import fileutil, iputil
 from allmydata.util.namespace import Namespace
@@ -431,5 +431,5 @@ class IntroducerNotListening(unittest.TestCase):
         f.write("tub.port = disabled\n")
         f.write("tub.location = disabled\n")
         f.close()
-        e = self.assertRaises(ValueError, IntroducerNode, read_config(basedir, "introducer.port"), basedir)
+        e = self.assertRaises(ValueError, create_introducer, basedir)
         self.assertIn("we are Introducer, but tub is not listening", str(e))

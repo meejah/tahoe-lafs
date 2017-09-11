@@ -108,6 +108,8 @@ class PrivacyError(Exception):
     that the IP address could be revealed"""
 
 
+# XXX could maybe get rid of is_introducer and use something like what
+# was here before ("GENERATED_FILES")
 def read_config(basedir, portnumfile, is_introducer=False, _valid_config_sections=None):
     basedir = abspath_expanduser_unicode(unicode(basedir))
     if _valid_config_sections is None:

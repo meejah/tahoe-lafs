@@ -7,7 +7,7 @@ from twisted.application import service
 
 import allmydata
 from allmydata import client, uri, node
-from allmydata.introducer.server import IntroducerNode
+from allmydata.introducer.server import create_introducer
 from allmydata.storage.mutable import MutableShareFile
 from allmydata.storage.server import si_a2b
 from allmydata.immutable import offloaded, upload
@@ -423,7 +423,7 @@ class SystemTestMixin(pollmixin.PollMixin, testutil.StallMixin):
                 f = open(os.path.join(iv_dir, "private", "node.pem"), "w")
                 f.write(SYSTEM_TEST_CERTS[0])
                 f.close()
-        iv = IntroducerNode(node.read_config(iv_dir, "introducer.port"), basedir=iv_dir)
+        iv = create_introducer(basedir=iv_dir)
         self.introducer = self.add_service(iv)
         self._get_introducer_web()
         d = defer.succeed(None)
