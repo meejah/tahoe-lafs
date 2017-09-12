@@ -5208,7 +5208,7 @@ class AccountingCrawlerTest(CrawlerTestMixin, WebRenderingMixin, ReallyEqualMixi
         """
         # Create the storage server detached from its parent so that the
         # crawler won't start before we're ready.
-        server = self.create("test_basic", detached=True)
+        server = self.create("test_lost_leasedb", detached=True)
 
         # Disable share expiration since it's not relevant to what's being
         # tested here and it could only complicate things.
