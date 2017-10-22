@@ -962,7 +962,9 @@ class Downloader(QueueMixin, WriteFileMixin):
         self._log("version %r" % (db_entry.version,))
         if db_entry.version < remote_version:
             return True
-        if db_entry.last_downloaded_uri != remote_uri:
+        if db_entry.last_downloaded_uri is None and remote_uri == "URI:LIT:":
+            pass
+        elif db_entry.last_downloaded_uri != remote_uri:
             return True
         return False
 
@@ -1124,7 +1126,8 @@ class Downloader(QueueMixin, WriteFileMixin):
         def do_update_db(written_abspath_u):
             filecap = item.file_node.get_uri()
             last_uploaded_uri = item.metadata.get('last_uploaded_uri', None)
-            self._log("DOUPDATEDB %r" % written_abspath_u)
+            if filecap == "URI:LIT:":
+                filecap = None  # ^ is an empty file
             last_downloaded_uri = filecap
             last_downloaded_timestamp = now
             written_pathinfo = get_pathinfo(written_abspath_u)
