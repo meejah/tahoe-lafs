@@ -1161,8 +1161,9 @@ class Downloader(QueueMixin, WriteFileMixin):
             if db_entry:
                 if dmd_last_downloaded_uri is not None and db_entry.last_downloaded_uri is not None:
                     if dmd_last_downloaded_uri != db_entry.last_downloaded_uri:
-                        is_conflict = True
-                        self._count('objects_conflicted')
+                        if dmd_last_downloaded_uri != "URI:LIT:":
+                            is_conflict = True
+                            self._count('objects_conflicted')
                 elif dmd_last_uploaded_uri is not None and dmd_last_uploaded_uri != db_entry.last_uploaded_uri:
                     is_conflict = True
                     self._count('objects_conflicted')

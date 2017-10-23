@@ -828,6 +828,8 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
             1
         )
         self.failUnless(os.path.exists(bob_fname))
+        self.failUnless(not os.path.exists(bob_fname + '.backup'))
+        self.failUnless(not os.path.exists(bob_fname + '.conflict'))
 
         # now alice deletes it (alice should upload, bob download)
         alice_proc = self.alice_magicfolder.uploader.set_hook('processed')
@@ -844,9 +846,12 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         yield self._check_version_in_local_db(self.bob_magicfolder, u"blam", 1)
         yield self._check_version_in_dmd(self.alice_magicfolder, u"blam", 1)
         yield self._check_version_in_local_db(self.alice_magicfolder, u"blam", 1)
-        self.failIf(os.path.exists(bob_fname))
+        self.assertFalse(os.path.exists(bob_fname))
+        self.assertTrue(os.path.exists(bob_fname + '.backup'))
+        self.assertFalse(os.path.exists(bob_fname + '.conflict'))
 
         # now alice restores the file (with new contents)
+        os.unlink(bob_fname + '.backup')
         alice_proc = self.alice_magicfolder.uploader.set_hook('processed')
         bob_proc = self.bob_magicfolder.downloader.set_hook('processed')
         yield self.alice_fileops.write(alice_fname, 'alice wuz here\n')
