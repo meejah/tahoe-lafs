@@ -28,7 +28,6 @@ from allmydata.util.encodingutil import listdir_filepath, to_filepath, \
 from allmydata.util.time_format import format_time
 from allmydata.immutable.upload import FileName, Data
 from allmydata import magicfolderdb, magicpath
-from allmydata import uri
 
 
 IN_EXCL_UNLINK = 0x04000000L
