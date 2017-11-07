@@ -10,7 +10,6 @@ import json
 from twisted.python import usage
 
 from allmydata.util.assertutil import precondition
-from allmydata.util import yamlutil
 
 from .common import BaseOptions, BasedirOptions, get_aliases
 from .cli import MakeDirectoryOptions, LnOptions, CreateAliasOptions
@@ -21,7 +20,7 @@ from allmydata.scripts.common_http import do_http, BadResponse
 from allmydata.util import fileutil
 from allmydata import uri
 from allmydata.util.abbreviate import abbreviate_space, abbreviate_time
-from allmydata.frontends.magic_folder import load_magic_folders, save_magic_folders
+from allmydata.frontends.magic_folder import load_magic_folders
 from allmydata.frontends.magic_folder import save_magic_folders
 from allmydata.frontends.magic_folder import maybe_upgrade_magic_folders
 
@@ -329,7 +328,7 @@ def leave(options):
         fileutil.remove(db_fname)
     except Exception as e:
         print >>options.stderr, ("Warning: unable to remove %s due to %s: %s"
-            % (quote_local_unicode_path(f), e.__class__.__name__, str(e)))
+            % (quote_local_unicode_path(db_fname), e.__class__.__name__, str(e)))
 
     # if this was the last magic-folder, disable them entirely
     if not existing_folders:
