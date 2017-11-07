@@ -399,7 +399,8 @@ class QueueMixin(HookMixin):
             except Exception as e:
                 log.err("processing '%r' failed: %s" % (item, e))
                 proc = Failure()
-            yield self._call_hook(proc, 'processed')
+
+            self._call_hook(proc, 'processed')
 
     def _get_relpath(self, filepath):
         self._log("_get_relpath(%r)" % (filepath,))
@@ -885,13 +886,10 @@ class WriteFileMixin(object):
 
 
 def _is_empty_filecap(client, cap):
-    print("IS EMPTY {} {}".format(type(cap), type(cap.encode('ascii'))))
-    assert hasattr(client, 'create_node_from_uri')
     node = client.create_node_from_uri(
         None,
         cap.encode('ascii'),
     )
-    print("NODE {}".format(node))
     return (not node.get_size())
 
 
