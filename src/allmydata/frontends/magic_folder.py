@@ -28,6 +28,8 @@ from allmydata.util.encodingutil import listdir_filepath, to_filepath, \
 from allmydata.util.time_format import format_time
 from allmydata.immutable.upload import FileName, Data
 from allmydata import magicfolderdb, magicpath
+from allmydata import uri
+
 
 IN_EXCL_UNLINK = 0x04000000L
 
@@ -396,8 +398,7 @@ class QueueMixin(HookMixin):
                 self._log("  done: %r" % proc)
             except Exception as e:
                 log.err("processing '%r' failed: %s" % (item, e))
-                proc = None  # actually in old _lazy_tail way, proc would be Failure
-            # XXX can we just get rid of the hooks now?
+                proc = Failure()
             yield self._call_hook(proc, 'processed')
 
     def _get_relpath(self, filepath):
@@ -883,6 +884,17 @@ class WriteFileMixin(object):
         return abspath_u
 
 
+def _is_empty_filecap(client, cap):
+    print("IS EMPTY {} {}".format(type(cap), type(cap.encode('ascii'))))
+    assert hasattr(client, 'create_node_from_uri')
+    node = client.create_node_from_uri(
+        None,
+        cap.encode('ascii'),
+    )
+    print("NODE {}".format(node))
+    return (not node.get_size())
+
+
 class DownloadItem(QueuedItem):
     """
     Represents a single item in the _deque of the Downloader
@@ -962,7 +974,7 @@ class Downloader(QueueMixin, WriteFileMixin):
         self._log("version %r" % (db_entry.version,))
         if db_entry.version < remote_version:
             return True
-        if db_entry.last_downloaded_uri is None and remote_uri == "URI:LIT:":
+        if db_entry.last_downloaded_uri is None and remote_uri == "URI:LIT:":#_is_empty_filecap(self._client, remote_uri):# == "URI:LIT:":
             pass
         elif db_entry.last_downloaded_uri != remote_uri:
             return True
@@ -1126,7 +1138,7 @@ class Downloader(QueueMixin, WriteFileMixin):
         def do_update_db(written_abspath_u):
             filecap = item.file_node.get_uri()
             last_uploaded_uri = item.metadata.get('last_uploaded_uri', None)
-            if filecap == "URI:LIT:":
+            if not item.file_node.get_size():
                 filecap = None  # ^ is an empty file
             last_downloaded_uri = filecap
             last_downloaded_timestamp = now
@@ -1161,7 +1173,7 @@ class Downloader(QueueMixin, WriteFileMixin):
             if db_entry:
                 if dmd_last_downloaded_uri is not None and db_entry.last_downloaded_uri is not None:
                     if dmd_last_downloaded_uri != db_entry.last_downloaded_uri:
-                        if dmd_last_downloaded_uri != "URI:LIT:":
+                        if not _is_empty_filecap(self._client, dmd_last_downloaded_uri):
                             is_conflict = True
                             self._count('objects_conflicted')
                 elif dmd_last_uploaded_uri is not None and dmd_last_uploaded_uri != db_entry.last_uploaded_uri:

@@ -54,6 +54,7 @@ class NodeMaker(object):
         assert isinstance(readcap,  (str, type(None))), type(readcap)
 
         bigcap = writecap or readcap
+#        print("hi {}".format(bigcap))
         if not bigcap:
             # maybe the writecap was hidden because we're in a readonly
             # directory, and the future cap format doesn't have a readcap, or
