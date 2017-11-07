@@ -59,7 +59,7 @@ class NewConfigUtilTests(unittest.TestCase):
         # ..and the yaml
         yaml_fname = join(self.basedir, u"private", u"magic_folders.yaml")
         with open(yaml_fname, "w") as f:
-            f.write(yamlutil.safe_dump(self.folders))
+            f.write(yamlutil.safe_dump({u"magic-folders": self.folders}))
 
     def test_load(self):
         folders = magic_folder.load_magic_folders(self.basedir)
@@ -80,7 +80,7 @@ class NewConfigUtilTests(unittest.TestCase):
     def test_wrong_sub_obj(self):
         yaml_fname = join(self.basedir, u"private", u"magic_folders.yaml")
         with open(yaml_fname, "w") as f:
-            f.write("default: foo\n")
+            f.write("magic-folders:\n  default:   foo\n")
 
         with self.assertRaises(Exception) as ctx:
             magic_folder.load_magic_folders(self.basedir)
@@ -93,7 +93,7 @@ class NewConfigUtilTests(unittest.TestCase):
         del self.folders[u"default"]["poll_interval"]
         yaml_fname = join(self.basedir, u"private", u"magic_folders.yaml")
         with open(yaml_fname, "w") as f:
-            f.write(yamlutil.safe_dump(self.folders))
+            f.write(yamlutil.safe_dump({u"magic-folders": self.folders}))
 
         with self.assertRaises(Exception) as ctx:
             magic_folder.load_magic_folders(self.basedir)
@@ -179,7 +179,7 @@ class LegacyConfigUtilTests(unittest.TestCase):
 
     def test_load_legacy_and_new(self):
         with open(join(self.basedir, u"private", u"magic_folders.yaml"), "w") as f:
-            f.write("{}")
+            f.write("---")
 
         with self.assertRaises(Exception) as ctx:
             magic_folder.load_magic_folders(self.basedir)
@@ -212,10 +212,9 @@ class LegacyConfigUtilTests(unittest.TestCase):
         self.assertFalse(config.has_option("magic_folder", "local.directory"))
 
     def test_load_legacy(self):
-        folders = magic_folder.load_magic_folders(self.basedir, can_upgrade=False)
+        folders = magic_folder.load_magic_folders(self.basedir)
 
         self.assertEqual(['default'], list(folders.keys()))
-        # we said can_upgrade=False so the 'legacy' files should still be there
         self.assertTrue(
             exists(join(self.basedir, "private", "collective_dircap"))
         )
@@ -227,7 +226,8 @@ class LegacyConfigUtilTests(unittest.TestCase):
         )
 
     def test_load_legacy_upgrade(self):
-        folders = magic_folder.load_magic_folders(self.basedir, can_upgrade=True)
+        magic_folder.maybe_upgrade_magic_folders(self.basedir)
+        folders = magic_folder.load_magic_folders(self.basedir)
 
         self.assertEqual(['default'], list(folders.keys()))
         # 'legacy' files should be gone

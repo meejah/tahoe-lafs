@@ -419,7 +419,7 @@ class CreateMagicFolder(MagicFolderCLITestMixin, unittest.TestCase):
         )
         self.assertEqual(rc, 1)
         self.assertIn(
-            "No such magic-folder 'foo'",
+            "No magic-folders at all",
             stderr,
         )
 

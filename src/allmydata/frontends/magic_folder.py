@@ -82,8 +82,7 @@ def _upgrade_magic_folder_config(basedir):
         source=os.path.join(basedir, "private", "magicfolderdb.sqlite"),
         dest=os.path.join(basedir, "private", "magicfolder_default.sqlite"),
     )
-    fname = os.path.join(basedir, "private", "magic_folders.yaml")
-    fileutil.write_atomically(fname, yamlutil.safe_dump(magic_folders))
+    save_magic_folders(basedir, magic_folders)
     config.remove_option("magic_folder", "local.directory")
     config.remove_option("magic_folder", "poll_interval")
     configutil.write_config(os.path.join(basedir, 'tahoe.cfg'), config)
@@ -91,10 +90,35 @@ def _upgrade_magic_folder_config(basedir):
     fileutil.remove_if_possible(upload_fname)
 
 
-def load_magic_folders(node_directory, can_upgrade=False):
+def maybe_upgrade_magic_folders(node_directory):
+    """
+    If the given node directory is not already using the new-style
+    magic-folder config it will be upgraded to do so. (This should
+    only be done if the user is running a command that needs to modify
+    the config)
+    """
+    yaml_fname = os.path.join(node_directory, u"private", u"magic_folders.yaml")
+    if os.path.exists(yaml_fname):
+        # already have new-style magic folders
+        return
+
+    config_fname = os.path.join(node_directory, "tahoe.cfg")
+    config = configutil.get_config(config_fname)
+
+    # we have no YAML config; if we have config in tahoe.cfg then we
+    # can upgrade it to the YAML-based configuration
+    if config.has_option("magic_folder", "local.directory"):
+        _upgrade_magic_folder_config(node_directory)
+
+
+def load_magic_folders(node_directory):
     """
     Loads existing magic-folder configuration and returns it as a dict
-    mapping name -> dict of config.
+    mapping name -> dict of config. This will NOT upgrade from
+    old-style to new-style config (but WILL read old-style config and
+    return in the same way as if it was new-style).
+
+    :returns: dict mapping magic-folder-name to its config (also a dict)
     """
     yaml_fname = os.path.join(node_directory, u"private", u"magic_folders.yaml")
     folders = dict()
@@ -107,44 +131,38 @@ def load_magic_folders(node_directory, can_upgrade=False):
         # config, but it won't have local.directory nor poll_interval
         # in it.
         if config.has_option("magic_folder", "local.directory"):
-            if can_upgrade:
-                _upgrade_magic_folder_config(node_directory)
-                # re-load config, since above changes it
-                config = configutil.get_config(config_fname)
-            else:
-                up_fname = os.path.join(node_directory, "private", "magic_folder_dircap")
-                coll_fname = os.path.join(node_directory, "private", "collective_dircap")
-                directory = config.get("magic_folder", "local.directory").decode('utf8')
-                try:
-                    interval = int(config.get("magic_folder", "poll_interval"))
-                except ConfigParser.NoOptionError:
-                    interval = 60
-                dir_fp = to_filepath(directory)
+            up_fname = os.path.join(node_directory, "private", "magic_folder_dircap")
+            coll_fname = os.path.join(node_directory, "private", "collective_dircap")
+            directory = config.get("magic_folder", "local.directory").decode('utf8')
+            try:
+                interval = int(config.get("magic_folder", "poll_interval"))
+            except ConfigParser.NoOptionError:
+                interval = 60
+            dir_fp = to_filepath(directory)
 
-                if not dir_fp.exists():
-                    raise Exception(
-                        "The '[magic_folder] local.directory' parameter is {} "
-                        "but there is no directory at that location.".format(
-                            quote_local_unicode_path(directory),
-                        )
+            if not dir_fp.exists():
+                raise Exception(
+                    "The '[magic_folder] local.directory' parameter is {} "
+                    "but there is no directory at that location.".format(
+                        quote_local_unicode_path(directory),
                     )
-                if not dir_fp.isdir():
-                    raise Exception(
-                        "The '[magic_folder] local.directory' parameter is {} "
-                        "but the thing at that location is not a directory.".format(
-                            quote_local_unicode_path(directory)
-                        )
+                )
+            if not dir_fp.isdir():
+                raise Exception(
+                    "The '[magic_folder] local.directory' parameter is {} "
+                    "but the thing at that location is not a directory.".format(
+                        quote_local_unicode_path(directory)
                     )
+                )
 
-                folders[u"default"] = {
-                    u"directory": directory,
-                    u"upload_dircap": fileutil.read(up_fname),
-                    u"collective_dircap": fileutil.read(coll_fname),
-                    u"poll_interval": interval,
-                }
+            folders[u"default"] = {
+                u"directory": directory,
+                u"upload_dircap": fileutil.read(up_fname),
+                u"collective_dircap": fileutil.read(coll_fname),
+                u"poll_interval": interval,
+            }
 
-    # not an "else" on purpose: we may have upgraded to yaml-config above
-    if os.path.exists(yaml_fname):
+    elif os.path.exists(yaml_fname):  # yaml config-file exists
         if config.has_option("magic_folder", "local.directory"):
             raise Exception(
                 "magic-folder config has both old-style configuration"
@@ -153,10 +171,20 @@ def load_magic_folders(node_directory, can_upgrade=False):
                 "'magic_folders.yaml' from {}".format(node_directory)
             )
         with open(yaml_fname, "r") as f:
-            folders = yamlutil.safe_load(f.read())
-            if not isinstance(folders, dict):
+            magic_folders = yamlutil.safe_load(f.read())
+            if not isinstance(magic_folders, dict):
                 raise Exception(
                     "'{}' should contain a dict".format(yaml_fname)
+                )
+            try:
+                folders = magic_folders['magic-folders']
+            except KeyError:
+                raise Exception(
+                    "'{}' doesn't contain 'magic-folders'".format(yaml_fname)
+                )
+            if not isinstance(folders, dict):
+                raise Exception(
+                    "'magic-folders' in '{}' should be a dict".format(yaml_fname)
                 )
     else:
         # without any YAML file AND no local.directory option it's
@@ -189,10 +217,12 @@ def load_magic_folders(node_directory, can_upgrade=False):
 
     return folders
 
+
 def save_magic_folders(node_directory, folders):
-    yaml_fname = os.path.join(node_directory, u"private", u"magic_folders.yaml")
-    with open(yaml_fname, "w") as f:
-        f.write(yamlutil.safe_dump(folders))
+    fileutil.write_atomically(
+        os.path.join(node_directory, u"private", u"magic_folders.yaml"),
+        yamlutil.safe_dump({u"magic-folders": folders}),
+    )
 
     config = configutil.get_config(os.path.join(node_directory, u"tahoe.cfg"))
     configutil.set_config(config, "magic_folder", "enabled", "True")

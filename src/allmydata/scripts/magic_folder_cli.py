@@ -22,6 +22,8 @@ from allmydata.util import fileutil
 from allmydata import uri
 from allmydata.util.abbreviate import abbreviate_space, abbreviate_time
 from allmydata.frontends.magic_folder import load_magic_folders, save_magic_folders
+from allmydata.frontends.magic_folder import save_magic_folders
+from allmydata.frontends.magic_folder import maybe_upgrade_magic_folders
 
 
 INVITE_SEPARATOR = "+"
@@ -80,7 +82,8 @@ def create(options):
     precondition(isinstance(options.local_dir, (unicode, NoneType)), local_dir=options.local_dir)
 
     # make sure we don't already have a magic-folder with this name before we create the alias
-    folders = load_magic_folders(options["node-directory"], can_upgrade=True)
+    maybe_upgrade_magic_folders(options["node-directory"])
+    folders = load_magic_folders(options["node-directory"])
     if options['name'] in folders:
         print >>options.stderr, "Already have a magic-folder named '{}'".format(options['name'])
         return 1
@@ -266,7 +269,8 @@ def join(options):
         raise usage.UsageError("Invalid invite code.")
     magic_readonly_cap, dmd_write_cap = fields
 
-    existing_folders = load_magic_folders(options["node-directory"], can_upgrade=True)
+    maybe_upgrade_magic_folders(options["node-directory"])
+    existing_folders = load_magic_folders(options["node-directory"])
 
     if options['name'] in existing_folders:
         print >>options.stderr, "This client already has a magic-folder named '{}'".format(options['name'])
@@ -303,15 +307,11 @@ class LeaveOptions(BasedirOptions):
 def leave(options):
     from ConfigParser import SafeConfigParser
 
-    yaml_fname = os.path.join(options["node-directory"], u"private", u"magic_folders.yaml")
+    existing_folders = load_magic_folders(options["node-directory"])
 
-    if os.path.exists(yaml_fname):
-        with open(yaml_fname, "r") as f:
-            existing_folders = yamlutil.safe_load(f.read())
-    else:
+    if not existing_folders:
         print >>options.stderr, "No magic-folders at all"
         return 1
-
 
     if options["name"] not in existing_folders:
         print >>options.stderr, "No such magic-folder '{}'".format(options["name"])
@@ -319,12 +319,10 @@ def leave(options):
 
     privdir = os.path.join(options["node-directory"], u"private")
     db_fname = os.path.join(privdir, u"magicfolder_{}.sqlite".format(options["name"]))
-    yaml_fname = os.path.join(privdir, u"magic_folders.yaml")
 
     # delete from YAML file and re-write it
     del existing_folders[options["name"]]
-    with open(yaml_fname, "w") as f:
-        f.write(yamlutil.safe_dump(existing_folders))
+    save_magic_folders(options["node-directory"], existing_folders)
 
     # delete the database file
     try:
@@ -431,12 +429,7 @@ def _print_item_status(item, now, longest):
 def status(options):
     nodedir = options["node-directory"]
     stdout, stderr = options.stdout, options.stderr
-    yaml_fname = os.path.join(options["node-directory"], u"private", u"magic_folders.yaml")
-    try:
-        with open(yaml_fname, "r") as f:
-            magic_folders = yamlutil.safe_load(f.read())
-    except EnvironmentError:
-        magic_folders = dict()
+    magic_folders = load_magic_folders(os.path.join(options["node-directory"]))
 
     with open(os.path.join(nodedir, u'private', u'api_auth_token'), 'rb') as f:
         token = f.read()
