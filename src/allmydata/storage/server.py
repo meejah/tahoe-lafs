@@ -2,8 +2,9 @@
 import os, re, weakref, struct, time
 
 from twisted.application import service
+from twisted.internet import defer
 
-from zope.interface import implements
+from zope.interface import implementer
 from allmydata.interfaces import IStatsProducer
 from allmydata.util import fileutil, idlib, log, time_format
 import allmydata # for __full_version__

@@ -4,6 +4,8 @@ from allmydata.scripts.common import get_alias, DEFAULT_ALIAS, escape_path, \
 import urllib
 
 def webopen(options, opener=None):
+    if not opener:
+        opener = options.parent.get('opener', None)
     nodeurl = options['node-url']
     stderr = options.stderr
     if not nodeurl.endswith("/"):
@@ -12,7 +14,7 @@ def webopen(options, opener=None):
     if where:
         try:
             rootcap, path = get_alias(options.aliases, where, DEFAULT_ALIAS)
-        except UnknownAliasError, e:
+        except UnknownAliasError as e:
             e.display(stderr)
             return 1
         if path == '/':

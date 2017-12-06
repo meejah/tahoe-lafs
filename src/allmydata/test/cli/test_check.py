@@ -1,6 +1,7 @@
 import os.path
 import json
 from twisted.trial import unittest
+from twisted.internet import defer
 from cStringIO import StringIO
 
 from allmydata import uri
@@ -19,9 +20,9 @@ class Check(GridTestMixin, CLITestMixin, unittest.TestCase):
     @grid_ready()
     def test_check(self):
         d = defer.succeed(None)
+        c0 = self.g.clients[0]
 
         def create_data(ign):
-            c0 = self.g.clients[0]
             DATA = "data" * 100
             DATA_uploadable = MutableData(DATA)
             d2 = c0.create_mutable_file(DATA_uploadable)

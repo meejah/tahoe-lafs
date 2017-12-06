@@ -32,6 +32,11 @@ def run_cli(verb, *args, **kwargs):
     stderr = StringIO()
     d = defer.succeed(argv)
     d.addCallback(runner.parse_or_exit_with_explanation, stdout=stdout)
+    def inject_opener(options):
+        print("OPT {}".format(kwargs))
+        options['opener'] = kwargs.get('opener', None)
+        return options
+    d.addCallback(inject_opener)
     d.addCallback(runner.dispatch,
                   stdin=StringIO(stdin),
                   stdout=stdout, stderr=stderr)

@@ -4,6 +4,15 @@ import os, sys
 from twisted.internet import defer
 from twisted.enterprise import adbapi
 
+try:
+    import sqlite3
+    sqlite = sqlite3 # pyflakes whines about 'import sqlite3 as sqlite' ..
+except ImportError:
+    from pysqlite2 import dbapi2
+    sqlite = dbapi2 # .. when this clause does it too
+    # This import should never fail, because setuptools requires that the
+    # "pysqlite" distribution is present at start time (if on Python < 2.5).
+
 
 class DBError(Exception):
     pass
@@ -16,15 +25,6 @@ def get_db(dbfile, stderr=sys.stderr,
     to get from ver=1 to ver=2. Returns a (sqlite,db) tuple, or raises
     DBError.
     """
-    try:
-        import sqlite3
-        sqlite = sqlite3 # pyflakes whines about 'import sqlite3 as sqlite' ..
-    except ImportError:
-        from pysqlite2 import dbapi2
-        sqlite = dbapi2 # .. when this clause does it too
-        # This import should never fail, because setuptools requires that the
-        # "pysqlite" distribution is present at start time (if on Python < 2.5).
-
     must_create = not os.path.exists(dbfile)
     try:
         db = sqlite.connect(dbfile)
@@ -38,11 +38,11 @@ def get_db(dbfile, stderr=sys.stderr,
     # The default is unspecified according to <http://www.sqlite.org/foreignkeys.html#fk_enable>.
     c.execute("PRAGMA foreign_keys = ON;")
 
-    if journal_mode is not None:
-        c.execute("PRAGMA journal_mode = %s;" % (journal_mode,))
+#    if journal_mode is not None:
+#        c.execute("PRAGMA journal_mode = %s;" % (journal_mode,))
 
-    if synchronous is not None:
-        c.execute("PRAGMA synchronous = %s;" % (synchronous,))
+#    if synchronous is not None:
+#        c.execute("PRAGMA synchronous = %s;" % (synchronous,))
 
     if must_create:
         c.executescript(schema)
