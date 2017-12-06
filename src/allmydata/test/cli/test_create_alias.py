@@ -13,15 +13,18 @@ timeout = 480 # deep_check takes 360s on Zandr's linksys box, others take > 240s
 class CreateAlias(GridTestMixin, CLITestMixin, unittest.TestCase):
 
     def _test_webopen(self, args, expected_url):
-        o = runner.Options()
-        o.parseOptions(["--node-directory", self.get_clientdir(), "webopen"]
-                       + list(args))
-        print("BING", o)
         urls = []
-        rc = cli.webopen(o, urls.append)
-        self.failUnlessReallyEqual(rc, 0)
-        self.failUnlessReallyEqual(len(urls), 1)
-        self.failUnlessReallyEqual(urls[0], expected_url)
+        d = self.do_cli("webopen", *args, opener=urls.append)
+
+        def check((rc, stdout, stderr)):
+    #        rc = cli.webopen(o.subOptions, opener=urls.append)
+            self.failUnlessReallyEqual(rc, 0)
+            print(stdout)
+            print("XX {}".format(urls))
+            self.failUnlessReallyEqual(len(urls), 1)
+            self.failUnlessReallyEqual(urls[0], expected_url)
+        d.addCallback(check)
+        return d
 
     @grid_ready(oneshare=True)
     def test_create(self):

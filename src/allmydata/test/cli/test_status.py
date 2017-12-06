@@ -74,7 +74,7 @@ class Integration(GridTestMixin, CLITestMixin, unittest.TestCase):
     def setUp(self):
         yield super(Integration, self).setUp()
         self.basedir = "cli/status"
-        self.set_up_grid()
+        yield self.set_up_grid()
 
         # upload something
         c0 = self.g.clients[0]
@@ -84,6 +84,7 @@ class Integration(GridTestMixin, CLITestMixin, unittest.TestCase):
 
         # make sure our web-port is actually answering
         yield do_http("get", 'http://127.0.0.1:{}/status?t=json'.format(self.client_webports[0]))
+        print("SETUP")
 
     def test_simple(self):
         d = self.do_cli('status')# '--verbose')

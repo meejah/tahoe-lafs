@@ -11,6 +11,7 @@ from allmydata.util.assertutil import precondition
 from allmydata.storage.common import UnknownImmutableContainerVersionError, \
      DataTooLargeError
 from allmydata.storage.leasedb import SHARETYPE_IMMUTABLE
+from twisted.internet import defer
 
 
 # Each share file (in storage/shares/$SI/$SHNUM) contains share data that

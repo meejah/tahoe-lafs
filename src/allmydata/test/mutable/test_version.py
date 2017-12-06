@@ -21,7 +21,7 @@ class Version(GridTestMixin, unittest.TestCase, testutil.ShouldFailMixin, \
     @defer.inlineCallbacks
     def setUp(self):
         self.basedir = 'test_version'
-        GridTestMixin.setUp(self)
+        yield GridTestMixin.setUp(self)
         yield self.set_up_grid()
         self.c = self.g.clients[0]
         self.nm = self.c.nodemaker
@@ -102,6 +102,10 @@ class Version(GridTestMixin, unittest.TestCase, testutil.ShouldFailMixin, \
             vcap = n.get_verify_cap().to_string()
             self.failUnless("  verify-cap: %s" % vcap in lines, output)
 
+            # XXX FIXME depending on how many other tests have run in
+            # this, sometimes there's more or fewer shares and this
+            # stuff becomes wrong (lock o' the draw) ... but why do
+            # other tests affect this one's grid??
             cso = debug.CatalogSharesOptions()
             cso.nodedirs = fso.nodedirs
             cso.stdout = StringIO()
