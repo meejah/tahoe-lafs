@@ -1,6 +1,6 @@
 import os, stat, time, weakref
 from allmydata import node
-from base64 import urlsafe_b64encode
+from base64 import urlsafe_b64encode, b32decode
 
 from zope.interface import implementer
 from twisted.internet import reactor, defer
@@ -196,7 +196,7 @@ class _Client(node.Node, pollmixin.PollMixin):
         # that's what does tub.setLocation()
         self._magic_folders = dict()
         self._storage_done = OneShotObserverList()
-        self.nodeid = b32decode(main_tub.tubID.upper())
+###        self.nodeid = b32decode(main_tub.tubID.upper())
         self.started_timestamp = time.time()
         self.logSource="Client"
         self.encoding_params = self.DEFAULT_ENCODING_PARAMETERS.copy()

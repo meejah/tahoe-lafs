@@ -12,7 +12,7 @@ class BackupDB(unittest.TestCase):
     def create(self, dbfile):
         stderr = StringIO()
         bdb = backupdb.get_backupdb(dbfile, stderr=stderr)
-        self.failUnless(bdb, "unable to create backupdb from %r" % (dbfile,))
+        self.failUnless(bdb, "unable to create db from %r" % (dbfile,))
         return bdb
 
     def test_basic(self):
@@ -30,7 +30,7 @@ class BackupDB(unittest.TestCase):
         created = backupdb.get_backupdb(dbfile, stderr=stderr,
                                         create_version=(backupdb.SCHEMA_v1, 1),
                                         just_create=True)
-        self.failUnless(created, "unable to create v1 backupdb")
+        self.failUnless(created, "unable to create v1 db")
         # now we should have a v1 database on disk
         bdb = self.create(dbfile)
         self.failUnlessEqual(bdb.VERSION, 2)
@@ -48,7 +48,7 @@ class BackupDB(unittest.TestCase):
                                     stderr_f)
         self.failUnlessEqual(bdb, None)
         stderr = stderr_f.getvalue()
-        self.failUnlessIn("backupdb file is unusable", stderr)
+        self.failUnlessIn("db file is unusable", stderr)
         # sqlite-3.19.3 says "file is encrypted or is not a database"
         # sqlite-3.20.0 says "file is not a database"
         self.failUnlessIn("is not a database", stderr)
@@ -60,7 +60,7 @@ class BackupDB(unittest.TestCase):
         bdb = backupdb.get_backupdb(where, stderr_f)
         self.failUnlessEqual(bdb, None)
         stderr = stderr_f.getvalue()
-        self.failUnlessIn("Unable to create/open backupdb file %s" % (where,), stderr)
+        self.failUnlessIn("Unable to create/open db file %s" % (where,), stderr)
         self.failUnlessIn("unable to open database file", stderr)
 
 
@@ -152,7 +152,7 @@ class BackupDB(unittest.TestCase):
         self.failUnlessEqual(bdb, None)
         stderr = stderr_f.getvalue()
         self.failUnlessEqual(stderr.strip(),
-                             "Unable to handle backupdb version 0")
+                             "Unable to handle db version 0")
 
     def test_directory(self):
         self.basedir = basedir = os.path.join("backupdb", "directory")
