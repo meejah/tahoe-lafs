@@ -22,9 +22,8 @@ from allmydata.immutable.downloader.node import DownloadNode, \
      IDownloadStatusHandlingConsumer
 from allmydata.immutable.downloader.status import DownloadStatus
 
+@implementer(IVerifyNode)
 class CiphertextFileNode:
-
-    implements(IVerifyNode)
 
     def __init__(self, verifycap, storage_broker, secret_holder,
                  terminator, history):
