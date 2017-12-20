@@ -1,5 +1,5 @@
 
-import simplejson
+import json
 
 from twisted.internet import defer
 from nevow import url, rend
@@ -231,7 +231,7 @@ def FileJSONMetadata(ctx, filenode, edge_metadata):
     if edge_metadata is not None:
         data[1]['metadata'] = edge_metadata
 
-    return text_plain(simplejson.dumps(data, indent=1) + "\n", ctx)
+    return text_plain(json.dumps(data, indent=1) + "\n", ctx)
 
 def FileURI(ctx, filenode):
     return text_plain(filenode.get_uri(), ctx)
