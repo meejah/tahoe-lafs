@@ -641,13 +641,9 @@ class Publish(object):
             return self.push_segment(self._current_segment)
 
         elif self._state == PUSHING_EVERYTHING_ELSE_STATE:
-            print("pushing_everything_else_state")
-
             d = self.push_everything_else()
-            print("PUSH EVERYTHING", d)
             return d
         elif self._state == DONE_STATE:
-            print("done, somehow")
             # If we make it to this point, we were successful in placing the
             # file.
             return self._done()

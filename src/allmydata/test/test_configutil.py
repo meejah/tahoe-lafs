@@ -3,7 +3,7 @@ import os.path
 from twisted.trial import unittest
 
 from allmydata.util import configutil
-from allmydata.test.no_network import GridTestMixin
+from allmydata.test.no_network import GridTestMixin, grid_ready
 from ..scripts import create_node
 from .. import client
 

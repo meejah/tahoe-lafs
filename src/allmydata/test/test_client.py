@@ -260,7 +260,7 @@ class Basic(testutil.ReallyEqualMixin, testutil.NonASCIIPathMixin, unittest.Test
                        "[storage]\n" + \
                        "enabled = true\n" + \
                        "expire.mutable = False\n")
-        self.failUnlessRaises(OldConfigOptionError, client.Client, basedir)
+        self.failUnlessRaises(OldConfigOptionError, client.create_client, basedir)
 
     def test_expire_immutable_false_unsupported(self):
         basedir = "client.Basic.test_expire_immutable_false_unsupported"
@@ -270,7 +270,7 @@ class Basic(testutil.ReallyEqualMixin, testutil.NonASCIIPathMixin, unittest.Test
                        "[storage]\n" + \
                        "enabled = true\n" + \
                        "expire.immutable = False\n")
-        self.failUnlessRaises(OldConfigOptionError, client.Client, basedir)
+        self.failUnlessRaises(OldConfigOptionError, client.create_client, basedir)
 
     def test_debug_discard_true_unsupported(self):
         basedir = "client.Basic.test_debug_discard_true_unsupported"
@@ -280,7 +280,7 @@ class Basic(testutil.ReallyEqualMixin, testutil.NonASCIIPathMixin, unittest.Test
                        "[storage]\n" + \
                        "enabled = true\n" + \
                        "debug_discard = true\n")
-        self.failUnlessRaises(OldConfigOptionError, client.Client, basedir)
+        self.failUnlessRaises(OldConfigOptionError, client.create_client, basedir)
 
     def _permute(self, sb, key):
         return [ s.get_longname() for s in sb.get_servers_for_psi(key) ]
@@ -318,7 +318,7 @@ class Basic(testutil.ReallyEqualMixin, testutil.NonASCIIPathMixin, unittest.Test
                            "[storage]\n" + \
                            "enabled = true\n")
         try:
-            c = client.Client(basedir)
+            c = client.create_client(basedir)
             c.startService()
             yield c.when_ready()
             server = c.getServiceNamed("storage")

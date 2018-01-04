@@ -262,6 +262,7 @@ class NoNetworkGrid(service.MultiService):
         self.clients = []
         self.client_config_hooks = client_config_hooks
         self._num_servers = num_servers
+        self.all_servers = []
 
         self._ready = OneShotObserverList()
         awaiting = []
@@ -270,13 +271,13 @@ class NoNetworkGrid(service.MultiService):
             # XXX this is actually async now...
             d = self.add_server(i, ss)
             awaiting.append(d)
-        self.rebuild_serverlist()
 
         def built_servers(ign):
+            self.rebuild_serverlist()
             self._ready.fire(None)
             self.rebuild_serverlist()
-        defer.DeferredList(awaiting).addCallback(built_servers)
-
+        d = defer.DeferredList(awaiting)
+        d.addCallback(built_servers)
 
         for i in range(num_clients):
             c = self.make_client(i)
@@ -411,6 +412,9 @@ def grid_ready(*outer_args, **outer_kw):
     def inner_decorator(orig_fn):
         def func(self, *args, **kw):
             # "self" must be a GridTestMixin
+
+            # it would be nicer if we didn't set self.basedir in this
+            # decorator .. but other code still depends on that :(
             if basedir:
                 self.basedir = basedir
             else:

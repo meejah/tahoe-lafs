@@ -1,7 +1,7 @@
 import os
 import shutil
 import subprocess
-from os.path import join
+from os.path import join, abspath
 from mock import patch
 from StringIO import StringIO
 
