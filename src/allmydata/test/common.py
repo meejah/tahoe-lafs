@@ -449,12 +449,9 @@ class CrawlerTestMixin:
             return d
 
         crawler.save_state()
-        d = crawler.get_state()
-        def _check(state):
-            self.failUnlessEqual(prefix, state["last-complete-prefix"])
-            return state
-        d.addCallback(_check)
-        return d
+        state = crawler.get_state()
+        self.failUnlessEqual(prefix, state["last-complete-prefix"])
+        return defer.succeed(None)
 
 
 class LoggingServiceParent(service.MultiService):
