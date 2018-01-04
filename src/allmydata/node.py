@@ -268,13 +268,30 @@ class Node(service.MultiService):
         tempdir = abspath_expanduser_unicode(tempdir_config, base=self.basedir)
         if not os.path.exists(tempdir):
             fileutil.make_dirs(tempdir)
-        tempfile.tempdir = tempdir
+
+        # pre-existing code here took the questionable approach of
+        # monkey-patching "tempfile.tempdir" as a way to get Twisted
+        # to put temporary uploads "somewhere"; this makes this
+        # *slightly* better by at least just monkey-patching Twisted,
+        # not "everything that uses tempfile" (like, the tests)
+
+        import types
+        mod = types.ModuleType(
+            "fake_tempdir",
+            "A monkey-patched tempdir module; blame tahoe node.py",
+        )
+
+        def temporary_file(*args, **kw):
+            kw['dir'] = tempdir
+            return tempfile.TemporaryFile(*args, **kw)
+        mod.TemporaryFile = temporary_file
+
+        from twisted.web import http
+        http.tempfile = mod
         # this should cause twisted.web.http (which uses
         # tempfile.TemporaryFile) to put large request bodies in the given
         # directory. Without this, the default temp dir is usually /tmp/,
         # which is frequently too small.
-        test_name = tempfile.mktemp()
-        _assert(os.path.dirname(test_name) == tempdir, test_name, tempdir)
 
     def check_privacy(self):
         self._reveal_ip = self.config.get_config("node", "reveal-IP-address", True,

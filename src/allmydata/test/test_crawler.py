@@ -127,7 +127,7 @@ class Basic(unittest.TestCase, StallMixin, CrawlerTestMixin):
 
         yield c2.set_hook('after_cycle')
         self.failUnlessEqual(sorted(sis), sorted(c2.sharesets))
-        yield self._wait_for_yield(c2)
+        yield self._wait_for_yield(None, c2)
 
     def OFF_test_cpu_usage(self):
         # This test can't actually assert anything, because too many
@@ -194,7 +194,7 @@ class Basic(unittest.TestCase, StallMixin, CrawlerTestMixin):
         # We just let it run for a while, to get coverage of the
         # empty methods in the base class.
 
-        yield self._wait_for_yield(c)
+        yield self._wait_for_yield(None, c)
 
     @defer.inlineCallbacks
     def test_oneshot(self):

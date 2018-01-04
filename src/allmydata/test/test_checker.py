@@ -312,18 +312,22 @@ class WebResultsRendering(unittest.TestCase, WebRenderingMixin):
 class BalancingAct(GridTestMixin, unittest.TestCase):
     # test for #1115 regarding the 'count-good-share-hosts' metric
 
-
     def add_server(self, server_number, readonly=False):
         assert self.g, "I tried to find a grid at self.g, but failed"
         ss = self.g.make_server(server_number, readonly)
         #log.msg("just created a server, number: %s => %s" % (server_number, ss,))
-        self.g.add_server(server_number, ss)
+        return self.g.add_server(server_number, ss)
 
     def add_server_with_share(self, server_number, uri, share_number=None,
                               readonly=False):
-        self.add_server(server_number, readonly)
-        if share_number is not None:
-            self.copy_share_to_server(uri, share_number, server_number)
+        d = self.add_server(server_number, readonly)
+        print("ADD {}".format(d))
+        def got_server(_):
+            print("got server {}".format(server_number))
+            if share_number is not None:
+                self.copy_share_to_server(uri, share_number, server_number)
+        d.addCallback(got_server)
+        return d
 
     def copy_share_to_server(self, uri, share_number, server_number):
         ss = self.g.servers_by_number[server_number]
@@ -381,8 +385,10 @@ class BalancingAct(GridTestMixin, unittest.TestCase):
 
         def add_three(_, i):
             # Add a new server with just share 3
-            self.add_server_with_share(i, self.uri, 3)
+            print("add_three {} {}".format(_, i))
+            d = self.add_server_with_share(i, self.uri, 3)
             #print self._pretty_shares_chart(self.uri)
+            return d
         for i in range(1,5):
             d.addCallback(add_three, i)
 
@@ -390,9 +396,15 @@ class BalancingAct(GridTestMixin, unittest.TestCase):
             return self.imm.check_and_repair(Monitor())
         def _check_counts(crr, shares_good, good_share_hosts):
             prr = crr.get_post_repair_results()
-            self.failUnlessEqual(prr.get_share_counter_good(), shares_good)
-            self.failUnlessEqual(prr.get_host_counter_good_shares(),
-                                 good_share_hosts)
+            self.failUnlessEqual(
+                prr.get_share_counter_good(), shares_good,
+                msg="Incorrect number of good shares",
+            )
+            self.failUnlessEqual(
+                prr.get_host_counter_good_shares(),
+                good_share_hosts,
+                msg="Incorrect number of good-share hosts",
+            )
 
         """
         Initial sharemap:
