@@ -210,7 +210,7 @@ class Basic(unittest.TestCase, StallMixin, CrawlerTestMixin):
 
         yield c.set_hook('after_cycle')
         c.disownServiceParent()
-        old_counter = fireEventually(len(c.sharesets))
+        old_counter = yield fireEventually(len(c.sharesets))
         # The crawler shouldn't do any work after it has been stopped.
         self.failUnlessEqual(old_counter, len(c.sharesets))
         self.failIf(c.running)
