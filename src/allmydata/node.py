@@ -74,12 +74,6 @@ def formatTimeTahoeStyle(self, when):
     else:
         return d.isoformat(" ") + ".000Z"
 
-PRIV_README="""
-This directory contains files which contain private data for the Tahoe node,
-such as private keys.  On Unix-like systems, the permissions on this directory
-are set to disallow users other than its owner from reading the contents of
-the files.   See the 'configuration.rst' documentation file for details."""
-
 class _None: # used as a marker in get_config()
     pass
 
@@ -349,8 +343,6 @@ class Node(service.MultiService):
 
     def __init__(self, config):
         service.MultiService.__init__(self)
-        with open(os.path.join(config._basedir, "private", "README"), "w") as f:
-            f.write(PRIV_README)
 
         self.config = config
         self.get_config = config.get_config # XXX stopgap
