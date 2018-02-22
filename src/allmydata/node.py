@@ -368,8 +368,6 @@ class Node(service.MultiService):
     def init_tempdir(self):
         tempdir_config = self.config.get_config("node", "tempdir", "tmp").decode('utf-8')
         tempdir = self.config.get_config_path(tempdir_config)
-        tempdir0 = abspath_expanduser_unicode(tempdir_config, base=self.config._basedir)
-        assert tempdir == tempdir0
         if not os.path.exists(tempdir):
             fileutil.make_dirs(tempdir)
         tempfile.tempdir = tempdir
