@@ -433,8 +433,6 @@ def status(options):
     with open(os.path.join(nodedir, u'private', u'api_auth_token'), 'rb') as f:
         token = f.read()
 
-    print >>stdout, "Magic-folder status for '{}':".format(options["name"])
-
     if options["name"] not in magic_folders:
         raise Exception(
             "No such magic-folder '{}'".format(options["name"])
@@ -445,8 +443,14 @@ def status(options):
 
     # do *all* our data-retrievals first in case there's an error
     try:
+        print >>stdout, "Retrieving: personal folder,",
+        stdout.flush()
         dmd_data = _get_json_for_cap(options, dmd_cap)
+        print >>stdout, "collective folder,",
+        stdout.flush()
         remote_data = _get_json_for_cap(options, collective_readcap)
+        print >>stdout, "local progress,",
+        stdout.flush()
         magic_data = _get_json_for_fragment(
             options,
             'magic_folder?t=json',
@@ -457,9 +461,12 @@ def status(options):
                 token=token,
             )
         )
+        print >>stdout, "done"
     except Exception as e:
         print >>stderr, "failed to retrieve data: %s" % str(e)
         return 2
+
+    print >>stdout, "Magic-folder status for '{}':".format(options["name"])
 
     for d in [dmd_data, remote_data, magic_data]:
         if isinstance(d, dict) and 'error' in d:
