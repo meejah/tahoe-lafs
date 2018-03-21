@@ -1,10 +1,11 @@
 
 import sys, os
 import os.path
-from collections import deque
-from datetime import datetime
 import time
 import ConfigParser
+from collections import deque
+from datetime import datetime
+from fnmatch import fnmatch
 
 from twisted.internet import defer, reactor, task
 from twisted.internet.error import AlreadyCancelled
@@ -579,6 +580,8 @@ class Uploader(QueueMixin):
                     )
         self._notifier.watch(self._local_filepath, mask=self.mask, callbacks=[self._notify],
                              recursive=False)#True)
+        self._ignore_file = self._get_filepath(u".mfignore")
+        self._update_ignore_patterns()
 
     def start_monitoring(self):
         self._log("start_monitoring")
@@ -631,9 +634,37 @@ class Uploader(QueueMixin):
         self._log("_pending %r" % (self._pending))
         self._scan(u"")
 
+    def _update_ignore_patterns(self):
+        """
+        reads the .mfignore file (if it exists) and updates our ignore
+        patterns
+        """
+        if self._ignore_file.exists():
+            with self._ignore_file.open("r") as f:
+                self._ignore_patterns = [
+                    line.strip()
+                    for line in f.readlines()
+                ]
+        else:
+            self._ignore_patterns = []
+
+    def _ignore_file(self, relpath_u):
+        """
+        Internal helper.
+
+        :returns: True if we should ignore this file or False
+            otherwise
+        """
+        if magicpath.should_ignore_file(relpath_u):
+            return True
+        for pattern in self._ignore_patterns:
+            if fnmatch(relpath_u, pattern):
+                return True
+        return False
+
     def _add_pending(self, relpath_u):
         self._log("add pending %r" % (relpath_u,))
-        if magicpath.should_ignore_file(relpath_u):
+        if self._ignore_file(relpath_u):
             self._log("_add_pending %r but should_ignore()==True" % (relpath_u,))
             return
         if relpath_u in self._pending:
@@ -701,9 +732,14 @@ class Uploader(QueueMixin):
         if relpath_u in self._pending:
             self._log("not queueing %r because it is already pending" % (relpath_u,))
             return
-        if magicpath.should_ignore_file(relpath_u):
+        if self._ignore_file(relpath_u):
             self._log("ignoring event for %r (ignorable path)" % (relpath_u,))
             return
+        if relpath_u == u".mfignore":
+            self._update_ignore_patterns()
+            # note, falling through because we should upload the
+            # ignore file itself (unless the user put '.mfignore' in
+            # it)
 
         self._add_pending(relpath_u)
         self._call_hook(path, 'inotify')
