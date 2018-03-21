@@ -648,7 +648,7 @@ class Uploader(QueueMixin):
         else:
             self._ignore_patterns = []
 
-    def _ignore_file(self, relpath_u):
+    def _should_ignore_file(self, relpath_u):
         """
         Internal helper.
 
@@ -664,7 +664,7 @@ class Uploader(QueueMixin):
 
     def _add_pending(self, relpath_u):
         self._log("add pending %r" % (relpath_u,))
-        if self._ignore_file(relpath_u):
+        if self._should_ignore_file(relpath_u):
             self._log("_add_pending %r but should_ignore()==True" % (relpath_u,))
             return
         if relpath_u in self._pending:
@@ -732,7 +732,7 @@ class Uploader(QueueMixin):
         if relpath_u in self._pending:
             self._log("not queueing %r because it is already pending" % (relpath_u,))
             return
-        if self._ignore_file(relpath_u):
+        if self._should_ignore_file(relpath_u):
             self._log("ignoring event for %r (ignorable path)" % (relpath_u,))
             return
         if relpath_u == u".mfignore":
