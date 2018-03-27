@@ -954,7 +954,8 @@ class WriteFileMixin(object):
             try:
                 fileutil.replace_file(abspath_u, replacement_path_u)
                 return abspath_u
-            except fileutil.ConflictError:
+            except fileutil.ConflictError as e:
+                self.log("overwrite becomes conflict: {}".format(e))
                 return self._rename_conflicted_file(abspath_u, replacement_path_u)
 
     def _rename_conflicted_file(self, abspath_u, replacement_path_u):
