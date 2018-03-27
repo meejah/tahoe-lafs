@@ -56,36 +56,6 @@ def test_alice_writes_bob_receives_multiple(magic_folder):
     assert not exists(join(bob_dir, "multiple.backup"))
     assert not exists(join(bob_dir, "multiple.conflict"))
 
-    # forth update, but both "at once" so one should conflict
-    time.sleep(2)
-    with open(join(alice_dir, "multiple"), "w") as f:
-        f.write("okay one more attempt")
-    with open(join(bob_dir, "multiple"), "w") as f:
-        f.write("...but just let me add")
-
-    bob_conflict = join(bob_dir, "multiple.conflict")
-    alice_conflict = join(alice_dir, "multiple.conflict")
-    bob_backup = join(bob_dir, "multiple.backup")
-    alice_backup = join(alice_dir, "multiple.backup")
-
-    found = None
-    start_time = time.time()
-    while time.time() - start_time < 30:
-        print("  waiting for conflict")
-        if exists(bob_conflict) or exists(alice_conflict):
-            found = bob_conflict if exists(bob_conflict) else alice_conflict
-        if exists(bob_backup) or exists(alice_backup):
-            print("See a backup file!")
-        print("bob")
-        with open(join(bob_dir, "multiple"), "r") as f:
-            print(f.read())
-        print("alice")
-        with open(join(alice_dir, "multiple"), "r") as f:
-            print(f.read())
-        time.sleep(1)
-    assert found is not None, "Should have found a conflict"
-    print("conflict found (as expected)")
-
 
 def test_alice_writes_bob_receives_old_timestamp(magic_folder):
     alice_dir, bob_dir = magic_folder
