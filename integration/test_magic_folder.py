@@ -45,7 +45,6 @@ def test_alice_writes_bob_receives_multiple(magic_folder):
     )
 
     # second update
-    time.sleep(2)
     with open(join(alice_dir, "multiple"), "w") as f:
         f.write("someone changed their mind")
 
@@ -55,7 +54,6 @@ def test_alice_writes_bob_receives_multiple(magic_folder):
     )
 
     # third update
-    time.sleep(2)
     with open(join(alice_dir, "multiple"), "w") as f:
         f.write("absolutely final version ship it")
 
