@@ -214,7 +214,7 @@ def await_file_contents(path, contents, timeout=15, error_if=None):
             raise Exception(
                 "While waiting for '{}', unwanted files appeared: {}".format(
                     path,
-                    ', '.join(error_if),
+                    ', '.join([p for p in error_if if exists(p)]),
                 )
             )
         if exists(path):
