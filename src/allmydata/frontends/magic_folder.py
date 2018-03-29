@@ -1335,10 +1335,6 @@ class Downloader(QueueMixin, WriteFileMixin):
                     #   * iii. either ``last_downloaded_uri`` or ``last_uploaded_uri``
                     #     (or both) are absent, or they are different.
 
-                    # XXX actually I think the spec is slightly wrong
-                    # here: if Alice keeps upload new versions and Bob
-                    # never has, when would his last_uploaded_uri ever
-                    # change?
                     elif dmd_last_downloaded_uri is None:
                         is_conflict = True
                         self._log("conflict because no last_downloaded_uri")
