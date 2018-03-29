@@ -398,7 +398,6 @@ class QueueMixin(HookMixin):
         seconds.
         """
         while not self._stopped:
-            # self._log("_do_processing iteration")
             d = task.deferLater(self._clock, self._scan_delay(), lambda: None)
 
             # adds items to our deque
@@ -782,6 +781,10 @@ class Uploader(QueueMixin):
                 # this client (i.e. if it was created on this client and no change
                 # by any other client has been detected).
 
+                # XXX currently not actually true: it will record the
+                # LAST THING we wrote to (or saw on) disk (not
+                # necessarily downloaded?)
+
                 if db_entry.last_downloaded_uri is not None:
                     metadata['last_downloaded_uri'] = db_entry.last_downloaded_uri
 
@@ -799,9 +802,14 @@ class Uploader(QueueMixin):
                     # last_downloaded_uri to the filecap so that we don't
                     # immediately re-download it when we start up next
                     last_downloaded_uri = metadata.get('last_downloaded_uri', filecap)
-                    self._db.did_upload_version(relpath_u, new_version, filecap,
-                                                last_downloaded_uri, last_downloaded_timestamp,
-                                                pathinfo)
+                    self._db.did_upload_version(
+                        relpath_u,
+                        new_version,
+                        filecap,
+                        last_downloaded_uri,
+                        last_downloaded_timestamp,
+                        pathinfo,
+                    )
                     self._count('files_uploaded')
                 d2.addCallback(_add_db_entry)
                 d2.addCallback(lambda ign: True)
@@ -858,8 +866,9 @@ class Uploader(QueueMixin):
                     'last_downloaded_timestamp': last_downloaded_timestamp,
                     'user_mtime': pathinfo.mtime_ns / 1000000000.0,  # why are we using ns in PathInfo??
                 }
-                if db_entry is not None and db_entry.last_downloaded_uri is not None:
-                    metadata['last_downloaded_uri'] = db_entry.last_downloaded_uri
+                if db_entry is not None:
+                    if db_entry.last_downloaded_uri is not None:
+                        metadata['last_downloaded_uri'] = db_entry.last_downloaded_uri
 
                 uploadable = FileName(unicode_from_filepath(fp), self._client.convergence)
                 d2 = self._upload_dirnode.add_file(
@@ -874,10 +883,15 @@ class Uploader(QueueMixin):
                     # if we're uploading a file, we want to set
                     # last_downloaded_uri to the filecap so that we don't
                     # immediately re-download it when we start up next
-                    last_downloaded_uri = metadata.get('last_downloaded_uri', filecap)
-                    self._db.did_upload_version(relpath_u, new_version, filecap,
-                                                last_downloaded_uri, last_downloaded_timestamp,
-                                                pathinfo)
+                    last_downloaded_uri = filecap
+                    self._db.did_upload_version(
+                        relpath_u,
+                        new_version,
+                        filecap,
+                        last_downloaded_uri,
+                        last_downloaded_timestamp,
+                        pathinfo
+                    )
                     self._count('files_uploaded')
                     return True
                 d2.addCallback(_add_db_entry)
@@ -972,7 +986,6 @@ class WriteFileMixin(object):
                 # XXX FIXME why ever bother with "rename_no_overwrite"
                 # under the hood in replace_file() then..?
                 if os.path.exists(abspath_u):
-                    print("unlinking {}".format(abspath_u))
                     os.unlink(abspath_u)
                 fileutil.replace_file(abspath_u, replacement_path_u)
                 return abspath_u
@@ -1251,13 +1264,11 @@ class Downloader(QueueMixin, WriteFileMixin):
         fp = self._get_filepath(item.relpath_u)
         abspath_u = unicode_from_filepath(fp)
         conflict_path_u = self._get_conflicted_filename(abspath_u)
-        last_uploaded_uri = item.metadata.get('last_uploaded_uri', None)
 
         d = defer.succeed(False)
 
         def do_update_db(written_abspath_u):
             filecap = item.file_node.get_uri()
-            self._log("updating last_uploaded_uri to {}".format(last_uploaded_uri))
             if not item.file_node.get_size():
                 filecap = None  # ^ is an empty file
             last_downloaded_uri = filecap
@@ -1268,8 +1279,12 @@ class Downloader(QueueMixin, WriteFileMixin):
                 raise Exception("downloaded object %s disappeared" % quote_local_unicode_path(written_abspath_u))
 
             self._db.did_upload_version(
-                item.relpath_u, item.metadata['version'], last_uploaded_uri,
-                last_downloaded_uri, last_downloaded_timestamp, written_pathinfo,
+                item.relpath_u,
+                item.metadata['version'],
+                None,  # last_uploaded_uri,
+                last_downloaded_uri,
+                last_downloaded_timestamp,
+                written_pathinfo,
             )
             self._count('objects_downloaded')
             item.set_status('success', self._clock.seconds())
@@ -1303,7 +1318,6 @@ class Downloader(QueueMixin, WriteFileMixin):
 
             # * 2b. Read the following information for the path ``foo`` from the
             #   local magic folder db:
-
             #   * the *last-seen statinfo*, if any (this is the size in
             #     bytes, ``mtime``, and ``ctime`` stored in the ``local_files``
             #     table when the file was last uploaded);
@@ -1311,46 +1325,34 @@ class Downloader(QueueMixin, WriteFileMixin):
             #     for this file, which is the URI under which the file was last
             #     uploaded.
 
-            self._log("HI0")
             if db_entry:
-
                 # * 2c. If any of the following are true, then classify as a conflict:
-
                 #   * i. there are pending notifications of changes to ``foo``;
-
-                # XXX FIXME
-
                 #   * ii. the last-seen statinfo is either absent (i.e. there is
                 #     no entry in the database for this path), or different from the
                 #     current statinfo;
 
                 if current_statinfo.exists:
-                    self._log("HI1")
+                    self._log("checking conflicts {}".format(item.relpath_u))
                     if (db_entry.mtime_ns != current_statinfo.mtime_ns or \
                         db_entry.ctime_ns != current_statinfo.ctime_ns or \
                         db_entry.size != current_statinfo.size):
                         is_conflict = True
                         self._log("conflict because local change")
 
-                    # XXX is "last-seen statinfo" last_downloaded_timestamp?
-
-                    #   * iii. either ``last_downloaded_uri`` or ``last_uploaded_uri``
-                    #     (or both) are absent, or they are different.
-
-                    # XXX actually I think the spec is slightly wrong
-                    # here: if Alice keeps upload new versions and Bob
-                    # never has, when would his last_uploaded_uri ever
-                    # change?
-                    elif dmd_last_downloaded_uri is None:
-                        is_conflict = True
-                        self._log("conflict because no last_downloaded_uri")
-                    elif last_uploaded_uri is None:
-                        # is_conflict = True
-                        self._log("no last_uploaded_uri; not a conflict")
-                    elif dmd_last_downloaded_uri != last_uploaded_uri:
-                        is_conflict = True
-                        self._log("conflict because last_downloaded_uri != last_uploaded_uri")
-                        self._log(" ({} != {})".format(dmd_last_downloaded_uri, last_uploaded_uri))
+                    if db_entry.last_downloaded_uri is None:
+                        pass
+                    else:
+                        if dmd_last_downloaded_uri is None:
+                            # we've never downloaded anything before for this
+                            # file, but the other side might have created a new
+                            # file "at the same time"
+                            if db_entry.version >= item.metadata['version']:
+                                self._log("conflict because my version >= remote version")
+                                is_conflict = True
+                        elif dmd_last_downloaded_uri != db_entry.last_downloaded_uri:
+                            is_conflict = True
+                            self._log("conflict because dmd_last_downloaded_uri != db_entry.last_downloaded_uri")
 
             if item.relpath_u.endswith(u"/"):
                 if item.metadata.get('deleted', False):
