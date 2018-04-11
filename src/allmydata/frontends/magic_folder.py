@@ -785,6 +785,8 @@ class Uploader(QueueMixin):
 
                 if db_entry.last_downloaded_uri is not None:
                     metadata['last_downloaded_uri'] = db_entry.last_downloaded_uri
+                if db_entry.last_uploaded_uri is not None:
+                    metadata['last_uploaded_uri'] = db_entry.last_uploaded_uri
 
                 empty_uploadable = Data("", self._client.convergence)
                 d2 = self._upload_dirnode.add_file(
@@ -859,8 +861,11 @@ class Uploader(QueueMixin):
                     'last_downloaded_timestamp': last_downloaded_timestamp,
                     'user_mtime': pathinfo.mtime_ns / 1000000000.0,  # why are we using ns in PathInfo??
                 }
-                if db_entry is not None and db_entry.last_downloaded_uri is not None:
-                    metadata['last_downloaded_uri'] = db_entry.last_downloaded_uri
+                if db_entry is not None:
+                    if db_entry.last_downloaded_uri is not None:
+                        metadata['last_downloaded_uri'] = db_entry.last_downloaded_uri
+                    if db_entry.last_uploaded_uri is not None:
+                        metadata['last_uploaded_uri'] = db_entry.last_uploaded_uri
 
                 uploadable = FileName(unicode_from_filepath(fp), self._client.convergence)
                 d2 = self._upload_dirnode.add_file(
@@ -1300,6 +1305,7 @@ class Downloader(QueueMixin, WriteFileMixin):
             is_conflict = False
             db_entry = self._db.get_db_entry(item.relpath_u)
             dmd_last_downloaded_uri = item.metadata.get('last_downloaded_uri', None)
+            #dmd_last_uploaded_uri = item.metadata.get('last_uploaded_uri', None)
 
             # * 2b. Read the following information for the path ``foo`` from the
             #   local magic folder db:
@@ -1313,6 +1319,13 @@ class Downloader(QueueMixin, WriteFileMixin):
 
             if db_entry:
                 dmd_last_uploaded_uri = db_entry.last_uploaded_uri
+                if dmd_last_uploaded_uri is None:
+                    dmd_last_uploaded_uri = item.metadata.get('last_uploaded_uri', None)
+
+                print("have local db entry, looking for conflicts")
+                print("  last_uploaded={}".format(dmd_last_uploaded_uri))
+                print("  dmd_last_downloaded={}".format(dmd_last_downloaded_uri))
+                print("  dmd_last_up={}".format(item.metadata.get('last_uploaded_uri', None)))
 
                 # * 2c. If any of the following are true, then classify as a conflict:
 
