@@ -910,14 +910,15 @@ class Uploader(QueueMixin):
                 )
 
                 def _add_db_entry(filenode):
+                    filecap = filenode.get_uri()
                     # if we're uploading a file, we want to set
                     # last_downloaded_uri to the filecap so that we don't
                     # immediately re-download it when we start up next
-                    last_downloaded_uri = metadata.get('last_downloaded_uri', filenode.get_readonly_uri())
+                    last_downloaded_uri = metadata.get('last_downloaded_uri', filecap)
                     self._db.did_upload_version(
                         relpath_u,
                         new_version,
-                        filenode.get_uri(),
+                        filecap,
                         last_downloaded_uri,
                         last_downloaded_timestamp,
                         pathinfo,
@@ -993,14 +994,15 @@ class Uploader(QueueMixin):
                 )
 
                 def _add_db_entry(filenode):
+                    filecap = filenode.get_uri()
                     # if we're uploading a file, we want to set
                     # last_downloaded_uri to the filecap so that we don't
                     # immediately re-download it when we start up next
-                    last_downloaded_uri = filenode.get_readonly_uri()
+                    last_downloaded_uri = filecap
                     self._db.did_upload_version(
                         relpath_u,
                         new_version,
-                        filenode.get_uri(),
+                        filecap,
                         last_downloaded_uri,
                         last_downloaded_timestamp,
                         pathinfo
@@ -1389,10 +1391,10 @@ class Downloader(QueueMixin, WriteFileMixin):
         d = defer.succeed(False)
 
         def do_update_db(written_abspath_u):
-            fileuri = item.file_node.get_readonly_uri()
+            filecap = item.file_node.get_uri()
             if not item.file_node.get_size():
-                fileuri = None  # ^ is an empty file
-            last_downloaded_uri = fileuri
+                filecap = None  # ^ is an empty file
+            last_downloaded_uri = filecap
             last_downloaded_timestamp = now
             written_pathinfo = get_pathinfo(written_abspath_u)
 
