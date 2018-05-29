@@ -633,9 +633,6 @@ class QueuedItem(object):
         hist.sort(lambda a, b: cmp(a[1], b[1]))
         return hist
 
-    def __repr__(self):
-        return "<{} {}>".format(self.__class__.__name__, self.relpath_u)
-
     def __eq__(self, other):
         return (
             other.relpath_u == self.relpath_u,
