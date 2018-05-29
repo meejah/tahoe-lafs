@@ -293,6 +293,7 @@ class UnconflictedMagicFolder(RuleBasedStateMachine):
             u"default",
         )
         self.alice.tree = self.alice_tree.child("tree")
+        self.alice.startService()
 
         self.bob_client = FakeClient(self.grid, "bob-client")
         self.bob_tree.child("tree").makedirs()
@@ -306,6 +307,7 @@ class UnconflictedMagicFolder(RuleBasedStateMachine):
             u"default",
         )
         self.bob.tree = self.bob_tree.child("tree")
+        self.bob.startService()
 
         self.deleted_files = set()
 
@@ -329,6 +331,7 @@ class UnconflictedMagicFolder(RuleBasedStateMachine):
         assume(self.dirty in (None, which_client))
         safe_path = self.safe_directory.child(filename)
         assume(not safe_path.exists())
+        print("make it {}".format(safe_path))
 
         actor = getattr(self, which_client)
 
@@ -426,6 +429,7 @@ class HypothesisTests(unittest.TestCase):
 #            stateful_step_count=1,  # only thing below looks at
 #            verbosity=Verbosity.verbose,
         )
+        print("create {}".format(id(self)))
         run_state_machine_as_test(
             self._machine,
             settings=s,
