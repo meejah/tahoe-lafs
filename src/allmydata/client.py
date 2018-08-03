@@ -502,9 +502,11 @@ class _Client(node.Node, pollmixin.PollMixin):
                 keyutil.parse_pubkey(gm_key)
             )
 
-        my_pubkey = keyutil.parse_pubkey(
-            self.get_config_from_file("node.pubkey")
-        )
+        # we don't actually use this keypair for anything (yet) as far
+        # as I can see.
+        # my_pubkey = keyutil.parse_pubkey(
+        #     self.get_config_from_file("node.pubkey")
+        # )
 
         # create a StorageFarmBroker object, for use by Uploader/Downloader
         # (and everybody else who wants to use storage servers)
@@ -515,7 +517,6 @@ class _Client(node.Node, pollmixin.PollMixin):
             tub_maker=self._create_tub,
             preferred_peers=preferred_peers,
             grid_manager_keys=grid_manager_keys,
-            node_pubkey=my_pubkey,
         )
         self.storage_broker = sb
         sb.setServiceParent(self)
