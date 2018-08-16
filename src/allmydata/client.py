@@ -495,9 +495,9 @@ class _Client(node.Node, pollmixin.PollMixin):
     def init_client_storage_broker(self):
 
         grid_manager_keys = []
-        gm_keydata = self.get_config('client', 'grid_manager_public_keys', '')
-        for gm_key in gm_keydata.strip().split():
+        for name, gm_key in self.config.enumerate_section('grid_managers').items():
             # XXX FIXME this needs pub-v0- prefix then ...
+            print("gm pubkey: {}".format(gm_key))
             grid_manager_keys.append(
                 keyutil.parse_pubkey(gm_key)
             )
