@@ -537,6 +537,9 @@ class SystemTestMixin(pollmixin.PollMixin, testutil.StallMixin):
 
     # @inlineCallbacks
     def _create_introducer(self):
+        """
+        :returns: (via Deferred) an Introducer instance
+        """
         iv_dir = self.getdir("introducer")
         if not os.path.isdir(iv_dir):
             introducer_config = (
