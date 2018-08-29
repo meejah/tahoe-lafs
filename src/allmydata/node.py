@@ -74,6 +74,10 @@ for thing, things_version in get_package_versions().iteritems():
 ADDR_RE = re.compile("^([1-9][0-9]*\.[1-9][0-9]*\.[1-9][0-9]*\.[1-9][0-9]*)(:([1-9][0-9]*))?$")
 
 
+def some_new_function(arg):
+    return "I am missing a docstring"
+
+
 def formatTimeTahoeStyle(self, when):
     """
     Format the given (UTC) timestamp in the way Tahoe-LAFS expects it,
