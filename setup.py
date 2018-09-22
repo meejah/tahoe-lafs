@@ -253,6 +253,9 @@ setup(name="tahoe-lafs", # also set in __init__.py
       classifiers=trove_classifiers,
       python_requires="<3.0",
       install_requires=install_requires,
+      dependency_links=[
+          "git+https://github.com/hawkowl/towncrier/archive/47754a607a9b03f06affaf167d65b990786aae25.zip#egg=towncrier-18.6.1",
+      ],
       extras_require={
           ':sys_platform=="win32"': ["pypiwin32"],
           "test": [
@@ -268,7 +271,7 @@ setup(name="tahoe-lafs", # also set in __init__.py
               "pytest-twisted",
               "hypothesis >= 3.6.1",
               "treq",
-              "towncrier",
+              "towncrier >= 18.6.1",
           ],
           "tor": [
               "foolscap[tor] >= 0.12.5",
