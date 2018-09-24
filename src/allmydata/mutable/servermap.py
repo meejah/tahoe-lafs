@@ -140,9 +140,11 @@ class ServerMap:
         return self.reachable_servers
 
     def mark_server_reachable(self, server):
+        print("reachable: {}".format(server))
         self.reachable_servers.add(server)
 
     def mark_server_unreachable(self, server):
+        print("unreachable: {}".format(server))
         self.unreachable_servers.add(server)
 
     def mark_bad_share(self, server, shnum, checkstring):

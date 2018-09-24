@@ -68,6 +68,7 @@ class MutableShareFile:
                       (filename, magic, self.MAGIC)
                 raise UnknownMutableContainerVersionError(msg)
         self.parent = parent # for logging
+        # XXX (but maybe also for fucking encoding param BS??)
 
     def log(self, *args, **kwargs):
         return self.parent.log(*args, **kwargs)

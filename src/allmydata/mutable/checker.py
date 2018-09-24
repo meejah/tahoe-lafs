@@ -220,6 +220,7 @@ class MutableChecker:
             summary = "Unhealthy: " + " ".join(summary)
 
         count_happiness = servers_of_happiness(sharemap)
+        print("COUNT HAPPINESS: {}".format(count_happiness))
 
         cr = CheckResults(from_string(self._node.get_uri()),
                           self._storage_index,
