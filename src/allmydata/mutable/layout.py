@@ -1119,6 +1119,7 @@ class MDMFSlotWriteProxy(object):
         of the write vectors that I've dealt with so far to be published
         to the remote server, ending the write process.
         """
+        print("HERE")
         if "verification_key_end" not in self._offsets:
             raise LayoutInvalid("You must put the verification key before "
                                 "you can publish the offsets")
@@ -1145,6 +1146,13 @@ class MDMFSlotWriteProxy(object):
 
     def _write(self, datavs, on_failure=None, on_success=None):
         """I write the data vectors in datavs to the remote slot."""
+
+        # XXX I *think* here is the spot where we want to check if a)
+        # we have grid-manager certs and if so, b) does this server
+        # have a valid one?
+
+        print("doing a writev {}".format(self))
+        
         tw_vectors = {}
         if not self._testvs:
             self._testvs = []

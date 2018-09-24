@@ -679,6 +679,7 @@ class MutableFileNode(object):
         all publishing, updating, modifying and so on happens through
         MutableFileVersions.
         """
+        print("_upload XXX {}".format(servermap))
         assert self._pubkey, "update_servermap must be called before publish"
 
         # Define IPublishInvoker with a set_downloader_hints method?
@@ -1007,7 +1008,11 @@ class MutableFileVersion(object):
         return d
 
 
+    ## XXX are you fucking kidding me?? is this overriding the other
+    ## _upload with two args???! (no ... there's a MutableFileVersion
+    ## and a MutableFileNode ... not confusing at all...)
     def _upload(self, new_contents):
+        print("_UPLOAD {}".format(self._servermap))
         #assert self._pubkey, "update_servermap must be called before publish"
         # XXXXXX FIXME self._happy isn't a thing, get it from node..?
         print(dir(self._node))

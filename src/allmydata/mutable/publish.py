@@ -362,6 +362,7 @@ class Publish:
         #    self._version = SDMF_VERSION
 
         self.log("starting publish, datalen is %s" % self.datalength)
+        print("starting publish, datalen is %s" % self.datalength)
         self._status.set_size(self.datalength)
         self._status.set_status("Started")
         self._started = time.time()
@@ -371,6 +372,7 @@ class Publish:
         self._writekey = self._node.get_writekey()
         assert self._writekey, "need write capability to publish"
 
+        print("oh look a servermap {}".format(self._servermap))
         # first, which servers will we publish to? We require that the
         # servermap was updated in MODE_WRITE, so we can depend upon the
         # serverlist computed by that process instead of computing our own.
@@ -445,6 +447,8 @@ class Publish:
         # try to update each existing share in place.
         self.goal = set(self._servermap.get_known_shares())
 
+        print("goal {}".format(self.goal))
+
         # then we add in all the shares that were bad (corrupted, bad
         # signatures, etc). We want to replace these.
         for key, old_checkstring in self._servermap.get_bad_shares().items():
@@ -455,6 +459,7 @@ class Publish:
         # TODO: Make this part do server selection.
         self.update_goal()
 
+        print("goal now {}".format(self.goal))
         # shnum -> set of IMutableSlotWriter
         self.writers = DictOfSets()
 
@@ -909,6 +914,7 @@ class Publish:
                  level=log.NOISY)
 
     def update_goal(self):
+        print("updategoal")
         self.log_goal(self.goal, "before update: ")
 
         # first, remove any bad servers from our goal
@@ -956,6 +962,8 @@ class Publish:
                                         "first_error=%s" %
                                         str(self._first_write_error),
                                         self._first_write_error)
+
+        # XXX what about "happiness"?? is here the right place to check?
 
         # we then index this serverlist with an integer, because we may have
         # to wrap. We update the goal as we go.
