@@ -64,6 +64,8 @@ class MutableFileNode(object):
         # without ever reading (i.e. overwrite()), then we use these values.
         self._required_shares = default_encoding_parameters["k"]
         self._total_shares = default_encoding_parameters["n"]
+        self._happy_shares = default_encoding_parameters["happy"]
+        print("HAPPY {}".format(self._happy_shares))
         self._sharemap = {} # known shares, shnum-to-[nodeids]
         self._most_recent_size = None
         # filled in after __init__ if we're being created for the first time;
@@ -348,7 +350,9 @@ class MutableFileNode(object):
                                      self._storage_index,
                                      self._storage_broker,
                                      self._readkey,
-                                     history=self._history)
+                                     history=self._history,
+                                     params=self._default_encoding_parameters,
+            )
             assert mfv.is_readonly()
             mfv.set_downloader_hints(self._downloader_hints)
             # our caller can use this to download the contents of the
@@ -503,7 +507,8 @@ class MutableFileNode(object):
                                      self._readkey,
                                      self._writekey,
                                      self._secret_holder,
-                                     history=self._history)
+                                     history=self._history,
+                                     params=self._default_encoding_parameters)
             assert not mfv.is_readonly()
             mfv.set_downloader_hints(self._downloader_hints)
             return mfv
@@ -678,7 +683,7 @@ class MutableFileNode(object):
 
         # Define IPublishInvoker with a set_downloader_hints method?
         # Then have the publisher call that method when it's done publishing?
-        p = Publish(self, self._storage_broker, servermap)
+        p = Publish(self, self._storage_broker, servermap, self._happy_shares)
         if self._history:
             self._history.notify_publish(p.get_status(),
                                          new_contents.get_size())
@@ -719,7 +724,8 @@ class MutableFileVersion(object):
                  readcap,
                  writekey=None,
                  write_secrets=None,
-                 history=None):
+                 history=None,
+                 params=None):
 
         self._node = node
         self._servermap = servermap
@@ -728,6 +734,7 @@ class MutableFileVersion(object):
         self._write_secrets = write_secrets
         self._history = history
         self._storage_broker = storage_broker
+        self._encoding_params = params
 
         #assert isinstance(readcap, IURI)
         self._readcap = readcap
@@ -1002,7 +1009,9 @@ class MutableFileVersion(object):
 
     def _upload(self, new_contents):
         #assert self._pubkey, "update_servermap must be called before publish"
-        p = Publish(self._node, self._storage_broker, self._servermap)
+        # XXXXXX FIXME self._happy isn't a thing, get it from node..?
+        print(dir(self._node))
+        p = Publish(self._node, self._storage_broker, self._servermap, self._encoding_params['happy'])
         if self._history:
             self._history.notify_publish(p.get_status(),
                                          new_contents.get_size())
@@ -1170,7 +1179,7 @@ class MutableFileVersion(object):
                                    self._version[3],
                                    segments_and_bht[0],
                                    segments_and_bht[1])
-        p = Publish(self._node, self._storage_broker, self._servermap)
+        p = Publish(self._node, self._storage_broker, self._servermap, self._happy_shares)
         return p.update(u, offset, segments_and_bht[2], self._version)
 
 

@@ -81,6 +81,13 @@ def check_location(options, where):
         stdout.write("Summary: %s\n" % quote_output(summary, quotemarks=False))
         cr = data["results"]
         stdout.write(" storage index: %s\n" % quote_output(data["storage-index"], quotemarks=False))
+        stdout.write(
+            " happiness: {} (desired {})\n".format(
+                cr['count-happiness'],
+                "???",
+            )
+        )
+        print('\n'.join(cr.keys()))
 
         if all([field in cr for field in ("count-shares-good", "count-shares-needed",
                                           "count-shares-expected", "count-wrong-shares")]):
