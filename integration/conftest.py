@@ -321,6 +321,10 @@ def bob(reactor, temp_dir, introducer_furl, flog_gatherer, storage_nodes, reques
             storage=False,
         )
     )
+    # XXX FIXME this should return like a ClientTahoe(..) or some kind
+    # of class that has a .stop/.start or .restart on it .. because
+    # "this" process is gone after magic_folder (or whatever)
+    # re-starts bob..
     return process
 
 

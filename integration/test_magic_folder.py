@@ -386,3 +386,41 @@ def test_edmond_uploads_then_restarts(reactor, request, temp_dir, introducer_fur
         assert exists(join(magic_folder, "its_a_file"))
         assert not exists(join(magic_folder, "its_a_file.backup"))
         time.sleep(1)
+
+
+@pytest_twisted.inlineCallbacks
+def test_startup_conflicts(reactor, request, alice, bob, magic_folder):
+    """
+    A user joins a magic-folder that already has files
+
+    See also: ticket 2965
+    """
+    alice_dir, bob_dir = magic_folder
+    time.sleep(1)
+
+    print(bob)
+    print(dir(bob))
+
+    # stop bob
+    bob.signalProcess('TERM')
+    yield bob._protocol.exited
+    time.sleep(1)
+
+    # add a test-dir of stuff to alice's magic-folder
+    import os
+    os.system("cp -r /home/mike/work-lafs/src/tahoe-lafs/testdata/cat-photos {}".format(alice_dir))
+    time.sleep(1)
+
+    # re-start bob
+    bob = yield util._run_node(
+        reactor, bob._node_dir, request,
+        'Completed initial Magic Folder scan successfully',
+    )
+
+    # wait up to 30 seconds for backup files to appear
+    for _ in range(20):
+        backups = listdir(join(bob_dir, "cat-photos"))
+        print("bob: {}".format(backups))
+        if any(True for f in backups if f.endswith('.backup')):
+            assert False, "found a backup file(s): {}".format(' '.join(f for f in backups if f.endswith('.backup')))
+        time.sleep(1)
