@@ -32,6 +32,7 @@ from util import (
     _create_node,
     _run_node,
     _cleanup_twistd_process,
+    spawn_process_optional_coverage,
 )
 
 
@@ -127,6 +128,7 @@ def flog_binary():
 def flog_gatherer(reactor, temp_dir, flog_binary, request):
     out_protocol = _CollectOutputProtocol()
     gather_dir = join(temp_dir, 'flog_gather')
+    # coverage not needed; not a Tahoe process
     reactor.spawnProcess(
         out_protocol,
         flog_binary,
@@ -140,6 +142,7 @@ def flog_gatherer(reactor, temp_dir, flog_binary, request):
     pytest_twisted.blockon(out_protocol.done)
 
     twistd_protocol = _MagicTextProtocol("Gatherer waiting at")
+    # coverage not needed; not a Tahoe process
     twistd_process = reactor.spawnProcess(
         twistd_protocol,
         which('twistd')[0],
@@ -160,6 +163,7 @@ def flog_gatherer(reactor, temp_dir, flog_binary, request):
         flogs = [x for x in listdir(flog_dir) if x.endswith('.flog')]
 
         print("Dumping {} flogtool logfiles to '{}'".format(len(flogs), flog_file))
+        # coverage not needed; not a Tahoe process
         reactor.spawnProcess(
             flog_protocol,
             flog_binary,
@@ -196,21 +200,19 @@ log_gatherer.furl = {log_furl}
 '''.format(log_furl=flog_gatherer)
 
     intro_dir = join(temp_dir, 'introducer')
+    coverage = request.config.getoption("coverage")
     print("making introducer", intro_dir)
 
     if not exists(intro_dir):
         mkdir(intro_dir)
         done_proto = _ProcessExitedProtocol()
-        reactor.spawnProcess(
-            done_proto,
-            sys.executable,
-            (
-                sys.executable, '-m', 'allmydata.scripts.runner',
-                'create-introducer',
-                '--listen=tcp',
-                '--hostname=localhost',
-                intro_dir,
-            ),
+        spawn_process_optional_coverage(
+            reactor, coverage, done_proto,
+            '-m', 'allmydata.scripts.runner',
+            'create-introducer',
+            '--listen=tcp',
+            '--hostname=localhost',
+            intro_dir,
         )
         pytest_twisted.blockon(done_proto.done)
 
@@ -222,22 +224,11 @@ log_gatherer.furl = {log_furl}
     # but on linux it means daemonize. "tahoe run" is consistent
     # between platforms.
     protocol = _MagicTextProtocol('introducer running')
-    env = copy(environ)
-    env['COVERAGE_PROCESS_START'] = ".coveragerc"
-    exe = sys.executable
-    args = (exe, )
-    if request.config.getoption("coverage"):
-        exe = abspath(join(sys.executable, "..", "coverage"))
-        args = (exe, 'run')
-    process = reactor.spawnProcess(
-        protocol,
-        exe,
-        args + (
-            '-m', 'allmydata.scripts.runner',
-            'run',
-            intro_dir,
-        ),
-        env=env,
+    process = spawn_process_optional_coverage(
+        reactor, coverage, protocol,
+        '-m', 'allmydata.scripts.runner',
+        'run',
+        intro_dir,
     )
     request.addfinalizer(partial(_cleanup_twistd_process, process, protocol.exited))
 
@@ -271,21 +262,19 @@ log_gatherer.furl = {log_furl}
 '''.format(log_furl=flog_gatherer)
 
     intro_dir = join(temp_dir, 'introducer_tor')
+    coverage = request.config.getoption("coverage")
     print("making introducer", intro_dir)
 
     if not exists(intro_dir):
         mkdir(intro_dir)
         done_proto = _ProcessExitedProtocol()
-        reactor.spawnProcess(
-            done_proto,
-            sys.executable,
-            (
-                sys.executable, '-m', 'allmydata.scripts.runner',
-                'create-introducer',
-                '--tor-control-port', 'tcp:localhost:8010',
-                '--listen=tor',
-                intro_dir,
-            ),
+        spawn_process_optional_coverage(
+            reactor, coverage, done_proto,
+            '-m', 'allmydata.scripts.runner',
+            'create-introducer',
+            '--tor-control-port', 'tcp:localhost:8010',
+            '--listen=tor',
+            intro_dir,
         )
         pytest_twisted.blockon(done_proto.done)
 
@@ -297,22 +286,11 @@ log_gatherer.furl = {log_furl}
     # but on linux it means daemonize. "tahoe run" is consistent
     # between platforms.
     protocol = _MagicTextProtocol('introducer running')
-    env = copy(environ)
-    env['COVERAGE_PROCESS_START'] = ".coveragerc"
-    exe = sys.executable
-    args = (exe,)
-    if request.config.getoption("coverage"):
-        exe = abspath(join(sys.executable, "..", "coverage"))
-        args = (exe, 'run')
-    process = reactor.spawnProcess(
-        protocol,
-        exe,
-        args + (
-            '-m', 'allmydata.scripts.runner',
-            'run',
-            intro_dir,
-        ),
-        env=env,
+    process = spawn_process_optional_coverage(
+        reactor, coverage, protocol,
+        '-m', 'allmydata.scripts.runner',
+        'run',
+        intro_dir,
     )
 
     def cleanup():
@@ -400,6 +378,7 @@ def bob(reactor, temp_dir, introducer_furl, flog_gatherer, storage_nodes, reques
 @pytest.fixture(scope='session')
 @log_call(action_type=u"integration:alice:invite", include_args=["temp_dir"])
 def alice_invite(reactor, alice, temp_dir, request):
+    coverage = request.config.getoption("coverage")
     node_dir = join(temp_dir, 'alice')
 
     with start_action(action_type=u"integration:alice:magic_folder:create"):
@@ -408,45 +387,23 @@ def alice_invite(reactor, alice, temp_dir, request):
         # consistently fail if we don't hack in this pause...)
         import time ; time.sleep(5)
         proto = _CollectOutputProtocol()
-        env = copy(environ)
-        env['COVERAGE_PROCESS_START'] = ".coveragerc"
-        exe = sys.executable
-        args = (exe,)
-        if request.config.getoption("coverage"):
-            exe = abspath(join(sys.executable, "..", "coverage"))
-            args = (exe, 'run')
-        reactor.spawnProcess(
-            proto,
-            exe,
-            args + (
-                '-m', 'allmydata.scripts.runner',
-                'magic-folder', 'create',
-                '--poll-interval', '2',
-                '--basedir', node_dir, 'magik:', 'alice',
-                join(temp_dir, 'magic-alice'),
-            ),
-            env=env,
+        spawn_process_optional_coverage(
+            reactor, coverage, proto,
+            '-m', 'allmydata.scripts.runner',
+            'magic-folder', 'create',
+            '--poll-interval', '2',
+            '--basedir', node_dir, 'magik:', 'alice',
+            join(temp_dir, 'magic-alice'),
         )
         pytest_twisted.blockon(proto.done)
 
     with start_action(action_type=u"integration:alice:magic_folder:invite") as a:
         proto = _CollectOutputProtocol()
-        env = copy(environ)
-        env['COVERAGE_PROCESS_START'] = ".coveragerc"
-        exe = sys.executable
-        args = (exe,)
-        if request.config.getoption("coverage"):
-            exe = abspath(join(sys.executable, "..", "coverage"))
-            args = (exe, 'run')
-        reactor.spawnProcess(
-            proto,
-            exe,
-            args + (
-                '-m', 'allmydata.scripts.runner',
-                'magic-folder', 'invite',
-                '--basedir', node_dir, 'magik:', 'bob',
-            ),
-            env=env,
+        spawn_process_optional_coverage(
+            reactor, coverage, proto,
+            '-m', 'allmydata.scripts.runner',
+            'magic-folder', 'invite',
+            '--basedir', node_dir, 'magik:', 'bob',
         )
         pytest_twisted.blockon(proto.done)
         invite = proto.output.getvalue()
@@ -462,7 +419,7 @@ def alice_invite(reactor, alice, temp_dir, request):
             pass
         with start_action(action_type=u"integration:alice:magic_folder:magic-text"):
             magic_text = 'Completed initial Magic Folder scan successfully'
-            pytest_twisted.blockon(_run_node(reactor, node_dir, request, magic_text))
+            pytest_twisted.blockon(_run_node(reactor, node_dir, request, magic_text, request.config.getoption("coverage")))
     return invite
 
 
@@ -474,26 +431,16 @@ def alice_invite(reactor, alice, temp_dir, request):
 def magic_folder(reactor, alice_invite, alice, bob, temp_dir, request):
     print("pairing magic-folder")
     bob_dir = join(temp_dir, 'bob')
+    coverage = request.config.getoption("coverage")
     proto = _CollectOutputProtocol()
-    env = copy(environ)
-    env['COVERAGE_PROCESS_START'] = ".coveragerc"
-    exe = sys.executable
-    args = (exe,)
-    if request.config.getoption("coverage"):
-        exe = abspath(join(sys.executable, "..", "coverage"))
-        args = (exe, 'run')
-    reactor.spawnProcess(
-        proto,
-        exe,
-        args + (
-            '-m', 'allmydata.scripts.runner',
-            'magic-folder', 'join',
-            '--poll-interval', '2',
-            '--basedir', bob_dir,
-            alice_invite,
-            join(temp_dir, 'magic-bob'),
-        ),
-        env=env,
+    spawn_process_optional_coverage(
+        reactor, coverage, proto,
+        '-m', 'allmydata.scripts.runner',
+        'magic-folder', 'join',
+        '--poll-interval', '2',
+        '--basedir', bob_dir,
+        alice_invite,
+        join(temp_dir, 'magic-bob'),
     )
     pytest_twisted.blockon(proto.done)
 
@@ -507,7 +454,7 @@ def magic_folder(reactor, alice_invite, alice, bob, temp_dir, request):
         pass
 
     magic_text = 'Completed initial Magic Folder scan successfully'
-    pytest_twisted.blockon(_run_node(reactor, bob_dir, request, magic_text))
+    pytest_twisted.blockon(_run_node(reactor, bob_dir, request, magic_text, request.config.getoption("coverage")))
     return (join(temp_dir, 'magic-alice'), join(temp_dir, 'magic-bob'))
 
 
@@ -527,8 +474,7 @@ def chutney(reactor, temp_dir):
     #
     # https://trac.torproject.org/projects/tor/ticket/20343
     proto = _DumpOutputProtocol(None)
-    env = copy(environ)
-    env['COVERAGE_PROCESS_START'] = ".coveragerc"
+    # coverage not needed; not a Tahoe process
     reactor.spawnProcess(
         proto,
         '/usr/bin/git',
@@ -537,7 +483,6 @@ def chutney(reactor, temp_dir):
             'https://git.torproject.org/chutney.git',
             chutney_dir,
         ),
-        env=env,
     )
     pytest_twisted.blockon(proto.done)
     return chutney_dir
@@ -554,6 +499,7 @@ def tor_network(reactor, temp_dir, chutney, request):
     # ./chutney start networks/basic
 
     proto = _DumpOutputProtocol(None)
+    # coverage not needed; not a Tahoe process
     reactor.spawnProcess(
         proto,
         sys.executable,
@@ -569,6 +515,7 @@ def tor_network(reactor, temp_dir, chutney, request):
     pytest_twisted.blockon(proto.done)
 
     proto = _DumpOutputProtocol(None)
+    # coverage not needed; not a Tahoe process
     reactor.spawnProcess(
         proto,
         sys.executable,
@@ -585,6 +532,7 @@ def tor_network(reactor, temp_dir, chutney, request):
 
     # print some useful stuff
     proto = _CollectOutputProtocol()
+    # coverage not needed; not a Tahoe process
     reactor.spawnProcess(
         proto,
         sys.executable,
@@ -606,6 +554,7 @@ def tor_network(reactor, temp_dir, chutney, request):
     def cleanup():
         print("Tearing down Chutney Tor network")
         proto = _CollectOutputProtocol()
+        # coverage not needed; not a Tahoe process
         reactor.spawnProcess(
             proto,
             sys.executable,

@@ -12,3 +12,6 @@ omit =
 # when doing integration tests, we want separate .coverage* files for
 # each process we've launched
 parallel = True
+
+# always do branch coverage
+branch = True

@@ -21,7 +21,7 @@ def test_upload_immutable(reactor, temp_dir, introducer_furl, flog_gatherer, sto
         total=10,
     )
 
-
+    coverage = request.config.getoption("coverage")
     node_dir = join(temp_dir, 'edna')
 
     print("waiting 10 seconds unil we're maybe ready")
@@ -30,14 +30,11 @@ def test_upload_immutable(reactor, temp_dir, introducer_furl, flog_gatherer, sto
     # upload a file, which should fail because we have don't have 7
     # storage servers (but happiness is set to 7)
     proto = util._CollectOutputProtocol()
-    reactor.spawnProcess(
-        proto,
-        sys.executable,
-        [
-            sys.executable, '-m', 'allmydata.scripts.runner',
-            '-d', node_dir,
-            'put', __file__,
-        ]
+    util.spawn_process_optional_coverage(
+        reactor, coverage, proto,
+        '-m', 'allmydata.scripts.runner',
+        '-d', node_dir,
+        'put', __file__,
     )
     try:
         yield proto.done

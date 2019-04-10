@@ -18,6 +18,7 @@ import util
 
 @pytest_twisted.inlineCallbacks
 def test_onion_service_storage(reactor, request, temp_dir, flog_gatherer, tor_network, tor_introducer_furl):
+    coverage = request.config.getoption("coverage")
     yield _create_anonymous_node(reactor, 'carol', 8008, request, temp_dir, flog_gatherer, tor_network, tor_introducer_furl)
     yield _create_anonymous_node(reactor, 'dave', 8009, request, temp_dir, flog_gatherer, tor_network, tor_introducer_furl)
     # ensure both nodes are connected to "a grid" by uploading
@@ -33,28 +34,21 @@ def test_onion_service_storage(reactor, request, temp_dir, flog_gatherer, tor_ne
     # WUIs instead ...
 
     proto = util._CollectOutputProtocol()
-    reactor.spawnProcess(
-        proto,
-        sys.executable,
-        (
-            sys.executable, '-m', 'allmydata.scripts.runner',
-            '-d', join(temp_dir, 'carol'),
-            'put', gold_path,
-        )
+    util.spawn_process_optional_coverage(
+        reactor, coverage, proto,
+        '-m', 'allmydata.scripts.runner',
+        '-d', join(temp_dir, 'carol'),
+        'put', gold_path,
     )
     yield proto.done
     cap = proto.output.getvalue().strip().split()[-1]
-    print("TEH CAP!", cap)
 
     proto = util._CollectOutputProtocol()
-    reactor.spawnProcess(
-        proto,
-        sys.executable,
-        (
-            sys.executable, '-m', 'allmydata.scripts.runner',
-            '-d', join(temp_dir, 'dave'),
-            'get', cap,
-        )
+    util.spawn_process_optional_coverage(
+        reactor, coverage, proto,
+        '-m', 'allmydata.scripts.runner',
+        '-d', join(temp_dir, 'dave'),
+        'get', cap,
     )
     yield proto.done
 
@@ -65,6 +59,7 @@ def test_onion_service_storage(reactor, request, temp_dir, flog_gatherer, tor_ne
 @pytest_twisted.inlineCallbacks
 def _create_anonymous_node(reactor, name, control_port, request, temp_dir, flog_gatherer, tor_network, introducer_furl):
     node_dir = join(temp_dir, name)
+    coverage = request.config.getoption("coverage")
     web_port = "tcp:{}:interface=localhost".format(control_port + 2000)
 
     if True:
@@ -74,19 +69,16 @@ def _create_anonymous_node(reactor, name, control_port, request, temp_dir, flog_
         print("creating", node_dir)
         mkdir(node_dir)
         proto = util._DumpOutputProtocol(None)
-        reactor.spawnProcess(
-            proto,
-            sys.executable,
-            (
-                sys.executable, '-m', 'allmydata.scripts.runner',
-                'create-node',
-                '--nickname', name,
-                '--introducer', introducer_furl,
-                '--hide-ip',
-                '--tor-control-port', 'tcp:localhost:{}'.format(control_port),
-                '--listen', 'tor',
-                node_dir,
-            )
+        util.spawn_process_optional_coverage(
+            reactor, coverage, proto,
+            '-m', 'allmydata.scripts.runner',
+            'create-node',
+            '--nickname', name,
+            '--introducer', introducer_furl,
+            '--hide-ip',
+            '--tor-control-port', 'tcp:localhost:{}'.format(control_port),
+            '--listen', 'tor',
+            node_dir,
         )
         yield proto.done
 
@@ -122,5 +114,5 @@ shares.total = 2
 })
 
     print("running")
-    yield util._run_node(reactor, node_dir, request, None)
+    yield util._run_node(reactor, node_dir, request, None, coverage)
     print("okay, launched")

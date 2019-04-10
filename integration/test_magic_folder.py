@@ -297,6 +297,8 @@ def test_edmond_uploads_then_restarts(reactor, request, temp_dir, introducer_fur
     re-starts a spurious .backup file should not appear
     """
 
+    coverage = request.config.getoption("coverage")
+
     edmond_dir = join(temp_dir, 'edmond')
     edmond = yield util._create_node(
         reactor, request, temp_dir, introducer_furl, flog_gatherer,
@@ -313,18 +315,15 @@ def test_edmond_uploads_then_restarts(reactor, request, temp_dir, introducer_fur
     for _ in range(10):  # try 10 times
         try:
             proto = util._CollectOutputProtocol()
-            transport = reactor.spawnProcess(
-                proto,
-                sys.executable,
-                [
-                    sys.executable, '-m', 'allmydata.scripts.runner',
-                    'magic-folder', 'create',
-                    '--poll-interval', '2',
-                    '--basedir', edmond_dir,
-                    'magik:',
-                    'edmond_magic',
-                    magic_folder,
-                ]
+            util.spawn_process_optional_coverage(
+                reactor, coverage, proto,
+                '-m', 'allmydata.scripts.runner',
+                'magic-folder', 'create',
+                '--poll-interval', '2',
+                '--basedir', edmond_dir,
+                'magik:',
+                'edmond_magic',
+                magic_folder,
             )
             yield proto.done
             created = True
@@ -339,7 +338,13 @@ def test_edmond_uploads_then_restarts(reactor, request, temp_dir, introducer_fur
     edmond.signalProcess('TERM')
     yield edmond._protocol.exited
     time.sleep(1)
-    edmond = yield util._run_node(reactor, edmond._node_dir, request, 'Completed initial Magic Folder scan successfully')
+    edmond = yield util._run_node(
+        reactor,
+        edmond._node_dir,
+        request,
+        'Completed initial Magic Folder scan successfully',
+        coverage,
+    )
 
     # add a thing to the magic-folder
     with open(join(magic_folder, "its_a_file"), "w") as f:
@@ -386,7 +391,8 @@ def test_edmond_uploads_then_restarts(reactor, request, temp_dir, introducer_fur
     edmond.signalProcess('TERM')
     yield edmond._protocol.exited
     time.sleep(1)
-    edmond = yield util._run_node(reactor, edmond._node_dir, request, 'Completed initial Magic Folder scan successfully')
+    edmond = yield util._run_node(reactor, edmond._node_dir, request, 'Completed initial Magic Folder scan successfully',
+                                  request.config.getoption("coverage"))
 
     # XXX how can we say for sure if we've waited long enough? look at
     # tail of logs for magic-folder ... somethingsomething?
@@ -408,7 +414,7 @@ def test_alice_adds_files_while_bob_is_offline(reactor, request, temp_dir, magic
     bob_node_dir = join(temp_dir, "bob")
 
     # Take Bob offline.
-    yield util.cli(reactor, bob_node_dir, "stop")
+    yield util.cli(reactor, bob_node_dir, request.config.getoption("coverage"), "stop")
 
     # Create a couple files in Alice's local directory.
     some_files = list(
@@ -422,7 +428,7 @@ def test_alice_adds_files_while_bob_is_offline(reactor, request, temp_dir, magic
 
     good = False
     for i in range(15):
-        status = yield util.magic_folder_cli(reactor, alice_node_dir, "status")
+        status = yield util.magic_folder_cli(reactor, alice_node_dir, request.config.getoption("coverage"), "status")
         good = status.count(".added-while-offline (36 B): good, version=0") == len(some_files) * 2
         if good:
             # We saw each file as having a local good state and a remote good
@@ -437,7 +443,7 @@ def test_alice_adds_files_while_bob_is_offline(reactor, request, temp_dir, magic
 
     # Start Bob up again
     magic_text = 'Completed initial Magic Folder scan successfully'
-    yield util._run_node(reactor, bob_node_dir, request, magic_text)
+    yield util._run_node(reactor, bob_node_dir, request, magic_text, request.config.getoption("coverage"))
 
     yield util.await_files_exist(
         list(
