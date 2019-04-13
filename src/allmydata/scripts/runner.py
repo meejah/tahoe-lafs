@@ -203,9 +203,37 @@ def run():
     # doesn't return: calls sys.exit(rc)
     task.react(_run_with_reactor)
 
+
+def _register_coverage_shutdown_handler(options, reactor):
+    """
+    see also comment in allmydata/__init__.py
+
+    if COVERAGE_PROCESS_START is set, and "coverage" is installed then
+    we're "doing coverage" and should write out the files. However,
+    Python doesn't run "atexit" handlers on TERM (unless we register a
+    signal handler) and also (for as yet unknown reasons) doesn't seem
+    to do so on SIGINT (under Twisted?). So, we make sure coverage
+    gets a chance to write files by registering our own handler.
+    """
+
+    def save_coverage_data():
+        try:
+            import coverage
+        except ImportError:
+            return
+        # this tells us if coverage decided to start; it is a Coverage
+        # instance if available
+        if coverage.process_startup.coverage:
+            coverage.process_startup.coverage.stop()
+            coverage.process_startup.coverage.save()
+    reactor.addSystemEventTrigger("after", "shutdown", save_coverage_data)
+    return options
+
+
 def _run_with_reactor(reactor):
     d = defer.maybeDeferred(parse_or_exit_with_explanation, sys.argv[1:])
     d.addCallback(_maybe_enable_eliot_logging, reactor)
+    d.addCallback(_register_coverage_shutdown_handler, reactor)
     d.addCallback(dispatch)
     def _show_exception(f):
         # when task.react() notices a non-SystemExit exception, it does

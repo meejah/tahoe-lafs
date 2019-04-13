@@ -6,6 +6,19 @@ community web site: U{https://tahoe-lafs.org/}
 import six
 
 
+# if we have "coverage" installed, run its startup code. This won't
+# actually "do coverage" unless COVERAGE_PROCESS_START is set too.
+# note that due to weird behavior of Python's "atexit", we also have
+# some custom shutdown code to actually write out the coverage files;
+# see allmydata/runner.py
+
+try:
+    import coverage
+    coverage.process_startup()
+except ImportError:
+    pass
+
+
 class PackagingError(EnvironmentError):
     """
     Raised when there is an error in packaging of Tahoe-LAFS or its
