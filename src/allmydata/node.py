@@ -269,7 +269,7 @@ class _Config(object):
             configparser (might be 'fake' if using in-memory data)
 
         :param write_new_tahoecfg: callable taking one argument which
-            is a ConfigParser instance
+            is a ConfigParser instance (or None)
         """
         self.portnum_fname = portnum_fname
         self._basedir = abspath_expanduser_unicode(unicode(basedir))

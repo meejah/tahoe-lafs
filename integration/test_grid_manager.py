@@ -151,13 +151,6 @@ def test_reject_storage_server(reactor, request, storage_nodes, temp_dir, introd
         config = client.read_config(storage._node_dir, "portnum")
         config.set_config("storage", "grid_management", "True")
         config.set_config("grid_manager_certificates", "default", "gridmanager.cert")
-        if False:
-            config = configutil.get_config(join(storage._node_dir, "tahoe.cfg"))
-            config.set("storage", "grid_management", "True")
-            config.add_section("grid_manager_certificates")
-            config.set("grid_manager_certificates", "default", "gridmanager.cert")
-            with open(join(storage._node_dir, "tahoe.cfg"), "w") as f:
-                config.write(f)
 
         # re-start this storage server
         storage.signalProcess('TERM')

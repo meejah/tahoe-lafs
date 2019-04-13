@@ -128,14 +128,9 @@ def add_grid_manager_cert(options):
     config.add_section("grid_manager_certificates")
     config.set_config("grid_manager_certificates", cert_name, cert_fname)
 
-    # write all the data out
-
+    # write all the data out (the set_config() calls above write out
+    # tahoe.cfg)
     fileutil.write(cert_path, cert_bytes)
-    # print("created {}: {} bytes".format(cert_fname, len(cert_bytes)))
-    with open(config_path, "w") as f:
-        # XXX probably want a _Config.write_tahoe_cfg() or something? or just set_config() does that automagically
-        config.config.write(f)
-    # print("wrote {}".format(config_fname))
 
     cert_count = len(config.enumerate_section("grid_manager_certificates"))
     print("There are now {} certificates".format(cert_count), file=options.parent.parent.stderr)
