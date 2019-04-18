@@ -12,9 +12,13 @@ import six
 # some custom shutdown code to actually write out the coverage files;
 # see allmydata/runner.py
 
+_coverage = None
 try:
     import coverage
-    coverage.process_startup()
+    #coverage.process_startup()
+    if _coverage is None:
+        _coverage = coverage.Coverage()
+        _coverage.start()
 except ImportError:
     pass
 

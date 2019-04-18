@@ -221,11 +221,18 @@ def _register_coverage_shutdown_handler(options, reactor):
             import coverage
         except ImportError:
             return
-        # this tells us if coverage decided to start; it is a Coverage
-        # instance if available
-        if coverage.process_startup.coverage:
-            coverage.process_startup.coverage.stop()
-            coverage.process_startup.coverage.save()
+        import allmydata
+        if allmydata._coverage:
+            try:
+                # print("stopping {}".format(allmydata._coverage))
+                allmydata._coverage.stop()
+                # print("stopped")
+            except Exception as e:
+                print("stop failed {}".format(e))
+            except:
+                print("stop REALLY failed")
+            # print("saving")
+            allmydata._coverage.save()
     reactor.addSystemEventTrigger("after", "shutdown", save_coverage_data)
     return options
 
