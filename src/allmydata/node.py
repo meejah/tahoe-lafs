@@ -830,6 +830,7 @@ class Node(service.MultiService):
         # after). Note that Foolscap logs handle pid-logging by itself, no
         # need to send a pid to the foolscap log here.
         twlog.msg("My pid: %s" % os.getpid())
+        twlog.msg(os.environ.keys())
         try:
             os.chmod("twistd.pid", 0o644)
         except EnvironmentError:

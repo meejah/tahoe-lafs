@@ -222,17 +222,18 @@ def _register_coverage_shutdown_handler(options, reactor):
         except ImportError:
             return
         import allmydata
-        if allmydata._coverage:
+        if allmydata._coverage is not None:
             try:
                 # print("stopping {}".format(allmydata._coverage))
                 allmydata._coverage.stop()
                 # print("stopped")
             except Exception as e:
                 print("stop failed {}".format(e))
+                print(e)
             except:
                 print("stop REALLY failed")
-            # print("saving")
-            allmydata._coverage.save()
+            finally:
+                allmydata._coverage.save()
     reactor.addSystemEventTrigger("after", "shutdown", save_coverage_data)
     return options
 

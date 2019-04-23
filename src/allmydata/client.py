@@ -415,6 +415,7 @@ def _load_grid_manager_certificates(config):
     Load all Grid Manager certificates in the config in a list. An
     empty list is returned if there are none.
     """
+    print("LOAD GM")
     grid_manager_certificates = []
 
     cert_fnames = list(config.enumerate_section("grid_manager_certificates").values())

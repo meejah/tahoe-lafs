@@ -20,6 +20,7 @@ try:
         _coverage = coverage.Coverage()
         _coverage.start()
 except ImportError:
+    print("not running coverage YYY")
     pass
 
 
