@@ -195,6 +195,23 @@ def run():
     task.react(_run_with_reactor)
 
 def _run_with_reactor(reactor):
+
+    # if/when this works, add an option to "do coverage"..
+    import coverage
+    cov = coverage.Coverage(
+        branch=True,
+    )
+    cov.start()
+
+    #import pdb; pdb.set_trace()
+    print("run with reactor" + "\n"*10)
+
+    def _shutdown(*args, **kw):
+        # all print()s get eaten here .. because reasons?
+        cov.stop()
+        cov.save()
+    reactor.addSystemEventTrigger('after', 'shutdown', _shutdown)
+
     d = defer.maybeDeferred(parse_or_exit_with_explanation, sys.argv[1:])
     d.addCallback(_maybe_enable_eliot_logging, reactor)
     d.addCallback(dispatch)
