@@ -194,23 +194,29 @@ def run():
     # doesn't return: calls sys.exit(rc)
     task.react(_run_with_reactor)
 
-def _run_with_reactor(reactor):
 
-    # if/when this works, add an option to "do coverage"..
-    import coverage
-    cov = coverage.Coverage(
-        branch=True,
-    )
+def _setup_coverage(reactor):
+    """
+    Arrange for coverage to be collected if the 'coverage' package is
+    installed
+    """
+    try:
+        import coverage
+    except ImportError:
+        return
+
+    cov = coverage.Coverage()
     cov.start()
 
-    #import pdb; pdb.set_trace()
-    print("run with reactor" + "\n"*10)
-
-    def _shutdown(*args, **kw):
-        # all print()s get eaten here .. because reasons?
+    def write_coverage_data(*args, **kw):
         cov.stop()
         cov.save()
-    reactor.addSystemEventTrigger('after', 'shutdown', _shutdown)
+    reactor.addSystemEventTrigger('after', 'shutdown', write_coverage_data)
+
+
+def _run_with_reactor(reactor):
+
+    _setup_coverage(reactor)
 
     d = defer.maybeDeferred(parse_or_exit_with_explanation, sys.argv[1:])
     d.addCallback(_maybe_enable_eliot_logging, reactor)
