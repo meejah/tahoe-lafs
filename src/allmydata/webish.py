@@ -1,6 +1,6 @@
 import re, time
 from twisted.application import service, strports, internet
-from twisted.web import http, static
+from twisted.web import http, static, server
 from twisted.internet import defer
 from twisted.internet.address import (
     IPv4Address,
@@ -20,7 +20,7 @@ from allmydata.web.common import IOpHandleTable, MyExceptionHandler
 # surgery may induce a dependency upon a particular version of twisted.web
 
 parse_qs = http.parse_qs
-class MyRequest(appserver.NevowRequest):
+class MyRequest(server.Request):
     fields = None
     _tahoe_request_had_error = None
 
@@ -165,14 +165,16 @@ class WebishServer(service.MultiService):
         self.root = root.Root(client, clock, now_fn)
         self.buildServer(webport, nodeurl_path, staticdir)
         if self.root.child_operations:
-            self.site.remember(self.root.child_operations, IOpHandleTable)
+##            self.site.remember(self.root.child_operations, IOpHandleTable)
             self.root.child_operations.setServiceParent(self)
 
     def buildServer(self, webport, nodeurl_path, staticdir):
         self.webport = webport
-        self.site = site = appserver.NevowSite(self.root)
+        #self.site = site = appserver.NevowSite(self.root)
+        from twisted.web.server import Site
+        self.site = site = Site(self.root)
         self.site.requestFactory = MyRequest
-        self.site.remember(MyExceptionHandler(), inevow.ICanHandleException)
+##        self.site.remember(MyExceptionHandler(), inevow.ICanHandleException)
         self.staticdir = staticdir # so tests can check
         if staticdir:
             self.root.putChild("static", static.File(staticdir))

@@ -1,6 +1,7 @@
 import time, os, json
 
 from twisted.web import http
+from twisted.web.resource import Resource
 from nevow import rend, url, tags as T
 from nevow.inevow import IRequest
 from nevow.static import File as nevow_File # TODO: merge with static.File?
@@ -29,19 +30,21 @@ from allmydata.web.private import (
     create_private_tree,
 )
 
-class URIHandler(RenderMixin, rend.Page):
+class URIHandler(RenderMixin, Resource):
     # I live at /uri . There are several operations defined on /uri itself,
     # mostly involved with creation of unlinked files and directories.
 
     def __init__(self, client):
-        rend.Page.__init__(self, client)
+        super(URIHandler, self).__init__()
         self.client = client
 
-    def render_GET(self, ctx):
-        req = IRequest(ctx)
+    def render_GET(self, req):
         uri = get_arg(req, "uri", None)
         if uri is None:
             raise WebError("GET /uri requires uri=")
+
+        path = "uri/{}".format(uri)
+        return self.getChild(uri, req).render_GET(req)
         there = url.URL.fromContext(ctx)
         there = there.clear("uri")
         # I thought about escaping the childcap that we attach to the URL
@@ -49,8 +52,7 @@ class URIHandler(RenderMixin, rend.Page):
         there = there.child(uri)
         return there
 
-    def render_PUT(self, ctx):
-        req = IRequest(ctx)
+    def render_PUT(self, req):
         # either "PUT /uri" to create an unlinked file, or
         # "PUT /uri?t=mkdir" to create an unlinked directory
         t = get_arg(req, "t", "").strip()
@@ -144,6 +146,7 @@ class Root(MultiFormatPage):
 
     addSlash = True
     docFactory = getxmlfile("welcome.xhtml")
+    isLeaf = False
 
     _connectedalts = {
         "not-configured": "Not Configured",
@@ -152,7 +155,7 @@ class Root(MultiFormatPage):
         }
 
     def __init__(self, client, clock=None, now_fn=None):
-        rend.Page.__init__(self, client)
+        super(Root, self).__init__()
         self.client = client
         # If set, clock is a twisted.internet.task.Clock that the tests
         # use to test ophandle expiration.
@@ -162,13 +165,14 @@ class Root(MultiFormatPage):
             s = client.getServiceNamed("storage")
         except KeyError:
             s = None
-        self.child_storage = storage.StorageStatus(s, self.client.nickname)
 
-        self.child_uri = URIHandler(client)
-        self.child_cap = URIHandler(client)
+        self.putChild("storage", storage.StorageStatus(s, self.client.nickname))
+
+        self.putChild("uri", URIHandler(client))
+        self.putChild("cap", URIHandler(client))
 
         # handler for "/magic_folder" URIs
-        self.child_magic_folder = magic_folder.MagicFolderWebApi(client)
+        self.putChild("magic_folder", magic_folder.MagicFolderWebApi(client))
 
         # Handler for everything beneath "/private", an area of the resource
         # hierarchy which is only accessible with the private per-node API

@@ -110,14 +110,13 @@ def get_root(ctx_or_req):
     link = "/".join([".."] * depth)
     return link
 
-def get_arg(ctx_or_req, argname, default=None, multiple=False):
+def get_arg(req, argname, default=None, multiple=False):
     """Extract an argument from either the query args (req.args) or the form
     body fields (req.fields). If multiple=False, this returns a single value
     (or the default, which defaults to None), and the query args take
     precedence. If multiple=True, this returns a tuple of arguments (possibly
     empty), starting with all those in the query args.
     """
-    req = IRequest(ctx_or_req)
     results = []
     if argname in req.args:
         results.extend(req.args[argname])
@@ -405,7 +404,7 @@ class RenderMixin(object):
         return ""
 
 
-class MultiFormatPage(Page):
+class MultiFormatPage(Resource, object):#Page):
     """
     ```MultiFormatPage`` is a ``rend.Page`` that can be rendered in a number
     of different formats.

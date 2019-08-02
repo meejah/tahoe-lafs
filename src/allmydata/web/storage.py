@@ -21,7 +21,7 @@ class StorageStatus(MultiFormatPage):
     # the default 'data' argument is the StorageServer instance
 
     def __init__(self, storage, nickname=""):
-        rend.Page.__init__(self, storage)
+        super(StorageStatus, self).__init__()
         self.storage = storage
         self.nickname = nickname
 

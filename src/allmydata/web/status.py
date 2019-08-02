@@ -966,7 +966,7 @@ class Status(MultiFormatPage):
     addSlash = True
 
     def __init__(self, history):
-        rend.Page.__init__(self, history)
+        super(Status, self).__init__()
         self.history = history
 
     def render_JSON(self, req):
@@ -1144,7 +1144,7 @@ class Statistics(MultiFormatPage):
     docFactory = getxmlfile("statistics.xhtml")
 
     def __init__(self, provider):
-        rend.Page.__init__(self, provider)
+        super(Statistics, self).__init__()
         self.provider = provider
 
     def render_JSON(self, req):

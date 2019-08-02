@@ -22,9 +22,9 @@ class IntroducerRoot(MultiFormatPage):
     child_operations = None
 
     def __init__(self, introducer_node):
+        super(IntroducerRoot, self).__init__()
         self.introducer_node = introducer_node
         self.introducer_service = introducer_node.getServiceNamed("introducer")
-        rend.Page.__init__(self, introducer_node)
         static_dir = resource_filename("allmydata.web", "static")
         for filen in os.listdir(static_dir):
             self.putChild(filen, nevow_File(os.path.join(static_dir, filen)))
