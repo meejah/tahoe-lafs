@@ -41,6 +41,10 @@ def pytest_addoption(parser):
         "--keep-tempdir", action="store_true", dest="keep",
         help="Keep the tmpdir with the client directories (introducer, etc)",
     )
+    parser.addoption(
+        "--coverage", action="store_true", dest="coverage",
+        help="Collect coverage statistics",
+    )
 
 @pytest.fixture(autouse=True, scope='session')
 def eliot_logging():
@@ -154,6 +158,27 @@ def flog_gatherer(reactor, temp_dir, flog_binary, request):
     return furl
 
 
+def _tahoe_runner_optional_coverage(proto, reactor, request, other_args):
+    """
+    Internal helper. Calls spawnProcess either using
+    `allmydata.scripts.runner` directly, or using coverage first if
+    the `--coverage` option was supplied to py.test
+    """
+    if request.config.getoption('coverage'):
+        args = [sys.executable, '-m', 'coverage', 'run', '-m', 'allmydata.scripts.runner']
+    else:
+        args = [sys.executable, '-m', 'allmydata.scripts.runner']
+#    if request.config.getoption('coverage'):
+#        args.append('--coverage')
+    args += other_args
+    print("run: {}".format(args))
+    return reactor.spawnProcess(
+        proto,
+        sys.executable,
+        args,
+    )
+
+
 @pytest.fixture(scope='session')
 @log_call(
     action_type=u"integration:introducer",
@@ -174,11 +199,11 @@ log_gatherer.furl = {log_furl}
     if not exists(intro_dir):
         mkdir(intro_dir)
         done_proto = _ProcessExitedProtocol()
-        reactor.spawnProcess(
+        _tahoe_runner_optional_coverage(
             done_proto,
-            sys.executable,
+            reactor,
+            request,
             (
-                sys.executable, '-m', 'allmydata.scripts.runner',
                 'create-introducer',
                 '--listen=tcp',
                 '--hostname=localhost',
@@ -195,11 +220,11 @@ log_gatherer.furl = {log_furl}
     # but on linux it means daemonize. "tahoe run" is consistent
     # between platforms.
     protocol = _MagicTextProtocol('introducer running')
-    process = reactor.spawnProcess(
+    process = _tahoe_runner_optional_coverage(
         protocol,
-        sys.executable,
+        reactor,
+        request,
         (
-            sys.executable, '-m', 'allmydata.scripts.runner',
             'run',
             intro_dir,
         ),
@@ -241,11 +266,11 @@ log_gatherer.furl = {log_furl}
     if not exists(intro_dir):
         mkdir(intro_dir)
         done_proto = _ProcessExitedProtocol()
-        reactor.spawnProcess(
+        _tahoe_runner_optional_coverage(
             done_proto,
-            sys.executable,
+            reactor,
+            request,
             (
-                sys.executable, '-m', 'allmydata.scripts.runner',
                 'create-introducer',
                 '--tor-control-port', 'tcp:localhost:8010',
                 '--listen=tor',
@@ -262,11 +287,11 @@ log_gatherer.furl = {log_furl}
     # but on linux it means daemonize. "tahoe run" is consistent
     # between platforms.
     protocol = _MagicTextProtocol('introducer running')
-    process = reactor.spawnProcess(
+    process = _tahoe_runner_optional_coverage(
         protocol,
-        sys.executable,
+        reactor,
+        request,
         (
-            sys.executable, '-m', 'allmydata.scripts.runner',
             'run',
             intro_dir,
         ),
@@ -365,11 +390,11 @@ def alice_invite(reactor, alice, temp_dir, request):
         # consistently fail if we don't hack in this pause...)
         import time ; time.sleep(5)
         proto = _CollectOutputProtocol()
-        reactor.spawnProcess(
+        _tahoe_runner_optional_coverage(
             proto,
-            sys.executable,
+            reactor,
+            request,
             [
-                sys.executable, '-m', 'allmydata.scripts.runner',
                 'magic-folder', 'create',
                 '--poll-interval', '2',
                 '--basedir', node_dir, 'magik:', 'alice',
@@ -380,11 +405,11 @@ def alice_invite(reactor, alice, temp_dir, request):
 
     with start_action(action_type=u"integration:alice:magic_folder:invite") as a:
         proto = _CollectOutputProtocol()
-        reactor.spawnProcess(
+        _tahoe_runner_optional_coverage(
             proto,
-            sys.executable,
+            reactor,
+            request,
             [
-                sys.executable, '-m', 'allmydata.scripts.runner',
                 'magic-folder', 'invite',
                 '--basedir', node_dir, 'magik:', 'bob',
             ]
@@ -416,13 +441,13 @@ def magic_folder(reactor, alice_invite, alice, bob, temp_dir, request):
     print("pairing magic-folder")
     bob_dir = join(temp_dir, 'bob')
     proto = _CollectOutputProtocol()
-    reactor.spawnProcess(
+    _tahoe_runner_optional_coverage(
         proto,
-        sys.executable,
+        reactor,
+        request,
         [
-            sys.executable, '-m', 'allmydata.scripts.runner',
             'magic-folder', 'join',
-            '--poll-interval', '2',
+            '--poll-interval', '1',
             '--basedir', bob_dir,
             alice_invite,
             join(temp_dir, 'magic-bob'),
