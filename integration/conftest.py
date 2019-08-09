@@ -282,8 +282,8 @@ log_gatherer.furl = {log_furl}
 
     def cleanup():
         try:
-            process.transport.signalProcess('TERM')
-            pytest_twisted.blockon(process.transport.exited)
+            process.signalProcess('TERM')
+            pytest_twisted.blockon(protocol.exited)
         except ProcessExitedAlready:
             pass
     request.addfinalizer(cleanup)
