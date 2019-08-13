@@ -185,6 +185,8 @@ def test_status(alice):
     print("Downloaded {} bytes of data".format(len(resp.content)))
     assert resp.content == FILE_CONTENTS
 
+    # XXX replace microdom with html5lib instead
+
     # find our upload and download status pages
     from twisted.web import microdom
     from collections import defaultdict
