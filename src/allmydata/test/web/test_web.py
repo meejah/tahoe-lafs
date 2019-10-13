@@ -2947,7 +2947,7 @@ class Web(WebMixin, WebErrorMixin, testutil.StallMixin, testutil.ReallyEqualMixi
         body, headers = self.build_form(t="upload", when_done="/THERE",
                                         file=("new.txt", self.NEWFILE_CONTENTS))
         yield self.shouldRedirectTo(self.webish_url + self.public_url + "/foo",
-                                    self.webish_url + "/THERE",
+                                    "/THERE",
                                     method="post", data=body, headers=headers,
                                     code=http.FOUND)
         fn = self._foo_node
@@ -3601,7 +3601,7 @@ class Web(WebMixin, WebErrorMixin, testutil.StallMixin, testutil.ReallyEqualMixi
         body, headers = self.build_form(t="mkdir", name="newdir",
                                         when_done="/THERE")
         yield self.shouldRedirectTo(self.webish_url + self.public_url + "/foo",
-                                    self.webish_url + "/THERE",
+                                    "/THERE",
                                     method="post", data=body, headers=headers,
                                     code=http.FOUND)
         res = yield self._foo_node.get(u"newdir")
@@ -3611,7 +3611,7 @@ class Web(WebMixin, WebErrorMixin, testutil.StallMixin, testutil.ReallyEqualMixi
     def test_POST_mkdir_whendone_queryarg(self):
         body, headers = self.build_form(t="mkdir", name="newdir")
         url = self.webish_url + self.public_url + "/foo?when_done=/THERE"
-        yield self.shouldRedirectTo(url, self.webish_url + "/THERE",
+        yield self.shouldRedirectTo(url, "/THERE",
                                     method="post", data=body, headers=headers,
                                     code=http.FOUND)
         res = yield self._foo_node.get(u"newdir")
