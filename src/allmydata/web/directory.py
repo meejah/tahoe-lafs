@@ -18,6 +18,7 @@ from twisted.web.template import (
 )
 from twisted.python.filepath import FilePath
 from nevow import url, rend, inevow, tags as T
+from nevow.inevow import IRequest
 
 from foolscap.api import fireEventually
 
