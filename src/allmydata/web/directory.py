@@ -934,11 +934,11 @@ def DirectoryJSONMetadata(ctx, dirnode):
     return d
 
 
-def DirectoryURI(req, dirnode):
-    return text_plain(dirnode.get_uri(), req)
+def DirectoryURI(ctx, dirnode):
+    return text_plain(dirnode.get_uri(), ctx)
 
-def DirectoryReadonlyURI(req, dirnode):
-    return text_plain(dirnode.get_readonly_uri(), req)
+def DirectoryReadonlyURI(ctx, dirnode):
+    return text_plain(dirnode.get_readonly_uri(), ctx)
 
 class RenameForm(rend.Page):
     addSlash = True
@@ -963,8 +963,8 @@ class RenameForm(rend.Page):
     def render_get_name(self, ctx, data):
         req = IRequest(ctx)
         name = get_arg(req, "name", "")
-        tag.attributes['value'] = name
-        return tag
+        ctx.tag.attributes['value'] = name
+        return ctx.tag
 
 
 class ReloadableMonitorElement(Element, object):
