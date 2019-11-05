@@ -8,6 +8,7 @@ from twisted.web.resource import (
     ErrorPage,
 )
 from nevow import url, rend
+from nevow.inevow import IRequest
 
 from allmydata.interfaces import ExistingChildError
 from allmydata.monitor import Monitor
