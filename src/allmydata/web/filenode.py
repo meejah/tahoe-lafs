@@ -3,8 +3,12 @@ import json
 
 from twisted.web import http, static
 from twisted.internet import defer
-from nevow import url, rend
-from nevow.inevow import IRequest
+from twisted.web.resource import (
+    Resource,
+    ErrorPage,
+)
+
+from nevow import url
 
 from allmydata.interfaces import ExistingChildError
 from allmydata.monitor import Monitor
