@@ -935,11 +935,11 @@ def DirectoryJSONMetadata(ctx, dirnode):
     return d
 
 
-def DirectoryURI(ctx, dirnode):
-    return text_plain(dirnode.get_uri(), ctx)
+def DirectoryURI(req, dirnode):
+    return text_plain(dirnode.get_uri(), req)
 
-def DirectoryReadonlyURI(ctx, dirnode):
-    return text_plain(dirnode.get_readonly_uri(), ctx)
+def DirectoryReadonlyURI(req, dirnode):
+    return text_plain(dirnode.get_readonly_uri(), req)
 
 class RenameForm(rend.Page):
     addSlash = True
