@@ -19,7 +19,6 @@ package_imports = [
     ('OpenSSL',          None),
     ('pyasn1',           'pyasn1'),
     ('service-identity', 'service_identity'),
-    ('characteristic',   'characteristic'),
     ('pyasn1-modules',   'pyasn1_modules'),
     ('cryptography',     'cryptography'),
     ('cffi',             'cffi'),
@@ -42,8 +41,6 @@ not_import_versionable = [
 # Dependencies reported by pkg_resources that we can safely ignore.
 ignorable = [
     'argparse',
-    'pyutil',
-    'zbase32',
     'distribute',
     'twisted-web',
     'twisted-core',

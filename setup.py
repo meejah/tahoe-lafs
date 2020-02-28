@@ -53,7 +53,8 @@ install_requires = [
     #   and allocate_tcp_port
     # * foolscap >= 0.12.5 has ConnectionInfo and ReconnectionInfo
     # * foolscap >= 0.12.6 has an i2p.sam_endpoint() that takes kwargs
-    "foolscap >= 0.12.6",
+    # * foolscap 0.13.2 drops i2p support completely
+    "foolscap == 0.13.1",
 
     # * cryptography 2.6 introduced some ed25519 APIs we rely on.  Note that
     #   Twisted[conch] also depends on cryptography and Twisted[tls]
@@ -87,6 +88,9 @@ install_requires = [
     #   bcrypt.  It is nice to avoid that if the user ends up with an older
     #   version of Twisted.  That's hard to express except by using the extra.
     #
+    # * Twisted 18.4.0 adds `client` and `host` attributes to `Request` in the
+    # * initializer, needed by logic in our custom `Request` subclass.
+    #
     #   In a perfect world, Twisted[conch] would be a dependency of an "sftp"
     #   extra.  However, pip fails to resolve the dependencies all
     #   dependencies when asked for Twisted[tls] *and* Twisted[conch].
@@ -96,7 +100,7 @@ install_requires = [
     #   `pip install tahoe-lafs[sftp]` would not install requirements
     #   specified by Twisted[conch].  Since this would be the *whole point* of
     #   an sftp extra in Tahoe-LAFS, there is no point in having one.
-    "Twisted[tls,conch] >= 16.6.0",
+    "Twisted[tls,conch] >= 18.4.0",
 
     # We need Nevow >= 0.11.1 which can be installed using pip.
     "Nevow >= 0.11.1",
@@ -346,7 +350,10 @@ setup(name="tahoe-lafs", # also set in __init__.py
       python_requires="<3.0",
       install_requires=install_requires,
       extras_require={
-          ':sys_platform=="win32"': ["pypiwin32"],
+          # Duplicate the Twisted pywin32 dependency here.  See
+          # https://tahoe-lafs.org/trac/tahoe-lafs/ticket/2392 for some
+          # discussion.
+          ':sys_platform=="win32"': ["pywin32 != 226"],
           ':sys_platform!="win32" and sys_platform!="linux2"': ["watchdog"],  # For magic-folder on "darwin" (macOS) and the BSDs
           "test": [
               # Pin a specific pyflakes so we don't have different folks

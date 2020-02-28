@@ -570,10 +570,6 @@ class Help(unittest.TestCase):
         help = str(cli.UnlinkOptions())
         self.failUnlessIn("[options] REMOTE_FILE", help)
 
-    def test_rm(self):
-        help = str(cli.RmOptions())
-        self.failUnlessIn("[options] REMOTE_FILE", help)
-
     def test_mv(self):
         help = str(cli.MvOptions())
         self.failUnlessIn("[options] FROM TO", help)
@@ -1081,11 +1077,6 @@ class Unlink(GridTestMixin, CLITestMixin, unittest.TestCase):
         return d
 
 
-class Rm(Unlink):
-    """Test that 'tahoe rm' behaves in the same way as 'tahoe unlink'."""
-    command = "rm"
-
-
 class Stats(GridTestMixin, CLITestMixin, unittest.TestCase):
     def test_empty_directory(self):
         self.basedir = "cli/Stats/empty_directory"
@@ -1352,8 +1343,8 @@ class Stop(unittest.TestCase):
 
 class Start(unittest.TestCase):
 
-    @patch('allmydata.scripts.tahoe_daemonize.os.chdir')
-    @patch('allmydata.scripts.tahoe_daemonize.twistd')
+    @patch('allmydata.scripts.run_common.os.chdir')
+    @patch('allmydata.scripts.run_common.twistd')
     def test_non_numeric_pid(self, mock_twistd, chdir):
         """
         If the pidfile exists but does not contain a numeric value, a complaint to
