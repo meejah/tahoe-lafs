@@ -109,7 +109,7 @@ def _get_error_string(errors, debug=False):
 def _cross_check(pkg_resources_vers_and_locs, imported_vers_and_locs_list):
     """This function returns a list of errors due to any failed cross-checks."""
 
-    from _auto_deps import not_import_versionable
+    from ._auto_deps import not_import_versionable
 
     errors = []
     not_pkg_resourceable = ['python', 'platform', __appname__.lower(), 'openssl']
@@ -297,7 +297,7 @@ def _get_platform():
 
 def _get_package_versions_and_locations():
     import warnings
-    from _auto_deps import package_imports, global_deprecation_messages, deprecation_messages, \
+    from ._auto_deps import package_imports, global_deprecation_messages, deprecation_messages, \
         runtime_warning_messages, warning_imports, ignorable
 
     def package_dir(srcfile):
