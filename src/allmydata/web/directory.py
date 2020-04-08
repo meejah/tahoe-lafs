@@ -8,14 +8,19 @@ from twisted.internet import defer
 from twisted.internet.interfaces import IPushProducer
 from twisted.python.failure import Failure
 from twisted.web import http
-from twisted.web.resource import ErrorPage
-from twisted.web.resource import Resource
+from twisted.web.resource import (
+    ErrorPage,
+    Resource,
+)
 from twisted.web.template import (
     Element,
     XMLFile,
     renderElement,
     renderer,
     tags,
+)
+from twisted.web.http import (
+    TEMPORARY_REDIRECT,
 )
 from hyperlink import URL
 from twisted.python.filepath import FilePath
@@ -99,21 +104,26 @@ class DirectoryNodeHandler(ReplaceMeMixin, Resource, object):
         """
         Dynamically create a child for the given request and name
         """
-        # trying to replicate what I have observed as Nevow behavior
-        # for these nodes, which is that a URI like
-        # "/uri/URI%3ADIR2%3Aj...vq/" (that is, with a trailing slash
-        # or no further children) renders "this" page
+        # if we get a trailing slash, this will be an 'empty pathname
+        # component' and we redirect to the non-trailing-slash version
         name = name.decode('utf8')
         if not name:
-            # replicating Nevow behavior that complains about "empty
-            # path segments" .. but twisted.web sends in "name=''"
-            # for a URL like "/foo/bar/" as well as "/foo//bar"
-            # (i.e. a trailing slash means "name=''" as well)
-            if b'//' in req.path:
-                raise EmptyPathnameComponentError(
-                    u"The webapi does not allow empty pathname components, i.e. a double slash",
-                )
-            return self
+            # if the name is none, there's a trailing empty name
+            # component .. so we redirect to the same URL without that
+            # empty pice, that is from /foo/bar/ -> /foo/bar
+            u = URL.from_text(req.uri.decode('ascii'))
+            assert not u.path[-1]
+            u = u.replace(
+                path=u.path[:-1]
+            )
+
+            req.setResponseCode(TEMPORARY_REDIRECT)
+            req.setHeader(b"location", u.to_uri().to_text().encode('ascii'))
+            return (
+                '<html><head><meta http-equiv="refresh" content="0;URL={url}"></head>'
+                '<body><a href="{url}">click here</a></body></html>'
+            )
+
         d = self.node.get(name)
         d.addBoth(self._got_child, req, name)
         return d
