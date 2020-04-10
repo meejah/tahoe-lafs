@@ -51,7 +51,6 @@ def mkdir(contents, options):
     return dircap
 
 def put_child(dirurl, childname, childcap):
-    assert dirurl[-1] == "/"
     url = dirurl + urllib.quote(unicode_to_url(childname)) + "?t=uri"
     resp = do_http("PUT", url, childcap)
     if resp.status not in (200, 201):
@@ -97,13 +96,12 @@ class BackerUpper(object):
         except UnknownAliasError as e:
             e.display(stderr)
             return 1
-        to_url = nodeurl + "uri/%s/" % urllib.quote(rootcap)
+        to_url = nodeurl + "uri/%s" % urllib.quote(rootcap)
         if path:
             to_url += escape_path(path)
-        if not to_url.endswith("/"):
-            to_url += "/"
+        to_url = to_url.rstrip("/")
 
-        archives_url = to_url + "Archives/"
+        archives_url = to_url + "Archives"
 
         # first step: make sure the target directory exists, as well as the
         # Archives/ subdirectory.

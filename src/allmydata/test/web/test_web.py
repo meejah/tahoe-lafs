@@ -545,7 +545,7 @@ class WebMixin(testutil.TimezoneMixin):
                                    self._quux_txt_readonly_uri)
 
     @inlineCallbacks
-    def GET(self, urlpath, followRedirect=False, return_response=False,
+    def GET(self, urlpath, followRedirect=True, return_response=False,
             **kwargs):
         # if return_response=True, this fires with (data, statuscode,
         # respheaders) instead of just data.
@@ -564,6 +564,7 @@ class WebMixin(testutil.TimezoneMixin):
             # response.headers has one.
             returnValue( (data, str(response.code), response.headers) )
         if 400 <= response.code < 600:
+            print("error", urlpath)
             raise Error(response.code, response=data)
         returnValue(data)
 
@@ -4542,6 +4543,7 @@ class Web(WebMixin, WebErrorMixin, testutil.StallMixin, testutil.ReallyEqualMixi
         url = self.webish_url + self.public_url + "/foo/?t=start-manifest&ophandle=129&retain-for=60"
         yield do_http("post", url,
                       allow_redirects=True, browser_like_redirects=True)
+        print("OHAI")
         res = yield self.GET("/operations/129?t=status&output=JSON&retain-for=0")
         data = json.loads(res)
         self.failUnless("finished" in data, res)
@@ -4567,7 +4569,7 @@ class Web(WebMixin, WebErrorMixin, testutil.StallMixin, testutil.ReallyEqualMixi
         # uncollected ophandles should expire after 4 days
         def _make_uncollected_ophandle(ophandle):
             url = (self.webish_url + self.public_url +
-                   "/foo/?t=start-manifest&ophandle=%d" % ophandle)
+                   "/foo?t=start-manifest&ophandle=%d" % ophandle)
             # When we start the operation, the webapi server will want to
             # redirect us to the page for the ophandle, so we get
             # confirmation that the operation has started. If the manifest

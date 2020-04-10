@@ -86,6 +86,7 @@ class Backup(GridTestMixin, CLITestMixin, StallMixin, unittest.TestCase):
         d.addCallback(lambda res: do_backup(True))
         def _check0(args):
             (rc, out, err) = args
+            print("XXX", rc, out, err)
             self.failUnlessReallyEqual(err, "")
             self.failUnlessReallyEqual(rc, 0)
             (

@@ -62,8 +62,11 @@ class WebRenderingMixin(object):
 
 @defer.inlineCallbacks
 def do_http(method, url, **kwargs):
+    print("DING DING: {}".format(kwargs.get("browser_like_redirects", "nope")))
+    print(kwargs)
     response = yield treq.request(method, url, persistent=False, **kwargs)
     body = yield treq.content(response)
+    print("RESP", body)
     # TODO: replace this with response.fail_for_status when
     # https://github.com/twisted/treq/pull/159 has landed
     if 400 <= response.code < 600:

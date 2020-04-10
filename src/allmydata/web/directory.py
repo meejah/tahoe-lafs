@@ -105,7 +105,8 @@ class DirectoryNodeHandler(ReplaceMeMixin, Resource, object):
         Dynamically create a child for the given request and name
         """
         # if we get a trailing slash, this will be an 'empty pathname
-        # component' and we redirect to the non-trailing-slash version
+        # component' in which case we redirect to the
+        # non-trailing-slash version
         name = name.decode('utf8')
         if not name:
             # if the name is none, there's a trailing empty name
@@ -117,12 +118,12 @@ class DirectoryNodeHandler(ReplaceMeMixin, Resource, object):
                 path=u.path[:-1]
             )
 
+            # the redirectTo() from Twisted will use FOUND/302 but we
+            # want to use 307 so that POST will redirect with another
+            # POST.
             req.setResponseCode(TEMPORARY_REDIRECT)
-            req.setHeader(b"location", u.to_uri().to_text().encode('ascii'))
-            return (
-                '<html><head><meta http-equiv="refresh" content="0;URL={url}"></head>'
-                '<body><a href="{url}">click here</a></body></html>'
-            )
+            req.setHeader(b"Location", u.to_uri().to_text().encode('ascii'))
+            return b""
 
         d = self.node.get(name)
         d.addBoth(self._got_child, req, name)
@@ -527,6 +528,7 @@ class DirectoryNodeHandler(ReplaceMeMixin, Resource, object):
 
     def _start_operation(self, monitor, renderer, ctx):
         self._operations.add_monitor(ctx, monitor, renderer)
+        print("operations somethingsomething")
         return self._operations.redirect_to(ctx)
 
     def _POST_start_deep_check(self, req):
@@ -735,7 +737,7 @@ class DirectoryAsHTML(Element):
             return ""
         rocap = self.node.get_readonly_uri()
         root = get_root(req)
-        uri_link = "%s/uri/%s/" % (root, urllib.quote(rocap))
+        uri_link = "%s/uri/%s" % (root, urllib.quote(rocap))
         return tag(tags.a("Read-Only Version", href=uri_link))
 
     @renderer
@@ -760,7 +762,7 @@ class DirectoryAsHTML(Element):
         nameurl = urllib.quote(name, safe="") # encode any slashes too
 
         root = get_root(req)
-        here = "{}/uri/{}/".format(root, urllib.quote(self.node.get_uri()))
+        here = "{}/uri/{}".format(root, urllib.quote(self.node.get_uri()))
         if self.node.is_unknown() or self.node.is_readonly():
             unlink = "-"
             rename = "-"
@@ -823,14 +825,14 @@ class DirectoryAsHTML(Element):
             # to prevent javascript in displayed .html files from stealing a
             # secret directory URI from the URL, send the browser to a URI-based
             # page that doesn't know about the directory at all
-            dlurl = "%s/file/%s/@@named=/%s" % (root, quoted_uri, nameurl)
+            dlurl = "%s/file/%s@@named=/%s" % (root, quoted_uri, nameurl)
             slots["filename"] = tags.a(name, href=dlurl, rel="noreferrer")
             slots["type"] = "SSK"
             slots["size"] = "?"
             info_link = "{}/uri/{}?t=info".format(root, quoted_uri)
 
         elif IImmutableFileNode.providedBy(target):
-            dlurl = "%s/file/%s/@@named=/%s" % (root, quoted_uri, nameurl)
+            dlurl = "%s/file/%s@@named=/%s" % (root, quoted_uri, nameurl)
             slots["filename"] = tags.a(name, href=dlurl, rel="noreferrer")
             slots["type"] = "FILE"
             slots["size"] = str(target.get_size())
@@ -838,7 +840,7 @@ class DirectoryAsHTML(Element):
 
         elif IDirectoryNode.providedBy(target):
             # directory
-            uri_link = "%s/uri/%s/" % (root, urllib.quote(target_uri))
+            uri_link = "%s/uri/%s" % (root, urllib.quote(target_uri))
             slots["filename"] = tags.a(name, href=uri_link)
             if not target.is_mutable():
                 dirtype = "DIR-IMM"
@@ -848,7 +850,7 @@ class DirectoryAsHTML(Element):
                 dirtype = "DIR"
             slots["type"] = dirtype
             slots["size"] = "-"
-            info_link = "%s/uri/%s/?t=info" % (root, quoted_uri)
+            info_link = "%s/uri/%s?t=info" % (root, quoted_uri)
 
         elif isinstance(target, ProhibitedNode):
             if IDirectoryNode.providedBy(target.wrapped_node):
@@ -891,7 +893,7 @@ class DirectoryAsHTML(Element):
         # because action="." doesn't get us back to the dir page (but
         # instead /uri itself)
         root = get_root(req)
-        here = "{}/uri/{}/".format(root, urllib.quote(self.node.get_uri()))
+        here = "{}/uri/{}".format(root, urllib.quote(self.node.get_uri()))
 
         if self.node.is_readonly():
             return tags.div("No upload forms: directory is read-only")

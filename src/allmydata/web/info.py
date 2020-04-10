@@ -198,8 +198,8 @@ class MoreInfoElement(Element):
         node = self.original
         quoted_uri = urllib.quote(node.get_uri())
         target = self.get_root(req) + "/uri/" + quoted_uri
-        if IDirectoryNode.providedBy(node):
-            target += "/"
+#        if IDirectoryNode.providedBy(node):
+#            target += "/"
         check = T.form(action=target, method="post",
                        enctype="multipart/form-data")(
             T.fieldset(
