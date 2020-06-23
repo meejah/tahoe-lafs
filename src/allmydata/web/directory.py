@@ -105,9 +105,15 @@ class DirectoryNodeHandler(ReplaceMeMixin, Resource, object):
         # or no further children) renders "this" page
         name = name.decode('utf8')
         if not name:
-            raise EmptyPathnameComponentError(
-                u"The webapi does not allow empty pathname components",
-            )
+            # we want to work the same for "/uri/<...>" and
+            # "/uri/<...>/" but NOT for e.g. "/uri//<...>" or
+            # "/uri/<...>//////" etc. This all replicates what
+            # happened under Nevow in tahoe 1.14.0 and before.
+            if b'//' in req.path:
+                raise EmptyPathnameComponentError(
+                    u"The webapi does not allow empty pathname components, i.e. a double slash",
+                )
+            return self
 
         d = self.node.get(name)
         d.addBoth(self._got_child, req, name)
