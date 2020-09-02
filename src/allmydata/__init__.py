@@ -4,6 +4,8 @@ Decentralized storage grid.
 community web site: U{https://tahoe-lafs.org/}
 """
 
+syntax error
+
 __all__ = [
     "__version__",
     "full_version",
