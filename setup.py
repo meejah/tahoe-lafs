@@ -410,6 +410,11 @@ setup(name="tahoe-lafs", # also set in __init__.py
                     },
       include_package_data=True,
       setup_requires=setup_requires,
-      entry_points = { 'console_scripts': [ 'tahoe = allmydata.scripts.runner:run' ] },
+      entry_points={
+          'console_scripts': [
+              'tahoe = allmydata.scripts.runner:run',
+              'tu = tu.cli:tu',
+          ],
+      },
       **setup_args
       )
