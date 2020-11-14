@@ -263,6 +263,30 @@ class Introducer(object):
     furl = attr.ib()
 
 
+def _validate_furl(furl_fname):
+    """
+    Opens and validates a fURL, ensuring location hints.
+    :returns: the furl
+    :raises: ValueError if no location hints
+    """
+    furl_fname = join(temp_dir, 'introducer', 'private', 'introducer.furl')
+    while not exists(furl_fname):
+        print("Don't see {} yet".format(furl_fname))
+        sleep(.1)
+    furl = open(furl_fname, 'r').read()
+    tubID, location_hints, name = decode_furl(furl)
+    if not location_hints:
+        # If there are no location hints then nothing can ever possibly
+        # connect to it and the only thing that can happen next is something
+        # will hang or time out.  So just give up right now.
+        raise ValueError(
+            "Introducer ({!r}) fURL has no location hints!".format(
+                introducer_furl,
+            ),
+        )
+    return furl
+
+
 @inlineCallbacks
 @log_call(
     action_type=u"integration:introducer",
@@ -329,7 +353,7 @@ def create_introducer(reactor, request, temp_dir, flog_gatherer, port):
     while not exists(furl_fname):
         print("Don't see {} yet".format(furl_fname))
         yield deferLater(reactor, .1, lambda: None)
-    furl = open(furl_fname, 'r').read()
+    furl = _validate_furl(furl_fname)
 
     returnValue(
         Introducer(
