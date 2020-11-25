@@ -140,8 +140,9 @@ uploaded to PyPI as well.
 - (original guide says only "twine upload dist/*")
 - the following developers have access to do this:
   - warner
-  - exarkun (partial?)
-  - meejah (partial?)
+  - exarkun (partial)
+  - meejah (partial)
+
 
 Announcing the Release Candidate
 ````````````````````````````````
