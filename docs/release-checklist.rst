@@ -181,6 +181,10 @@ The release-candidate should be announced by posting to the
 mailing-list (tahoe-dev@lists.tahoe-lafs.org). For example:
 https://lists.tahoe-lafs.org/pipermail/tahoe-dev/2020-October/009978.html
 
+ - produce e.g. release-announce-1.16.0-rc1 with the text
+ - clear-sign it:
+ - gpg --pinentry=loopback --armor --clearsign release-announce-1.16.0-rc1
+
 
 Is The Release Done Yet?
 ````````````````````````
