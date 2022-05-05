@@ -5,6 +5,36 @@ User-Visible Changes in Tahoe-LAFS
 ==================================
 
 .. towncrier start line
+Release 1.17.1.post365 (2022-05-05)Release 1.17.1.post365 (2022-05-05)
+'''''''''''''''''''''''''''''''''''
+
+Backwards Incompatible Changes
+------------------------------
+
+- Python 3.6 is no longer supported, as it has reached end-of-life and is no longer receiving security updates. (`#3865 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3865>`_)
+- Python 3.7 or later is now required; Python 2 is no longer supported. (`#3873 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3873>`_)
+- Share corruption reports stored on disk are now always encoded in UTF-8. (`#3879 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3879>`_)
+
+
+Features
+--------
+
+- The implementation of SDMF and MDMF (mutables) now requires RSA keys to be exactly 2048 bits, aligning them with the specification.
+
+  Some code existed to allow tests to shorten this and it's
+  conceptually possible a modified client produced mutables
+  with different key-sizes. However, the spec says that they
+  must be 2048 bits. If you happen to have a capability with
+  a key-size different from 2048 you may use 1.17.1 or earlier
+  to read the content. (`#3828 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3828>`_)
+
+
+Misc/Other
+----------
+
+- `#3327 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3327>`_, `#3526 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3526>`_, `#3697 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3697>`_, `#3788 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3788>`_, `#3802 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3802>`_, `#3816 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3816>`_, `#3855 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3855>`_, `#3858 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3858>`_, `#3859 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3859>`_, `#3860 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3860>`_, `#3867 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3867>`_, `#3868 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3868>`_, `#3871 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3871>`_, `#3875 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3875>`_, `#3876 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3876>`_, `#3877 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3877>`_, `#3881 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3881>`_, `#3882 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3882>`_, `#3883 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3883>`_, `#3889 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3889>`_, `#3890 <https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3890>`_
+
+
 Release 1.17.1 (2022-01-07)
 '''''''''''''''''''''''''''
 
