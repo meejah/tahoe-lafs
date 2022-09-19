@@ -82,6 +82,7 @@ def cleanup_pidfile(pidfile):
     try:
         pidfile.remove()
     except Exception as e:
+        import os; os.write(0, "remove fail: {}\n".format(e).encode("utf8"))
         raise CannotRemovePidFile(
             "Couldn't remove '{pidfile}': {err}.".format(
                 pidfile=pidfile.path,

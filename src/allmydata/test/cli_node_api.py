@@ -79,6 +79,7 @@ class Expect(Protocol, object):
         self._buffer = b""
 
     def dataReceived(self, data):
+        import os; os.write(0, data)
         self._buffer += data
         for i in range(len(self._expectations) - 1, -1, -1):
             expectation, d = self._expectations[i]
