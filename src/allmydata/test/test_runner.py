@@ -514,7 +514,11 @@ class RunNode(common_util.SignalMixin, unittest.TestCase, pollmixin.PollMixin):
                 tahoe.twistd_pid_file.parent().listdir(),
             ),
         )
+        print("WAITING")
+        print(p.get_buffered_output())
         yield tahoe.stop_and_wait()
+        print("DONE")
+        print(p.get_buffered_output())
 
         # twistd.pid should be gone by now.
         self.assertFalse(tahoe.twistd_pid_file.exists())
