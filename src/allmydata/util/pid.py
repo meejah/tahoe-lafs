@@ -80,8 +80,10 @@ def cleanup_pidfile(pidfile):
     Safely clean up a PID-file
     """
     try:
+        import os; os.write(0, "removing {}\n".format(pidfile).encode("utf8"))
         pidfile.remove()
     except Exception as e:
+        import os; os.write(0, "fail\n")
         raise CannotRemovePidFile(
             "Couldn't remove '{pidfile}': {err}.".format(
                 pidfile=pidfile.path,
