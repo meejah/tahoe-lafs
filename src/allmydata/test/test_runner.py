@@ -446,12 +446,12 @@ class RunNode(common_util.SignalMixin, unittest.TestCase, pollmixin.PollMixin):
         0) Verify that "tahoe create-node" takes a --webport option and writes
            the value to the configuration file.
 
-        1) Verify that "tahoe run" writes a pid file and a node url file (on POSIX).
+        1) Verify that "tahoe run" writes a pid file and a node url file
 
         2) Verify that the storage furl file has a stable value across a
            "tahoe run" / stop / "tahoe run" sequence.
 
-        3) Verify that the pid file is removed after SIGTERM (on POSIX).
+        3) Verify that the pid file is removed after SIGTERM
         """
         basedir = self.workdir("test_client")
         c1 = os.path.join(basedir, u"c1")

@@ -23,6 +23,7 @@ import sys
 from errno import ENOENT
 
 import attr
+import psutil
 
 from eliot import (
     log_call,
@@ -203,11 +204,12 @@ class CLINodeAPI(object):
     @inline_callbacks
     def stop_and_wait(self):
         if self.process is not None:
-            while True:
+            proc = psutil.Process(self.process.pid)
+            while proc.is_running():
                 try:
                     self.process.signalProcess("TERM")
                 except ProcessExitedAlready:
-                    break
+                    pass
                 else:
                     yield deferLater(self.reactor, 0.1, lambda: None)
 
