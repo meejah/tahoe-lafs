@@ -204,6 +204,8 @@ class CLINodeAPI(object):
     @inline_callbacks
     def stop_and_wait(self):
         if self.process is not None:
+            if self.process.pid is None:
+                return
             proc = psutil.Process(self.process.pid)
             while proc.is_running():
                 try:
