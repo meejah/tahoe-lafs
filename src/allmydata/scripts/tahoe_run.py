@@ -271,7 +271,7 @@ def run(reactor, config, runApp=twistd.runApp):
         return 1
     else:
         reactor.addSystemEventTrigger(
-            "during", "shutdown",
+            "before", "shutdown",
             lambda: cleanup_pidfile(pidfile)
         )
 
