@@ -79,6 +79,7 @@ def cleanup_pidfile(pidfile):
     """
     Safely clean up a PID-file
     """
+    print("RM", pidfile, pidfile.exists())
     try:
         pidfile.remove()
     except Exception as e:

@@ -270,8 +270,9 @@ def run(reactor, config, runApp=twistd.runApp):
         print("ERROR: {}".format(e), file=err)
         return 1
     else:
+        print("ADDING CLEANUP", reactor)
         reactor.addSystemEventTrigger(
-            "before", "shutdown",
+            "after", "shutdown",
             lambda: cleanup_pidfile(pidfile)
         )
 
