@@ -177,38 +177,29 @@ class _MagicTextProtocol(ProcessProtocol):
             sys.stdout.write(self.name + line + "\n")
 
 
-def _cleanup_process_async(transport: IProcessTransport, allow_missing: bool) -> None:
+def _cleanup_process_async(transport: IProcessTransport) -> None:
     """
     If the given process transport seems to still be associated with a
     running process, send a SIGTERM to that process.
 
     :param transport: The transport to use.
 
-    :param allow_missing: If ``True`` then it is not an error for the
-        transport to have no associated process.  Otherwise, an exception will
-        be raised in that case.
-
     :raise: ``ValueError`` if ``allow_missing`` is ``False`` and the transport
         has no process.
     """
     if transport.pid is None:
-        if allow_missing:
-            print("Process already cleaned up and that's okay.")
-            return
-        else:
-            raise ValueError("Process is not running")
+        print("Process already cleaned up and that's okay.")
+        return
     print("signaling {} with TERM".format(transport.pid))
     try:
         transport.signalProcess('TERM')
     except ProcessExitedAlready:
         # The transport object thought it still had a process but the real OS
         # process has already exited.  That's fine.  We accomplished what we
-        # wanted to.  We don't care about ``allow_missing`` here because
-        # there's no way we could have known the real OS process already
-        # exited.
+        # wanted to.
         pass
 
-def _cleanup_tahoe_process(tahoe_transport, exited, allow_missing=False):
+def _cleanup_tahoe_process(tahoe_transport, exited):
     """
     Terminate the given process with a kill signal (SIGTERM on POSIX,
     TerminateProcess on Windows).
@@ -219,7 +210,7 @@ def _cleanup_tahoe_process(tahoe_transport, exited, allow_missing=False):
     :return: After the process has exited.
     """
     from twisted.internet import reactor
-    _cleanup_process_async(tahoe_transport, allow_missing=allow_missing)
+    _cleanup_process_async(tahoe_transport)
     print(f"signaled, blocking on exit {exited}")
     block_with_timeout(exited, reactor)
     print("exited, goodbye")
@@ -295,7 +286,7 @@ class TahoeProcess(object):
         Does nothing if the process is already stopped (or never started).
         """
         print(f"TahoeProcess.kill_async({self.transport.pid} / {self.node_dir})")
-        _cleanup_process_async(self.transport, allow_missing=False)
+        _cleanup_process_async(self.transport)
         return self.transport.exited
 
     def restart_async(self, reactor: IReactorProcess, request: Any) -> Deferred:
