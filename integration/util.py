@@ -188,6 +188,10 @@ def _cleanup_process_async(transport: IProcessTransport) -> None:
         has no process.
     """
     if transport.pid is None:
+        # in cases of "restart", we will have registered a finalizer
+        # that will kill the process -- but already explicitly killed
+        # it (and then ran again) due to the "restart". So, if the
+        # process is already killed, our job is done.
         print("Process already cleaned up and that's okay.")
         return
     print("signaling {} with TERM".format(transport.pid))
