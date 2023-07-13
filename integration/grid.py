@@ -174,7 +174,6 @@ class StorageServer(object):
         yield self.protocol.exited
         self.process = yield _run_node(
             reactor, self.process.node_dir, request, None,
-            finalize=False,
         )
         self.protocol = self.process.transport.proto
         yield await_client_ready(self.process)
@@ -231,7 +230,6 @@ class Client(object):
         yield self.protocol.exited
         process = yield _run_node(
             reactor, self.process.node_dir, request, None,
-            finalize=False,
         )
         self.process = process
         self.protocol = self.process.transport.proto
