@@ -282,13 +282,17 @@ class TahoeProcess(object):
         )
 
     def kill(self):
-        """Kill the process, block until it's done."""
+        """
+        Kill the process, block until it's done.
+        Does nothing if the process is already stopped (or never started).
+        """
         print(f"TahoeProcess.kill({self.transport.pid} / {self.node_dir})")
         _cleanup_tahoe_process(self.transport, self.transport.exited)
 
     def kill_async(self):
         """
         Kill the process, return a Deferred that fires when it's done.
+        Does nothing if the process is already stopped (or never started).
         """
         print(f"TahoeProcess.kill_async({self.transport.pid} / {self.node_dir})")
         _cleanup_process_async(self.transport, allow_missing=False)
