@@ -297,7 +297,7 @@ class TahoeProcess(object):
             handle requests.
         """
         d = self.kill_async()
-        d.addCallback(lambda ignored: _run_node(reactor, self.node_dir, request, None, finalize=False))
+        d.addCallback(lambda ignored: _run_node(reactor, self.node_dir, request, None))
         def got_new_process(proc):
             # Grab the new transport since the one we had before is no longer
             # valid after the stop/start cycle.
@@ -309,7 +309,7 @@ class TahoeProcess(object):
         return "<TahoeProcess in '{}'>".format(self._node_dir)
 
 
-def _run_node(reactor, node_dir, request, magic_text, finalize=True):
+def _run_node(reactor, node_dir, request, magic_text):
     """
     Run a tahoe process from its node_dir.
 
@@ -338,8 +338,7 @@ def _run_node(reactor, node_dir, request, magic_text, finalize=True):
         node_dir,
     )
 
-    if finalize:
-        request.addfinalizer(tahoe_process.kill)
+    request.addfinalizer(tahoe_process.kill)
 
     d = protocol.magic_seen
     d.addCallback(lambda ignored: tahoe_process)
@@ -381,8 +380,7 @@ def _create_node(reactor, request, temp_dir, introducer_furl, flog_gatherer, nam
                  magic_text=None,
                  needed=2,
                  happy=3,
-                 total=4,
-                 finalize=True):
+                 total=4):
     """
     Helper to create a single node, run it and return the instance
     spawnProcess returned (ITransport)
@@ -422,7 +420,7 @@ def _create_node(reactor, request, temp_dir, introducer_furl, flog_gatherer, nam
     d = Deferred()
     d.callback(None)
     d.addCallback(lambda _: created_d)
-    d.addCallback(lambda _: _run_node(reactor, node_dir, request, magic_text, finalize=finalize))
+    d.addCallback(lambda _: _run_node(reactor, node_dir, request, magic_text))
     return d
 
 
