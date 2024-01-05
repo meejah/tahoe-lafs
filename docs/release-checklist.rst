@@ -69,9 +69,9 @@ Create Branch and Apply Updates
 Create a branch, update the changelog (remember we're in our clean checkout)::
 
     git checkout -b ${TICKET}.prepare-release-${VERSION}
-    tox -e news
+    .venv/bin/tox -e news
     git commit -m "produce NEWS"
-    nano newsfragments/${TICKET}.minor
+    echo Release ${TICKET} > newsfragments/${TICKET}.minor
     git add newsfragments/${TICKET}.minor
     git commit -m "changelog for ${VERSION}"
 
