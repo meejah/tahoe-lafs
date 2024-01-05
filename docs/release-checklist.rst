@@ -3,24 +3,21 @@
 Release Checklist
 =================
 
-This release checklist specifies a series of checks that anyone engaged in 
-releasing a version of Tahoe should follow.
+This release checklist specifies a series of checks that anyone engaged in releasing a version of Tahoe should follow.
 
-Any contributor can do the first part of the release preparation. Only
-certain contributors can perform other parts. These are the two main
-sections of this checklist (and could be done by different people).
+Any contributor can do the first part of the release preparation.
+Only certain contributors can perform other parts.
+These are the two main sections of this checklist (and could be done by different people).
 
 A final section describes how to announce the release.
 
-This checklist is based on the original instructions (in old revisions in the file
-`docs/how_to_make_a_tahoe-lafs_release.org`).
+This checklist is based on the original instructions (in old revisions in the file `docs/how_to_make_a_tahoe-lafs_release.org`).
 
 
 Any Contributor
 ===============
 
-Anyone who can create normal PRs should be able to complete this
-portion of the release process.
+Anyone who can create normal PRs should be able to complete this portion of the release process.
 
 
 Prepare for the Release
@@ -28,45 +25,55 @@ Prepare for the Release
 
 The `master` branch should always be releasable.
 
-It may be worth asking (on IRC or mailing-ist) if anything will be
-merged imminently (for example, "I will prepare a release this coming
-Tuesday if you want to get anything in").
+It may be worth asking (on IRC or mailing-ist) if anything will be merged imminently (for example, "I will prepare a release this coming Tuesday if you want to get anything in").
 
 - Create a ticket for the release in Trac
 - Ticket number needed in next section
 - Making first release? See `GPG Setup Instructions <gpg-setup.rst>`__ to make sure you can sign releases. [One time setup]
 
+
+Following These Instructions
+````````````````````````````
+
+To ease the work of following these instructions, it should be possible to copy/paste each and every step directly into a running Bash shell.
+This is stateful: the same shell should be used throughout the process.
+These instructions assume you've gone through from start to finish, running each command in the same shell.
+Any automation should follow the manual method as closely as possible (easier to audit, debug, etc)
+
+We use some environment variables to make following along easier:
+
+- The release we're making::
+
+    export VERSION=1.19.0
+    export TICKET=4076
+
+
 Get a clean checkout
 ````````````````````
 
-The release proccess involves compressing source files and putting them in formats 
-suitable for distribution such as ``.tar.gz`` and ``zip``. That said, it's neccesary to 
-the release process begins with a clean checkout to avoid making a release with
-previously generated files.
+The release proccess involves compressing source files and putting them in formats suitable for distribution such as ``.tar.gz`` and ``zip``.
+To ensure no excess files make it into tarballs it is neccesary to begin with a clean checkout.
 
-- Inside the tahoe root dir run ``git clone . ../tahoe-release-x.x.x`` where (x.x.x is the release number such as 1.16.0). 
+Create a clean checkout at the same level as our current working copy and install dependencies::
 
-.. note:: 
-     The above command would create a new directory at the same level as your original clone named ``tahoe-release-x.x.x``. You can name this folder however you want but it would be a good 
-     practice to give it the release name. You MAY also discard this directory once the release
-     process is complete.
-
-Get into the release directory and install dependencies by running 
-
-- cd ../tahoe-release-x.x.x (assuming you are still in your original clone)
-- python -m venv venv
-- ./venv/bin/pip install --editable .[test]
+    git clone . ../tahoe-release-${VERSION}
+    cd ../tahoe-release-${VERSION}
+    python -m venv venv
+    ./venv/bin/pip install --editable .[test]
+    ./venv/bin/pip install --editable .[build]
 
 
 Create Branch and Apply Updates
 ```````````````````````````````
 
-- Create a branch for the release/candidate (e.g. ``XXXX.release-1.16.0``)
-- run tox -e news to produce a new NEWS.txt file (this does a commit)
-- create the news for the release
+Create a branch, update the changelog (remember we're in our clean checkout)::
 
-  - newsfragments/<ticket number>.minor
-  - commit it
+    git checkout -b ${TICKET}.prepare-release-${VERSION}
+    tox -e news
+    git commit -m "produce NEWS"
+    nano newsfragments/${TICKET}.minor
+    git add newsfragments/${TICKET}.minor
+    git commit -m "changelog for ${VERSION}"
 
 - manually fix NEWS.txt
 
@@ -89,10 +96,7 @@ Create Branch and Apply Updates
 
 - update "docs/known_issues.rst" if appropriate
 - Push the branch to github
-- Create a (draft) PR; this should trigger CI (note that github
-  doesn't let you create a PR without some changes on the branch so
-  running + committing the NEWS.txt file achieves that without changing
-  any code)
+- Create a (draft) PR; this should trigger CI (note that github doesn't let you create a PR without some changes on the branch so running + committing the NEWS.txt file achieves that without changing any code)
 - Confirm CI runs successfully on all platforms
 
 
