@@ -169,6 +169,18 @@ dependencies = [
     "pywin32 != 226;sys_platform=='win32'"
 ]
 
+
+[project.scripts]
+tahoe = "allmydata.scripts.runner:run"
+grid-manager = "allmydata.cli.grid_manager:grid_manager"
+
+
+[project.urls]
+Homepage = "https://tahoe-lafs.org/"
+Documentation = "https://tahoe-lafs.readthedocs.org/"
+"Source code" = "https://github.com/tahoe-lafs/tahoe-lafs/"
+
+
 [project.optional-dependencies]
 tor = [
     # 23.5 added support for custom TLS contexts in web_agent(), which is
@@ -228,17 +240,6 @@ test = [
     "tahoe-lafs[tor]",  # our own "tor" extra
     "tahoe-lafs[i2p]"  # our own "i2p" extra
 ]
-
-
-[project.scripts]
-tahoe = "allmydata.scripts.runner:run"
-grid-manager = "allmydata.cli.grid_manager:grid_manager"
-
-
-[project.urls]
-Homepage = "https://tahoe-lafs.org/"
-Documentation = "https://tahoe-lafs.readthedocs.org/"
-"Source code" = "https://github.com/tahoe-lafs/tahoe-lafs/"
 
 
 
